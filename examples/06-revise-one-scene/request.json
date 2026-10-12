@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "caseId": "E06",
+  "runner": "pnpm demo",
+  "caseSource": "scripts/demo.ts:E06",
+  "usesPaidProvider": false,
+  "description": "修改镜头、样式、配音；提供的新词锚点跟随新时长"
+}

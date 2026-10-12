@@ -1,0 +1,10 @@
+CREATE TABLE IF NOT EXISTS schema_migrations(version integer PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS accounts(id text PRIMARY KEY, name text NOT NULL, balance_cents bigint NOT NULL CHECK(balance_cents >= 0), reserved_cents bigint NOT NULL DEFAULT 0 CHECK(reserved_cents >= 0 AND reserved_cents <= balance_cents));
+CREATE TABLE IF NOT EXISTS api_keys(id text PRIMARY KEY, account_id text NOT NULL REFERENCES accounts(id), digest text UNIQUE NOT NULL, name text NOT NULL, scopes jsonb NOT NULL, budget_cents bigint NOT NULL CHECK(budget_cents >= 0), spent_cents bigint NOT NULL DEFAULT 0, reserved_cents bigint NOT NULL DEFAULT 0, revoked boolean NOT NULL DEFAULT false, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE IF NOT EXISTS entities(id text PRIMARY KEY, account_id text NOT NULL REFERENCES accounts(id), type text NOT NULL, data jsonb NOT NULL);
+CREATE INDEX IF NOT EXISTS entities_owner_type ON entities(account_id,type);
+CREATE INDEX IF NOT EXISTS jobs_status ON entities((data->>'status')) WHERE type='job';
+CREATE TABLE IF NOT EXISTS job_dedup(account_id text NOT NULL REFERENCES accounts(id), idempotency_key text NOT NULL, fingerprint text NOT NULL, job_id text NOT NULL REFERENCES entities(id), PRIMARY KEY(account_id,idempotency_key));
+CREATE TABLE IF NOT EXISTS ledger(id text PRIMARY KEY, account_id text NOT NULL REFERENCES accounts(id), job_id text NOT NULL, kind text NOT NULL, amount_cents bigint NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), UNIQUE(job_id,kind));
+CREATE TABLE IF NOT EXISTS outbox(job_id text PRIMARY KEY REFERENCES entities(id), dispatched boolean NOT NULL DEFAULT false);
+INSERT INTO schema_migrations(version) VALUES(1) ON CONFLICT DO NOTHING;

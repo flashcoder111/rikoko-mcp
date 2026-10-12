@@ -1,0 +1,203 @@
+import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { z } from "zod";
+import { AppError, type Operation } from "../../contracts/src/index.js";
+import { cloudOrigin } from "../../cloud-client/src/http.js";
+import {
+  FalProvider,
+  type Model,
+  type MediaProvider,
+  type Ticket,
+} from "./index.js";
+import { ReplicateProvider } from "./replicate.js";
+
+const identifier = z.string().regex(/^[a-zA-Z0-9_-]{1,120}$/);
+const envName = z.string().regex(/^[A-Z][A-Z0-9_]{0,100}$/);
+const originSchema = z.string().refine((s) => {
+  try {
+    cloudOrigin(s);
+    return true;
+  } catch {
+    return false;
+  }
+}, "Expected HTTPS origin");
+const templatesSchema = z
+  .union([z.literal(false), z.object({ url: originSchema }).strict()])
+  .optional();
+export const modelSchema = z
+  .object({
+    id: z.string().min(1).max(120),
+    name: z.string().min(1).max(100).optional(),
+    description: z.string().max(300).optional(),
+    endpoint: z
+      .string()
+      .regex(/^[a-zA-Z0-9_./-]+$/)
+      .refine((s) => !s.includes("..")),
+    kind: z.enum(["image", "video", "audio", "analysis", "translation"]),
+    category: z.enum(["speech", "music", "sound"]).optional(),
+    maxCostCents: z.number().int().positive().max(1000000),
+    creditPriceCents: z.number().int().positive().max(1000000).optional(),
+    priceVersion: z.string().min(1).max(200),
+    hardBoundConfirmed: z.boolean(),
+    parameters: z.record(z.string(), z.json()),
+    promptField: z.string().regex(/^\w+$/).optional(),
+    assetField: z.string().regex(/^\w+$/).optional(),
+    responseField: z.string().regex(/^\w+$/).optional(),
+  })
+  .strict();
+const connectionSchema = z
+  .object({
+    id: identifier,
+    adapter: z.enum(["fal", "replicate"]),
+    keyEnv: envName,
+    enabled: z.boolean().default(false),
+    models: z.array(modelSchema).min(1).max(100),
+  })
+  .strict();
+const schema = z.discriminatedUnion("mode", [
+  z
+    .object({
+      schemaVersion: z.literal(1),
+      mode: z.literal("official"),
+      templates: templatesSchema,
+      official: z
+        .object({
+          url: z.string().refine((s) => {
+            try {
+              cloudOrigin(s);
+              return true;
+            } catch {
+              return false;
+            }
+          }, "Expected HTTPS origin"),
+          keyEnv: envName,
+        })
+        .strict(),
+    })
+    .strict(),
+  z
+    .object({
+      schemaVersion: z.literal(1),
+      mode: z.literal("custom"),
+      templates: templatesSchema,
+      providers: z.array(connectionSchema).max(20),
+    })
+    .strict(),
+]);
+export type ModelConfig = z.infer<typeof schema>;
+export function parseModelConfig(raw: unknown): ModelConfig {
+  const config = schema.parse(raw);
+  if (config.mode === "custom") {
+    const ids = new Set<string>(),
+      models = new Set<string>();
+    for (const connection of config.providers) {
+      if (ids.has(connection.id))
+        throw new AppError(
+          "INVALID_PROVIDER_CONFIG",
+          "Duplicate connection id",
+        );
+      ids.add(connection.id);
+      for (const model of connection.models) {
+        if (models.has(model.id))
+          throw new AppError("INVALID_PROVIDER_CONFIG", "Duplicate model id");
+        models.add(model.id);
+      }
+    }
+  }
+  return config;
+}
+export async function loadModelConfig(path: string) {
+  return parseModelConfig(JSON.parse(await readFile(path, "utf8")));
+}
+export class ProviderRegistry implements MediaProvider {
+  constructor(
+    private connections: {
+      id: string;
+      version: string;
+      provider: MediaProvider;
+    }[],
+  ) {}
+  get models(): Model[] {
+    return this.connections.flatMap((c) => c.provider.models);
+  }
+  describe() {
+    return this.connections.flatMap((c) => c.provider.describe());
+  }
+  private forInput(input: Operation) {
+    const connection = this.connections.find((c) =>
+      c.provider.models.some((m) => "model" in input && m.id === input.model),
+    );
+    if (!connection)
+      throw new AppError("CAPABILITY_UNAVAILABLE", "模型未配置或不可用", 409);
+    return connection;
+  }
+  private forTicket(ticket: Ticket) {
+    const connection = this.connections.find(
+      (c) => c.id === ticket.connectionId,
+    );
+    if (!connection || connection.version !== ticket.connectionVersion)
+      throw new AppError(
+        "PROVIDER_CONFIG_CHANGED",
+        "任务的模型连接已变化，请恢复原配置后查询；不会重新购买",
+        409,
+      );
+    return connection;
+  }
+  validate(input: Operation) {
+    return this.forInput(input).provider.validate(input);
+  }
+  estimate(input: Operation) {
+    const c = this.forInput(input),
+      price = c.provider.estimate(input);
+    return { ...price, priceVersion: `${price.priceVersion}:${c.version}` };
+  }
+  async submit(input: Operation, assetUrl?: string) {
+    const c = this.forInput(input);
+    return {
+      ...(await c.provider.submit(input, assetUrl)),
+      connectionId: c.id,
+      connectionVersion: c.version,
+    };
+  }
+  async poll(ticket: Ticket) {
+    return this.forTicket(ticket).provider.poll(ticket);
+  }
+  async cancel(ticket: Ticket) {
+    return this.forTicket(ticket).provider.cancel(ticket);
+  }
+  async collect(ticket: Ticket, input: Operation) {
+    const c = this.forTicket(ticket);
+    if (this.forInput(input) !== c)
+      throw new AppError(
+        "PROVIDER_CONFIG_CHANGED",
+        "Model connection mismatch",
+        409,
+      );
+    return c.provider.collect(ticket, input);
+  }
+}
+export function buildProviders(
+  config: ModelConfig,
+  env: NodeJS.ProcessEnv = process.env,
+  fetcher: typeof fetch = fetch,
+) {
+  return new ProviderRegistry(
+    config.mode === "official"
+      ? []
+      : config.providers.map((c) => {
+          const key = env[c.keyEnv];
+          const version = createHash("sha256")
+            .update(JSON.stringify(c))
+            .update(key ?? "")
+            .digest("hex");
+          return {
+            id: c.id,
+            version,
+            provider:
+              c.adapter === "fal"
+                ? new FalProvider(c.models, key, c.enabled, fetcher)
+                : new ReplicateProvider(c.models, key, c.enabled, fetcher),
+          };
+        }),
+  );
+}

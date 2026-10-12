@@ -1,0 +1,40 @@
+.api-billing-history {
+  margin: 24px 0;
+  padding: 24px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 16px;
+}
+.api-billing-history h2 {
+  font-size: 18px;
+  margin: 0 0 16px;
+}
+.api-billing-history ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.api-billing-history li {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 0;
+  border-top: 1px solid var(--border, #e5e7eb);
+}
+.api-billing-history small {
+  display: block;
+  margin-top: 6px;
+  color: #667085;
+}
+.api-billing-history strong,
+.api-billing-history span {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 600px) {
+  .api-billing-history {
+    padding: 16px;
+  }
+  .api-billing-history li {
+    flex-direction: column;
+    gap: 8px;
+  }
+}

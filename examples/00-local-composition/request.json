@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "caseId": "E00",
+  "runner": "pnpm demo",
+  "caseSource": "scripts/demo.ts:E00",
+  "usesPaidProvider": false,
+  "description": "原创图形、文字与音调组成真实 MP4"
+}

@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "source": "../../fixtures/manifest.json",
+  "mediaHashes": "written into actual Asset records and run evidence",
+  "bundledMedia": []
+}

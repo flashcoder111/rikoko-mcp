@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "mode": "custom",
+  "providers": [
+    {
+      "id": "my-fal",
+      "adapter": "fal",
+      "keyEnv": "MY_FAL_KEY",
+      "enabled": false,
+      "models": [
+        {
+          "id": "nano-banana-image",
+          "name": "Nano Banana 2 · 图片",
+          "description": "示例档案：启用前核对参数和费用",
+          "endpoint": "fal-ai/nano-banana-2",
+          "kind": "image",
+          "maxCostCents": 100,
+          "priceVersion": "EXAMPLE-REPLACE-AFTER-PRICING-REVIEW",
+          "hardBoundConfirmed": false,
+          "parameters": {
+            "num_images": 1,
+            "aspect_ratio": "16:9",
+            "resolution": "1K",
+            "output_format": "png"
+          },
+          "promptField": "prompt"
+        },
+        {
+          "id": "minimax-video",
+          "name": "MiniMax H3 · 视频",
+          "description": "示例档案：启用前核对参数和费用",
+          "endpoint": "minimax/h3/text-to-video",
+          "kind": "video",
+          "maxCostCents": 100,
+          "priceVersion": "EXAMPLE-REPLACE-AFTER-PRICING-REVIEW",
+          "hardBoundConfirmed": false,
+          "parameters": {
+            "duration": 5,
+            "resolution": "768P",
+            "aspect_ratio": "16:9",
+            "prompt_expansion_mode": "disabled",
+            "enable_safety_checker": true
+          },
+          "promptField": "prompt"
+        },
+        {
+          "id": "elevenlabs-voice",
+          "name": "ElevenLabs · 配音",
+          "description": "示例档案：启用前核对参数和费用",
+          "endpoint": "fal-ai/elevenlabs/tts/eleven-v3",
+          "kind": "audio",
+          "maxCostCents": 100,
+          "priceVersion": "EXAMPLE-REPLACE-AFTER-PRICING-REVIEW",
+          "hardBoundConfirmed": false,
+          "parameters": {
+            "voice": "Rachel"
+          },
+          "promptField": "text",
+          "category": "speech"
+        }
+      ]
+    },
+    {
+      "id": "my-replicate",
+      "adapter": "replicate",
+      "keyEnv": "MY_REPLICATE_TOKEN",
+      "enabled": false,
+      "models": [
+        {
+          "id": "flux-image",
+          "name": "FLUX Schnell · 图片",
+          "description": "示例档案：启用前核对参数和费用",
+          "endpoint": "black-forest-labs/flux-schnell",
+          "kind": "image",
+          "maxCostCents": 100,
+          "priceVersion": "EXAMPLE-REPLACE-AFTER-PRICING-REVIEW",
+          "hardBoundConfirmed": false,
+          "parameters": {
+            "num_outputs": 1,
+            "aspect_ratio": "16:9",
+            "output_format": "png"
+          },
+          "promptField": "prompt"
+        }
+      ]
+    }
+  ],
+  "templates": {
+    "url": "https://templates.example.com"
+  }
+}

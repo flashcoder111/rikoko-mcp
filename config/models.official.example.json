@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "mode": "official",
+  "official": {
+    "url": "https://api.example.com",
+    "keyEnv": "HYPIT_OFFICIAL_KEY"
+  },
+  "templates": {
+    "url": "https://templates.example.com"
+  }
+}

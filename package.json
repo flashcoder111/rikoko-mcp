@@ -1,0 +1,60 @@
+{
+  "name": "video-workbench",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.28.2",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "dev": "tsx apps/server/src/index.ts",
+    "worker": "tsx apps/worker/src/index.ts",
+    "stdio": "tsx packages/mcp/src/stdio.ts",
+    "clients": "tsx scripts/clients.ts",
+    "service": "tsx scripts/service.ts",
+    "keys": "tsx scripts/keys.ts",
+    "demo": "tsx scripts/demo.ts",
+    "build": "tsc --noEmit && vite build --config apps/studio/vite.config.ts && vite build --config apps/mcp-card/vite.config.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:media": "uv run --project python python -m unittest discover -s tests -p '*_test.py'"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "3.1149.0",
+    "@aws-sdk/s3-request-presigner": "3.1149.0",
+    "@electric-sql/pglite": "0.5.8",
+    "@fontsource/ibm-plex-sans": "^5.3.0",
+    "@hono/node-server": "2.1.4",
+    "@modelcontextprotocol/client": "2.3.1",
+    "@modelcontextprotocol/ext-apps": "2.0.3",
+    "@modelcontextprotocol/hono": "2.0.2",
+    "@modelcontextprotocol/server": "2.3.1",
+    "hono": "4.13.13",
+    "ipaddr.js": "2.5.0",
+    "lucide-react": "^1.55.0",
+    "pg": "8.23.1",
+    "pg-boss": "12.37.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.0",
+    "@types/node": "26.6.5",
+    "@types/pg": "8.23.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "@vitest/coverage-v8": "5.0.3",
+    "happy-dom": "^20.14.6",
+    "prettier": "3.9.9",
+    "smol-toml": "^1.9.1",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vite": "8.3.4",
+    "vitest": "5.0.3",
+    "yaml": "^2.9.1"
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "caseId": "E07",
+  "runner": "pnpm demo",
+  "caseSource": "scripts/demo.ts:E07",
+  "usesPaidProvider": false,
+  "description": "三个开头与手工中文译文，中文声音为新系统合成"
+}

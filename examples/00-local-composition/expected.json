@@ -1,0 +1,7 @@
+{
+  "caseId": "E00",
+  "localExecution": "local-real",
+  "modelEvidence": "precomputed or not_run; see README",
+  "outputPrefix": "E00",
+  "fullProductAcceptance": "NOT_RUN"
+}

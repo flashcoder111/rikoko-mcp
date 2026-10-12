@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "caseId": "E03",
+  "runner": "pnpm demo",
+  "caseSource": "scripts/demo.ts:E03",
+  "usesPaidProvider": false,
+  "description": "显式时间选段、contain 画幅与源映射；没有 ASR 或人脸跟踪"
+}

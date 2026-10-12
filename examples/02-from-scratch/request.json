@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "caseId": "E02",
+  "runner": "pnpm demo",
+  "caseSource": "scripts/demo.ts:E02",
+  "usesPaidProvider": false,
+  "description": "原创模板编排；没有真实 AI 图片/视频生成"
+}

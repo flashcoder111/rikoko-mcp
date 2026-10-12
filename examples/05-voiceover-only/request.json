@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "caseId": "E05",
+  "runner": "pnpm demo",
+  "caseSource": "scripts/demo.ts:E05",
+  "usesPaidProvider": false,
+  "description": "系统安装的 en/zh TTS 真正合成音频"
+}

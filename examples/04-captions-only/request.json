@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "caseId": "E04",
+  "runner": "pnpm demo",
+  "caseSource": "scripts/demo.ts:E04",
+  "usesPaidProvider": false,
+  "description": "预置字幕真实烧录，复用原音频；不是 ASR"
+}

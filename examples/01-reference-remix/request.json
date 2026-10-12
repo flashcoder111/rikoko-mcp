@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "caseId": "E01",
+  "runner": "pnpm demo",
+  "caseSource": "scripts/demo.ts:E01",
+  "usesPaidProvider": false,
+  "description": "参考观察为预置数据；改编计划和本地渲染真实"
+}
