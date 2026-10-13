@@ -1,0 +1,6 @@
+{
+  "version": "0.1.0",
+  "downloadBaseUrl": "https://download.example.com/video-workbench",
+  "apiUrl": "https://api.example.com",
+  "templateUrl": "https://templates.example.com"
+}

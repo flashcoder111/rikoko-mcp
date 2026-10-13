@@ -38,12 +38,11 @@ try {
     createMcpServer((name, input) => connection.invoke(name, input), {
       client,
       files,
-      resourceOrigin: process.env.PUBLIC_BASE_URL ?? connection.base,
     }),
   );
 } catch {
   console.error(
-    "Hypit MCP could not start. Check the client credential, URL and directory configuration. Run pnpm clients doctor.",
+    "rikoko MCP could not start. Check the client credential, URL and directory configuration. Run pnpm clients doctor.",
   );
   process.exitCode = 1;
 }

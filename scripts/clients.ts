@@ -76,7 +76,7 @@ async function connectCheck() {
     env: { ...env, ...launch.env },
     stderr: "pipe",
   });
-  const test = new Client({ name: `hypit-${client}-doctor`, version: "1.0.0" });
+  const test = new Client({ name: `rikoko-${client}-doctor`, version: "1.0.0" });
   try {
     await test.connect(transport);
     const list = await test.listTools();
@@ -85,7 +85,14 @@ async function connectCheck() {
       arguments: {},
     });
     if (response.isError) throw Error("Backend capability check failed");
-    const resources = await test.listResources();
+    const resources = test.getServerCapabilities()?.resources
+      ? (await test.listResources()).resources
+      : [];
+    const hasEmbeddedUi =
+      list.tools.some(
+        (tool) => !!tool._meta?.ui || !!tool._meta?.["ui/resourceUri"],
+      ) || resources.some((resource) => resource.uri.startsWith("ui://"));
+    if (hasEmbeddedUi) throw Error("Unexpected embedded MCP UI");
     console.log(
       JSON.stringify(
         {
@@ -93,9 +100,8 @@ async function connectCheck() {
           protocol: "stdio",
           connected: true,
           tools: list.tools.map((t) => t.name),
-          inlineCardResource: resources.resources.some(
-            (r) => r.uri === "ui://video-workbench/result.html",
-          ),
+          interaction: "native-conversation-workspace-link",
+          inlineCardResource: false,
           paidTestExecuted: false,
         },
         null,
@@ -113,7 +119,7 @@ if (command === "config") {
     await connectCheck();
   } catch {
     console.error(
-      `Hypit ${client} connection failed. Check credential access and the running backend at ${base}.`,
+      `rikoko ${client} connection failed. Check credential access and the running backend at ${base}.`,
     );
     process.exitCode = 1;
   }
@@ -142,7 +148,7 @@ if (command === "config") {
       ).trim();
       const backend = new HostConnection(base, admin);
       const issued = (await backend.invoke("key_create", {
-        name: `Video Workbench ${client}`,
+        name: `rikoko ${client}`,
         scopes: ["read", "write"],
         budgetCents: 0,
       })) as { id: string; key: string };
@@ -170,7 +176,7 @@ if (command === "config") {
         (await readFile(join(root, ".data/local-admin.key"), "utf8")).trim();
       const backend = new HostConnection(base, admin);
       const issued = (await backend.invoke("key_create", {
-        name: `Hypit ${client}`,
+        name: `rikoko ${client}`,
         scopes: ["read", "write"],
         budgetCents: 0,
       })) as { id: string; key: string };

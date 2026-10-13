@@ -9,7 +9,7 @@ type Result = {
   revisionId?: string;
   media?: { mimeType: string; url: string; name: string }[];
 };
-const app = new App({ name: "Video Workbench", version: "0.2.0" }, {});
+const app = new App({ name: "rikoko", version: "0.2.0" }, {});
 const title = document.getElementById("title")!;
 const status = document.getElementById("status")!;
 const video = document.getElementById("video") as HTMLVideoElement;
@@ -181,7 +181,7 @@ refresh.addEventListener("click", async () => {
           content: [
             {
               type: "text",
-              text: `Hypit project ${current.projectId}, latest revision ${current.revisionId}, job ${current.jobId}. Read workspace_snapshot before editing.`,
+              text: `rikoko project ${current.projectId}, latest revision ${current.revisionId}, job ${current.jobId}. Read workspace_snapshot before editing.`,
             },
           ],
         })
@@ -202,7 +202,7 @@ refresh.addEventListener("click", async () => {
 followup.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!request.value.trim() || !current?.projectId) return;
-  const text = `继续修改 Hypit 作品 ${current.projectId}：${request.value.trim()}\n请先读取 workspace_snapshot 的最新版本，再执行修改并在当前对话返回媒体结果。`;
+  const text = `继续修改 rikoko 作品 ${current.projectId}：${request.value.trim()}\n请先读取 workspace_snapshot 的最新版本，再执行修改并在当前对话返回媒体结果。`;
   send.disabled = true;
   fallback.hidden = true;
   try {

@@ -212,7 +212,7 @@ export default function Generation({
     <article className="generation-turn">
       {prompt && <div className="user-bubble">{prompt}</div>}
       <div className="tool-label">
-        <Sparkles size={15} /> Hypit · {label} <ArrowUpRight size={13} />
+        <Sparkles size={15} /> rikoko · {label} <ArrowUpRight size={13} />
       </div>
       {job ? (
         <>

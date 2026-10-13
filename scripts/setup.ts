@@ -137,7 +137,7 @@ const created = await call("workspace_commit", {
     type: "create",
     composition: {
       schemaVersion: 1,
-      title: "Welcome to Video Workbench",
+      title: "Welcome to rikoko",
       width: 320,
       height: 180,
       scenes: [

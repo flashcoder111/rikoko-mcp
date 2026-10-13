@@ -79,23 +79,8 @@ it("discovers and calls tools through the real MCP v2 client", async () => {
   await client.connect(transport);
   const list = await client.listTools();
   expect(list.tools.some((t) => t.name === "job_submit")).toBe(true);
-  expect(
-    list.tools.find((t) => t.name === "workspace_commit")?._meta,
-  ).toMatchObject({ ui: { resourceUri: "ui://video-workbench/result.html" } });
-  const resources = await client.listResources();
-  expect(resources.resources).toContainEqual(
-    expect.objectContaining({
-      uri: "ui://video-workbench/result.html",
-      mimeType: "text/html;profile=mcp-app",
-    }),
-  );
-  const card = await client.readResource({
-    uri: "ui://video-workbench/result.html",
-  });
-  expect(card.contents[0]).toMatchObject({
-    mimeType: "text/html;profile=mcp-app",
-  });
-  expect(JSON.stringify(card.contents)).toContain("打开工作台");
+  expect(list.tools.every((t) => !t._meta)).toBe(true);
+  expect(client.getServerCapabilities()?.resources).toBeUndefined();
   const result = await client.callTool({
     name: "project_create",
     arguments: { title: "MCP real client" },
@@ -111,7 +96,7 @@ it("discovers and calls tools through the real MCP v2 client", async () => {
         type: "create",
         composition: {
           schemaVersion: 1,
-          title: "MCP card",
+          title: "Native conversation",
           width: 360,
           height: 640,
           language: "en",
@@ -122,6 +107,8 @@ it("discovers and calls tools through the real MCP v2 client", async () => {
   });
   expect(committed.isError).not.toBe(true);
   const command = (committed.structuredContent as any).result;
+  expect(command.conversation).toBeUndefined();
+  expect(JSON.stringify(committed.content)).toContain("[打开工作台]");
   const asset = await service.registerAsset(
     (await service.authenticate(key)).accountId,
     new Uint8Array([1]),
@@ -141,13 +128,23 @@ it("discovers and calls tools through the real MCP v2 client", async () => {
     name: "workspace_result",
     arguments: { jobId: command.jobId },
   });
-  expect(delivered.content).toContainEqual(
-    expect.objectContaining({
-      type: "resource_link",
-      name: "MCP output.mp4",
-      mimeType: "video/mp4",
-    }),
-  );
+  expect(delivered.content).toHaveLength(1);
+  expect(delivered.content[0].type).toBe("text");
+  const output = (delivered.structuredContent as any).result;
+  expect(output.workspace).toBe(command.workspace);
+  expect(output.media).toBeUndefined();
+  expect(output.conversation).toBeUndefined();
+  expect(output.outputs).toEqual([
+    { assetId: asset.id, name: "MCP output.mp4", mimeType: "video/mp4" },
+  ]);
+  expect(JSON.stringify(delivered)).not.toContain("/delivery/");
+  const snapshot = await client.callTool({
+    name: "workspace_snapshot",
+    arguments: { projectId: command.projectId },
+  });
+  expect((snapshot.structuredContent as any).result.links).toEqual({
+    workspace: command.workspace,
+  });
   await client.close();
 });
 it("blocks private IPv4, IPv6, mapped addresses and special ranges", () => {

@@ -66,7 +66,7 @@ export const tools = {
   },
   workspace_result: {
     description:
-      "Show live job status and return completed image/video/audio files directly to the conversation. On completion, issues one-hour revocable read-only media links for this job only; requires write scope. No render or paid generation is started. Supports an inline MCP App where the host supports Apps; otherwise return the supplied file URLs. Set PUBLIC_BASE_URL for remote/mobile access.",
+      "Read job status, output asset IDs and the optional workspace link. Reply in the original Agent conversation with a brief status and only the workspace link; never open an MCP App, browser or separate chat. Requires write scope for result access. Does not start rendering or paid generation. Use workspace_export only for explicitly requested file downloads or attachments. Set PUBLIC_BASE_URL for remote/mobile workspace access.",
     schema: z.object({ jobId: idSchema }),
   },
   delivery_revoke: {
@@ -86,7 +86,7 @@ export const tools = {
   },
   workspace_commit: {
     description:
-      "Create a video, apply structured edits, or restore a version, then queue a real local render. Chat and studio share this endpoint. Always pass a stable idempotencyKey; editing requires projectId and the current baseRevisionId. On REVISION_CONFLICT read workspace_snapshot and re-plan. Existing media is reused; this tool does not buy new generated footage. Returns project/revision/job IDs and studio/chat links. Call workspace_result with the returned jobId to deliver progress and media in the current conversation.",
+      "Create a video, apply structured edits, or restore a version, then queue a real local render. Chat and studio share this endpoint. Always pass a stable idempotencyKey; editing requires projectId and the current baseRevisionId. On REVISION_CONFLICT read workspace_snapshot and re-plan. Existing media is reused; this tool does not buy new generated footage. Returns project/revision/job IDs and a workspace link. Call workspace_result for progress. Keep the user in the original Agent conversation and offer only the workspace link; do not open a window or embed a player.",
     schema: commitSchema,
   },
   capabilities: {

@@ -1,4 +1,4 @@
-# 一行安装与官方 API 默认接入
+# rikoko 一行安装与官方 API 默认接入
 
 默认用户路径：运行官网给出的一行命令 → 下载并校验公开源码 → 准备依赖 → 预设官方 API/模板源 → 注册已安装的 Codex/Claude 客户端 → 导出一段免费样片。随后重载客户端 MCP 即可使用。无需另开终端保持 `pnpm dev` 运行。
 
@@ -8,7 +8,7 @@
 
 官网的一行命令下载版本对应的 `install.sh` 并交给 Bash 执行；该脚本内置本版本源码下载地址、SHA-256、官方 API 地址与模板源。用户无需填写 URL，也不在安装流程中选择供应商。
 
-默认识别现有 Codex、Claude Code 配置目录；macOS 也识别 Claude Desktop。可在命令末尾使用 `bash -s -- --client codex` 或 `bash -s -- --client claude-code` 指定目标。安装器保留其他 MCP 配置；遇到同名但不同来源的 `hypit` 条目时停止，不覆盖它。
+默认识别现有 Codex、Claude Code 配置目录；macOS 也识别 Claude Desktop。可在命令末尾使用 `bash -s -- --client codex` 或 `bash -s -- --client claude-code` 指定目标。安装器注册 rikoko MCP，当前沿用 `hypit` 配置键以兼容已有连接；保留其他 MCP 配置，遇到同名但不同来源的条目时停止，不覆盖它。
 
 首次交互安装可输入自己的官方用户 Key，输入不回显，也不进入命令历史；回车可跳过绑定，先使用本地编辑。Key 只向内置的官方 API origin 请求 `/v1/usage` 验证，禁止重定向；不会发起付费生成。没有公开注册/设备授权接口时，安装器不能凭空创建官方账户，官方地址已配置也不等于用户已经登录。
 

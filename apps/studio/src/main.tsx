@@ -455,7 +455,7 @@ function App() {
             navigate({ mode: "chat" });
           }}
         >
-          Hypit<span>Studio</span>
+          rikoko<span>Studio</span>
         </a>
         <button
           className="project-menu-button"

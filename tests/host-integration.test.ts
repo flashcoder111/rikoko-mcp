@@ -172,12 +172,13 @@ it("uploads actual bytes and exports through authenticated owned-asset endpoints
   await expect(files.materialize("../escape", [])).rejects.toThrow();
 });
 
-it("preserves media status and provides native delivery instructions without requiring web chat", () => {
+it("returns only a workspace link by default and exports attachments only when requested", () => {
   const result = {
     jobId: "job",
     projectId: "project",
     revisionId: "revision",
     status: "completed",
+    workspace: "http://127.0.0.1:4310/workspace?project=project",
     media: [
       {
         assetId: "asset",
@@ -188,10 +189,18 @@ it("preserves media status and provides native delivery instructions without req
       },
     ],
   };
-  expect(resultText(result, "codex")).toContain(
+  for (const client of ["codex", "hermes", "claude", "generic"] as const) {
+    const text = resultText(result, client);
+    expect(text).toContain(`[打开工作台](<${result.workspace}>)`);
+    expect(text).not.toContain("https://media.example/video");
+    expect(text).not.toContain("Local attachment:");
+    expect(text).not.toContain("![video]");
+    expect(text).not.toContain("MEDIA:");
+  }
+  expect(resultText(result, "codex", true)).toContain(
     "![video](</tmp/My Project/video.mp4>)",
   );
-  expect(resultText(result, "hermes")).toContain(
+  expect(resultText(result, "hermes", true)).toContain(
     "MEDIA:/tmp/My Project/video.mp4",
   );
   expect(resultText(result, "claude")).toContain("workspace_snapshot");

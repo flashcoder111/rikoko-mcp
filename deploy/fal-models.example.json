@@ -1,0 +1,12 @@
+[
+  {
+    "id": "configure-a-reviewed-model",
+    "endpoint": "fal-ai/REPLACE_WITH_VERIFIED_ENDPOINT",
+    "kind": "image",
+    "maxCostCents": 1,
+    "priceVersion": "REPLACE_WITH_VERIFIED_PRICING_VERSION",
+    "hardBoundConfirmed": false,
+    "parameters": {},
+    "promptField": "prompt"
+  }
+]

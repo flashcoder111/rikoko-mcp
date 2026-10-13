@@ -1224,7 +1224,7 @@ export default function LegacyApp() {
             </>
           )}
           <footer className="page-footer">
-            <span>VIDEO WORKBENCH</span>
+            <span>rikoko</span>
             <span>创作有版本，素材可复用。</span>
           </footer>
         </main>

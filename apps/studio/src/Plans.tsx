@@ -72,7 +72,7 @@ export default function Plans({
   return (
     <section className="plans-page" aria-label="官方综合套餐">
       <div className="plans-heading">
-        <span className="eyebrow">HYPIT API</span>
+        <span className="eyebrow">rikoko API</span>
         <h1>一个套餐，连接你的创作。</h1>
         <p>
           图片、视频、配音与音乐，共用官方 API 额度。

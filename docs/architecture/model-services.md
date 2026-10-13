@@ -69,7 +69,7 @@ HYPIT_CONFIG_FILE=config/models.local.json pnpm dev
 
 `config/plans.example.json` 默认没有套餐。单个条目需包含：`id`、`name`、`description`、`priceMinor`（售价最小货币单位）、`currency`（USD/CNY）、`allowanceCents`（API 额度美元分）、`features`（字符串数组）、`purchaseUrl`（真实 HTTPS 购买链接）。不配置时显示“暂未开放购买”，不填充虚构价格。
 
-**本次没有实现支付订单创建、支付回调、自动发放/续充、订阅周期或额度到期规则。**购买按钮跳转外部购买地址；原有 `pnpm cloud:account` 可在运维侧创建账户和设置初始额度。发布销售前需提供真实套餐与支付渠道，接入验签、幂等发放和账户关联。展示套餐目录不代表支付已开通。
+**本次没有实现支付订单创建、支付回调、自动发放/续充、订阅周期或额度到期规则。**购买按钮跳转外部购买地址；平台仓库中的 `pnpm cloud:account` 可在运维侧创建账户和设置初始额度。发布销售前需提供真实套餐与支付渠道，接入验签、幂等发放和账户关联。展示套餐目录不代表支付已开通。
 
 ## 验证
 

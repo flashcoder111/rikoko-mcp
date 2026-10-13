@@ -1,0 +1,48 @@
+services:
+  db:
+    image: postgres:17.9-bookworm
+    environment:
+      POSTGRES_USER: workbench
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      POSTGRES_DB: workbench
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U workbench"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  server:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    environment: &environment
+      DATABASE_URL: postgresql://workbench:${POSTGRES_PASSWORD}@db:5432/workbench
+      DATA_DIR: /data
+      HOST: 0.0.0.0
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      ENABLE_PAID_PROVIDERS: 'false'
+    volumes:
+      - media-data:/data
+    ports:
+      - "127.0.0.1:4310:4310"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+  worker:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    command: ["pnpm", "worker"]
+    environment: *environment
+    volumes:
+      - media-data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+volumes:
+  db-data:
+  media-data:

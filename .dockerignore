@@ -1,0 +1,17 @@
+**/node_modules
+**/.venv
+**/__pycache__
+**/dist
+.data
+.env*
+artifacts
+outputs
+research
+plans
+.git
+coverage
+
+.cloud-data
+deploy/cloud.env
+**/*.key
+**/*.key.admin

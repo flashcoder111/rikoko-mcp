@@ -17,3 +17,9 @@ deploy/cloud.env
 *.key
 *.key.admin
 config/*.local.json
+
+# Local working material and historical evidence are preserved outside source control.
+outputs/
+research/
+plans/
+*.log

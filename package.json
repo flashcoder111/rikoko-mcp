@@ -1,6 +1,6 @@
 {
-  "name": "video-workbench",
-  "version": "0.1.0",
+  "name": "rikoko",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.28.2",
@@ -12,14 +12,19 @@
     "worker": "tsx apps/worker/src/index.ts",
     "stdio": "tsx packages/mcp/src/stdio.ts",
     "clients": "tsx scripts/clients.ts",
-    "service": "tsx scripts/service.ts",
-    "keys": "tsx scripts/keys.ts",
-    "demo": "tsx scripts/demo.ts",
     "build": "tsc --noEmit && vite build --config apps/studio/vite.config.ts && vite build --config apps/mcp-card/vite.config.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:media": "uv run --project python python -m unittest discover -s tests -p '*_test.py'"
+    "test:media": "uv run --project python python -m unittest discover -s tests -p '*_test.py'",
+    "demo": "tsx scripts/demo.ts",
+    "verify": "tsx scripts/verify.ts",
+    "keys": "tsx scripts/keys.ts",
+    "format:check": "prettier --check 'apps/*/src/**/*.{ts,tsx,css}' 'packages/**/src/**/*.ts' 'scripts/**/*.ts' 'tests/**/*.ts' vitest.config.ts",
+    "export:public": "tsx scripts/export-public.ts",
+    "release:installer": "tsx scripts/build-installer.ts",
+    "service": "tsx scripts/service.ts",
+    "pack:runtime": "pnpm build && node scripts/pack-runtime.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1149.0",
@@ -38,7 +43,9 @@
     "pg-boss": "12.37.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "zod": "4.6.5"
+    "zod": "4.6.5",
+    "smol-toml": "^1.9.1",
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@playwright/test": "1.64.0",
@@ -50,11 +57,40 @@
     "@vitest/coverage-v8": "5.0.3",
     "happy-dom": "^20.14.6",
     "prettier": "3.9.9",
-    "smol-toml": "^1.9.1",
     "tsx": "4.23.15",
     "typescript": "7.0.2",
     "vite": "8.3.4",
-    "vitest": "5.0.3",
-    "yaml": "^2.9.1"
-  }
+    "vitest": "5.0.3"
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    "./bootstrap/*": "./packages/bootstrap/src/*.ts",
+    "./cloud-client/*": "./packages/cloud-client/src/*.ts",
+    "./contracts/*": "./packages/contracts/src/*.ts",
+    "./core/*": "./packages/core/src/*.ts",
+    "./db/*": "./packages/db/src/*.ts",
+    "./mcp/*": "./packages/mcp/src/*.ts",
+    "./providers/*": "./packages/providers/src/*.ts",
+    "./recipes/*": "./packages/recipes/src/*.ts",
+    "./render/*": "./packages/render/src/*.ts",
+    "./storage/*": "./packages/storage/src/*.ts",
+    "./templates/*": "./packages/templates/src/*.ts",
+    "./server/*": "./apps/server/src/*.ts",
+    "./worker/*": "./apps/worker/src/*.ts"
+  },
+  "files": [
+    "packages/*/src/**/*",
+    "packages/contracts/schemas/*.json",
+    "packages/db/migrations/*.sql",
+    "apps/server/src/**/*",
+    "apps/worker/src/**/*",
+    "apps/studio/dist/**/*",
+    "apps/mcp-card/dist/**/*",
+    "python/media_core/*.py",
+    "python/adapters/*.py",
+    "python/pyproject.toml",
+    "python/uv.lock",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
+  ]
 }

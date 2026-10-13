@@ -1,6 +1,6 @@
 # 对话与工作台共用一份作品
 
-2026-10-11。默认入口是 Codex / Hermes / Claude 原对话，可选编辑工作台、共享版本与媒体交付。网页聊天保留为独立使用和开发调试入口。实现范围不代表完整复刻 Pollo 或 Vizard，宿主之间也不保证完全相同的卡片 UI。
+2026-10-12 更新。默认入口是 Codex / Hermes / Claude 原对话。Agent 使用普通 MCP 工具，回复简短状态和一个工作台链接，用户主动点击后才打开工作台。MCP 不注册 Apps 资源、不带工具 UI 元数据、不自动嵌入播放器或打开网页。网页聊天保留为独立使用和开发调试入口。
 
 ## 用户入口
 
@@ -37,9 +37,9 @@ Codex、Hermes 和 Claude 使用各自的理解能力，直接传结构化动作
 }
 ```
 
-1. `workspace_commit` 接收上述动作，校验并持久化版本，排入真实本地合成任务，返回 projectId / revisionId / jobId 与两个界面链接。
-2. `workspace_result {jobId}` 返回实际状态/阶段。完成后返回 MP4、预览帧、字幕等结果文件，带 MIME、名称、一小时有效的受限媒体链接。
-3. stdio 桥接把已完成输出保存到宿主专用目录，返回本地路径：Codex 可使用本地媒体渲染，Hermes 使用当前会话的 MEDIA 附件。支持 MCP Apps 的宿主可以加载 `ui://video-workbench/result.html`，展示状态、媒体、同步最新版本、继续修改和可选工作台。卡片通过 Apps SDK 把修改要求发回原对话；能力不可用时提供复制文字。其他界面保留普通 JSON 与 resource_link，不承诺终端内播放。
+1. `workspace_commit` 接收上述动作，校验并持久化版本，排入真实本地合成任务。MCP 返回 projectId / revisionId / jobId 和工作台链接，不提供独立网页聊天入口。
+2. MCP 的 `workspace_result {jobId}` 返回实际状态/阶段、输出素材 ID 与工作台链接，只有普通文本和结构化数据，不返回媒体 `resource_link`，不触发本地附件导出。底层 HTTP 结果接口仍提供受限媒体链接供文件交付使用。
+3. 默认由 Agent 在原对话说明状态，并给出一个“打开工作台”链接；不调用浏览器打开工具。用户明确要求下载文件或附件时，才调用 stdio 的 `workspace_export`，保存输出到宿主目录并返回本地路径。Codex 媒体语法、Hermes 当前会话 MEDIA 附件仅用于这一步显式导出。
 4. 用户在工作台修改后，外部 Agent 再调用 `workspace_snapshot {projectId}` 获取当前版本和修改记录，再提交 edit action。网页不会冒充或嵌入原 Hermes 会话，也不保证宿主自动同步所有网页聊天内容。
 
 媒体链接只允许读取该任务的输出，不包含 API Key。`delivery_revoke {grantId}`、一小时到期或原 Key 撤销会使链接失效。重调 workspace_result 可续取新链接，不重渲染。结果链接相当于短时只读权限，应只交给该用户的对话。HTTP 视频读取支持单字节范围请求。
@@ -71,6 +71,6 @@ CREATIVE_AGENT_KEY=your-server-only-key
 
 ## 手机和远程部署
 
-设定可达的 `PUBLIC_BASE_URL=https://video.example.com`、相应 ALLOWED_HOSTS 和 HTTPS 反向代理。PUBLIC_BASE_URL 同时用于工作台、结果文件、卡片媒体域及浏览器 Origin 校验。显式配置 HTTPS 时，即使代理到内部 HTTP，浏览器会话仍使用 Secure Cookie；不会盲目信任客户端提供的 X-Forwarded-*。保留外部 Host。当前本机 127.0.0.1 地址不能让另一台手机直接访问。
+设定可达的 `PUBLIC_BASE_URL=https://video.example.com`、相应 ALLOWED_HOSTS 和 HTTPS 反向代理。PUBLIC_BASE_URL 同时用于工作台、结果文件及浏览器 Origin 校验。显式配置 HTTPS 时，即使代理到内部 HTTP，浏览器会话仍使用 Secure Cookie；不会盲目信任客户端提供的 X-Forwarded-*。保留外部 Host。当前本机 127.0.0.1 地址不能让另一台手机直接访问。
 
-运行 `pnpm build` 同时打包 Studio 与 MCP 结果卡片。真实宿主的 Apps 能力、附件接收、平台原生媒体回传仍要逐个验收；不支持 Apps 的宿主仍有普通工具和文件路径。安装、激活与各宿主能力边界见 [客户端配置](../../examples/clients/README.md)。
+当前构建仍包含历史卡片代码，但运行中的 MCP 不注册或引用它。从旧版升级后，重启后端并重载宿主 MCP，以刷新缓存的工具声明；旧历史卡片不会被删除。真实宿主的工具授权界面、链接打开和显式附件接收仍需逐端验证。安装与激活见 [客户端配置](../../examples/clients/README.md)。

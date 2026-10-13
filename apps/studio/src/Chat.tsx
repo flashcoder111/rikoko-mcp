@@ -152,7 +152,7 @@ export default function Chat(props: ChatProps) {
         {current && !props.embedded && (
           <article className="conversation-result">
             <div className="tool-label">
-              <Sparkles size={15} /> Hypit · 视频结果 <ArrowUpRight size={13} />
+              <Sparkles size={15} /> rikoko · 视频结果 <ArrowUpRight size={13} />
             </div>
             <div className="result-heading">
               <div>

@@ -46,7 +46,7 @@ export async function hostCredential(env: NodeJS.ProcessEnv = process.env) {
     }
   }
   throw new Error(
-    "Hypit credential unavailable. Run the client installer, or set VIDEOWORKBENCH_API_KEY in the host's secret environment.",
+    "rikoko credential unavailable. Run the client installer, or set VIDEOWORKBENCH_API_KEY in the host's secret environment.",
   );
 }
 

@@ -12,4 +12,4 @@ if (!input || !["start", "restart", "stop"].includes(action))
 const file = resolve(input);
 if (action === "stop" || action === "restart") await stopBackend(file);
 if (action !== "stop")
-  console.log(`Video Workbench: ${(await ensureBackend(file)).url}`);
+  console.log(`rikoko: ${(await ensureBackend(file)).url}`);

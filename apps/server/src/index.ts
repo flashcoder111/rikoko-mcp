@@ -54,13 +54,13 @@ try {
   worker = process.env.DATABASE_URL ? undefined : new Worker(runtime.service);
   running = worker?.loop();
   console.error(
-    `Video Workbench: http://${process.env.HOST ?? "127.0.0.1"}:${(server.address() as { port: number }).port}`,
+    `rikoko: http://${process.env.HOST ?? "127.0.0.1"}:${(server.address() as { port: number }).port}`,
   );
   process.on("SIGTERM", () => void shutdown());
   process.on("SIGINT", () => void shutdown());
 } catch (error) {
   console.error(
-    "Video Workbench startup failed:",
+    "rikoko startup failed:",
     (error as NodeJS.ErrnoException).code ?? "CONFIGURATION_ERROR",
   );
   server.close();

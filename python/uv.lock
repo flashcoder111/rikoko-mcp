@@ -156,7 +156,7 @@ wheels = [
 ]
 
 [[package]]
-name = "video-workbench-media"
+name = "rikoko-media"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

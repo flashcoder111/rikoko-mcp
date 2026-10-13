@@ -1,6 +1,8 @@
-# Codex / Hermes / Claude 对话接入
+# rikoko MCP：Codex / Hermes / Claude 对话接入
 
-默认使用宿主原有对话：Agent 理解要求、调用 MCP、返回媒体、继续修改。网页 `/` 保留独立使用和开发调试；用户选择手动剪辑时才打开 `/workspace`。三个客户端共享同一后端账户下的项目、素材、任务与版本，不复制对话或另建项目。
+视频创作 MCP 的产品名称统一为 **rikoko**。下文出现的 `hypit` 配置键和 `hypit_*` prompt 标识仅用于兼容已有连接，不作为产品名称使用。
+
+默认使用宿主原有对话：Agent 理解要求、调用普通 MCP 工具、回复状态和一个工作台链接，用户继续在原对话提出修改。**不自动弹出 MCP 窗口，不嵌入卡片播放器，也不另开网页对话。** 用户主动点击“打开工作台”时才进入 `/workspace` 预览、剪辑或导出。网页 `/` 保留独立使用和开发调试；多个客户端共享同一后端账户下的项目、素材、任务与版本。
 
 ## 安装和激活
 
@@ -21,7 +23,7 @@ macOS 安装器为每端签发 read/write、付费预算为 0 的独立 Key，�
 | 客户端                                    | 配置位置                                                          | 激活方式                                      |
 | ----------------------------------------- | ----------------------------------------------------------------- | --------------------------------------------- |
 | Codex app / CLI                           | `~/.codex/config.toml`，`mcp_servers.hypit`                       | 在 MCP 设置中重启连接，或重新启动客户端       |
-| Claude Desktop（本安装器支持 macOS 路径） | `~/Library/Application Support/Claude/claude_desktop_config.json` | 登录后重启应用，在开发者/连接器设置确认 Hypit |
+| Claude Desktop（本安装器支持 macOS 路径） | `~/Library/Application Support/Claude/claude_desktop_config.json` | 登录后重启应用，在开发者/连接器设置确认 rikoko（配置名 `hypit`） |
 | Claude Code                               | `~/.claude.json`，`mcpServers.hypit`                              | 重启或在 `/mcp` 检查连接                      |
 | Hermes                                    | `~/.hermes/config.yaml`，`mcp_servers.hypit`                      | `/reload-mcp` 或重启 Hermes                   |
 
@@ -34,36 +36,38 @@ pnpm clients doctor claude-code
 pnpm clients doctor hermes
 ```
 
-doctor 启动真实 stdio 子进程，检查初始化、工具发现、capabilities 与卡片资源声明，不购买生成任务，也不代替宿主界面验收。查看可移植模板：`pnpm clients config <客户端>`。不要把当前 Mac 的路径直接复制到远程 Hermes。
+doctor 启动真实 stdio 子进程，检查初始化、工具发现、capabilities，并确认没有声明嵌入式 MCP UI。成功输出包含 `interaction: "native-conversation-workspace-link"` 和 `inlineCardResource: false`。它不购买生成任务，也不代替宿主界面验收。查看可移植模板：`pnpm clients config <客户端>`。不要把当前 Mac 的路径直接复制到远程 Hermes。
+
+从旧卡片版本更新后，重启后端并在 Agent 中重载 MCP 连接，让宿主重新读取工具声明。已展示的旧卡片可能保留在历史消息中；新的调用使用普通工具结果。
 
 ## Hermes 运行在服务器时
 
 在 Hermes 所在机器部署连接器及 Node 依赖。后端可同机运行，也可设置 `VIDEOWORKBENCH_URL=https://你的服务域名`。通过该机器的秘密环境注入 `VIDEOWORKBENCH_API_KEY`；非 macOS 安装器不会持久化明文凭据。环境变量必须由启动 Hermes 的进程继承；Hermes 的秘密环境文件可使用其官方 `${VAR}` / `${env:VAR}` 机制引用，勿在共享配置中填入真实 Key。
 
-本地 stdio 桥接将结果写入 Hermes 主机的 `VIDEOWORKBENCH_EXPORT_DIR`，模型在**当前会话**使用 `MEDIA:/绝对路径/video.mp4` 返回附件。不得选择其他收件人。配置 `HERMES_MEDIA_DELIVERY_STRICT=1` 的部署需将这个导出目录加入 `HERMES_MEDIA_ALLOW_DIRS`；Docker 部署还要保证 Agent 与网关能访问同一媒体路径。Telegram、飞书等平台的实际发送限制仍需逐平台验证。
+默认只在 Hermes 原对话回复状态和工作台链接。用户明确要求下载或发送附件时，Agent 才调用 `workspace_export`，stdio 桥接将结果写入 Hermes 主机的 `VIDEOWORKBENCH_EXPORT_DIR`，并在**当前会话**使用 `MEDIA:/绝对路径/video.mp4` 返回附件。不得选择其他收件人。配置 `HERMES_MEDIA_DELIVERY_STRICT=1` 的部署需将这个导出目录加入 `HERMES_MEDIA_ALLOW_DIRS`；Docker 部署还要保证 Agent 与网关能访问同一媒体路径。Telegram、飞书等平台的实际发送限制仍需逐平台验证。
 
 ## 对话中的使用
 
-可直接说：“使用 Hypit，根据这些素材做一段视频，结果留在当前对话。”也提供 `hypit_create`、`hypit_resume` 两个 MCP prompt。
+可直接说：“使用 rikoko，根据这些素材做一段视频。在当前对话告诉我进度，完成后只给我工作台链接。”也提供 `hypit_create`、`hypit_resume` 两个 MCP prompt。
 
 1. `capabilities` 查看真实可用能力。宿主 Agent 直接准备 composition 或编辑动作；`workspace_plan` 可选，无需额外配置网页创作模型。
 2. 本地附件通过 `asset_import_file` 上传实际文件。默认仅允许工程的 `media-inbox/` 和 `artifacts/`；需传素材许可及 `rightsConfirmed: true`。自有附件放入 `media-inbox/`，或由操作者用 `VIDEOWORKBENCH_IMPORT_ROOTS` JSON 数组配置专用附件目录。连接器不能自动读取宿主未提供的附件，也不开放整个用户主目录。
-3. `workspace_commit` 创建/编辑，使用稳定 `idempotencyKey`；`workspace_result` 查询并交付。重试查询不再次提交生成。
-4. stdio 连接器将已完成媒体保存到本机 `.data/host-media/<客户端>/`，返回 `localPath`、MIME 和限时 URL。Codex 可用本地媒体渲染；Hermes 可用当前会话的 MEDIA 附件；Claude 在支持 MCP Apps 的界面可加载内联播放器。Claude Code/不支持卡片的界面保留文件和链接路径，不能承诺终端内播放视频。
-5. 卡片提供进度、媒体、同步最新版本、继续修改和可选工作台。继续修改用 Apps SDK `sendMessage` 交回原对话；宿主不支持时提供可复制文字，不假装已执行。
+3. `workspace_commit` 创建/编辑，使用稳定 `idempotencyKey`；`workspace_result` 查询状态。重试查询不再次提交生成。
+4. MCP 默认仅返回普通文本与结构化状态/素材 ID/工作台链接，不返回媒体 `resource_link`，不自动保存本地附件，不声明 `ui.resourceUri` 或 HTML 资源。Agent 回复简短状态和 `[打开工作台](...)`。
+5. 用户继续使用宿主原有输入框修改；需要预览或精修时自行点击链接。Agent 不调用浏览器打开工具，也不要求用户切到网页聊天。工作台首次打开仍需连接自己的工作空间。
 6. 从工作台返回或切换 Agent 后，先 `workspace_snapshot {projectId}`，再用当前 `baseRevisionId` 提交修改。旧版本冲突应重新读取，不覆盖更新。
 
-`workspace_export {jobId}` 可重试本地附件保存，不重渲染。每个导出/导入文件上限 100 MiB。仅通过认证的后端资产端点读取输出，下载时不跟随供应商或返回值里的任意 URL。导出目录权限 0700、文件 0600。
+仅当用户明确要求文件或附件时调用 `workspace_export {jobId}`，将结果保存到本机 `.data/host-media/<客户端>/` 或指定目录；它可重试保存，不重渲染。每个导出/导入文件上限 100 MiB。仅通过认证的后端资产端点读取输出，下载时不跟随供应商或返回值里的任意 URL。导出目录权限 0700、文件 0600。
 
 付费生成仍要求报价、用户确认价格、供应商启用和足够预算。自有供应商不要求官方额度。安装器默认零付费预算不会让普通剪辑误触发购买。本地演示使用合成素材，不发起付费生成。
 
 ## 手机、远程与能力边界
 
-手机用户可通过 Hermes 的聊天渠道完成普通创作；手动剪辑时使用工作台。手机工作台及远程卡片需要可达的 HTTPS `PUBLIC_BASE_URL`，不是本机 `127.0.0.1`。浏览器工作台首次仍需同账户 Key 建立会话；公众账号/OAuth 尚未实现。
+手机用户可通过 Hermes 的聊天渠道完成普通创作；手动剪辑时点击工作台链接。手机和远程工作台需要可达的 HTTPS `PUBLIC_BASE_URL`，不是本机 `127.0.0.1`。浏览器工作台首次仍需同账户 Key 建立会话；公众账号/OAuth 尚未实现。
 
-Streamable HTTP 端点为 `/mcp`，用 Bearer Key 认证。它不暴露客户端本地文件读写工具；需要本机附件交付的客户端应使用 stdio 桥接。后端使用反向代理时，桥接进程的 `PUBLIC_BASE_URL` 应与后端一致，以设置卡片媒体 CSP。
+Streamable HTTP 端点为 `/mcp`，用 Bearer Key 认证。HTTP 与 stdio 都不声明嵌入式 UI。HTTP 不暴露客户端本地文件读写工具；需要明确下载到本机的客户端应使用 stdio 桥接。后端的 `PUBLIC_BASE_URL` 决定返回的工作台地址。
 
-双模式契约见 [对话与工作台](../../docs/architecture/dual-mode.md)。支持标准 MCP 工具不等于每个宿主具有相同的内联 UI 能力，实际界面需按所用客户端版本验证。
+双模式契约见 [对话与工作台](../../docs/architecture/dual-mode.md)。宿主自身的工具调用详情、权限确认和链接打开方式仍由客户端决定；本项目不再请求 MCP Apps 界面。
 
 ## 官方依据
 
@@ -72,4 +76,3 @@ Streamable HTTP 端点为 `/mcp`，用 Bearer Key 认证。它不暴露客户端
 - [Claude Desktop 本地 MCP](https://support.claude.com/en/articles/10949351-getting-started-with-local-mcp-servers-on-claude-desktop)
 - [Hermes MCP 配置](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/reference/mcp-config-reference.md)
 - [Hermes 原生媒体路径处理](https://github.com/NousResearch/hermes-agent/blob/main/gateway/platforms/base.py)
-- [MCP Apps 宿主能力](https://modelcontextprotocol.io/extensions/apps/overview)

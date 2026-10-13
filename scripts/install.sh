@@ -70,7 +70,7 @@ writeFileSync(join(process.argv[3], 'release.json'), JSON.stringify(r));
 writeFileSync(join(process.argv[3], 'archive-url'), r.archiveUrl);
 JS
   vwb_archive=$(cat "$vwb_tmp/archive-url")
-  echo "Downloading Video Workbench…"
+  echo "Downloading rikoko…"
   vwb_download "$vwb_archive" "$vwb_tmp/source.tar.gz"
   "$vwb_node" --input-type=module - "$vwb_tmp" "$vwb_home" <<'JS'
 import { readFileSync, writeFileSync, mkdirSync, existsSync, renameSync } from 'node:fs';
