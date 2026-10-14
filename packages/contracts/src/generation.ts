@@ -111,7 +111,11 @@ export const generationInputSchema = z
     const required = (role: string) =>
       profile.bindings.some(
         (b) =>
-          b.roles.includes(role as GenerationReference["role"]) && b.min > 0,
+          b.roles.length === 1 &&
+          b.roles[0] === role &&
+          !b.array &&
+          b.min === 1 &&
+          b.max === 1,
       );
     if (
       profile.mode === "image_edit" &&

@@ -21,7 +21,9 @@ import {
   parseModelConfig,
 } from "../packages/providers/src/config.js";
 
-const downloaded = vi.hoisted(() => ({ bytes: new Uint8Array() as Uint8Array }));
+const downloaded = vi.hoisted(() => ({
+  bytes: new Uint8Array() as Uint8Array,
+}));
 vi.mock("../packages/storage/src/download.js", () => ({
   downloadPublic: async () => downloaded.bytes,
 }));
@@ -127,9 +129,11 @@ beforeEach(async () => {
     }
     return String(url).endsWith("status")
       ? Response.json({ status: "COMPLETED" })
-      : Response.json(requests.at(-1)?.image_url || requests.at(-1)?.video_urls
-        ? { video: { url: "https://media.fal.media/fixture.mp4" } }
-        : { images: [{ url: "https://media.fal.media/fixture.png" }] });
+      : Response.json(
+          requests.at(-1)?.image_url || requests.at(-1)?.video_urls
+            ? { video: { url: "https://media.fal.media/fixture.mp4" } }
+            : { images: [{ url: "https://media.fal.media/fixture.png" }] },
+        );
   });
   service = new Service(
     db,
@@ -556,51 +560,135 @@ it("blocks local asset references at the official gateway instead of dropping th
 it("completes reviewed image-to-video, maps its result back to the shot and renders locally", async () => {
   const plan = await prepare();
   const accepted = await review(plan);
-  const q = await invoke("reference_storyboard_quote", { storyboardId: plan.id, expectedVersion: accepted.version, sourceShotId: "s1", stage: "video", model: "minimax-i2v" });
-  const generated = await media({ command: "render", workDir: dir, assets: {}, composition: compositionSchema.parse({ schemaVersion: 1, title: "Simulated provider video", width: 144, height: 144, scenes: [{ id: "new", durationMs: 5000, color: "#bb5522" }] }) });
+  const q = await invoke("reference_storyboard_quote", {
+    storyboardId: plan.id,
+    expectedVersion: accepted.version,
+    sourceShotId: "s1",
+    stage: "video",
+    model: "minimax-i2v",
+  });
+  const generated = await media({
+    command: "render",
+    workDir: dir,
+    assets: {},
+    composition: compositionSchema.parse({
+      schemaVersion: 1,
+      title: "Simulated provider video",
+      width: 144,
+      height: 144,
+      scenes: [{ id: "new", durationMs: 5000, color: "#bb5522" }],
+    }),
+  });
   downloaded.bytes = await readFile(generated.output);
-  const job = await service.submit(c, { quoteId: q.quote.id, input: q.input, idempotencyKey: "video-step" });
+  const job = await service.submit(c, {
+    quoteId: q.quote.id,
+    input: q.input,
+    idempotencyKey: "video-step",
+  });
   await new Worker(service).tick();
   const done = await service.get(c, "job", job.id);
   expect(done.status).toBe("completed");
   expect(requests[0].image_url).toMatch(/^data:image\/png;base64,/);
-  const adapted = await callTool(service, c, "reference_adapt", { analysisAssetId: analysis.id, title: "Remade", width: 144, height: 144, replacements: [{ sourceShotId: "s1", assetId: done.outputs[0] }] });
+  const adapted = await callTool(service, c, "reference_adapt", {
+    analysisAssetId: analysis.id,
+    title: "Remade",
+    width: 144,
+    height: 144,
+    replacements: [{ sourceShotId: "s1", assetId: done.outputs[0] }],
+  });
   const renderInput = { kind: "render", composition: adapted.composition };
   const renderQuote = await service.quote(c, renderInput);
-  const renderJob = await service.submit(c, { quoteId: renderQuote.id, input: renderInput, idempotencyKey: "render-step" });
+  const renderJob = await service.submit(c, {
+    quoteId: renderQuote.id,
+    input: renderInput,
+    idempotencyKey: "render-step",
+  });
   await new Worker(service).tick();
   const final = await service.get(c, "job", renderJob.id);
   expect(final.status).toBe("completed");
-  expect((await service.get(c, "asset", final.outputs[0])).metadata.durationMs).toBe(2500);
+  expect(
+    (await service.get(c, "asset", final.outputs[0])).metadata.durationMs,
+  ).toBe(2500);
 });
 
 it("honors an explicit target duration and caches repeated local preparation", async () => {
-  const input = { idempotencyKey: "stable-storyboard", shots: [{ sourceShotId: "s1", durationMs: 7000 }] };
+  const input = {
+    idempotencyKey: "stable-storyboard",
+    shots: [{ sourceShotId: "s1", durationMs: 7000 }],
+  };
   const plan = await prepare(input);
   expect(plan.shots[0].durationMs).toBe(7000);
   expect((await prepare(input)).id).toBe(plan.id);
-  await expect(prepare({ ...input, brief: "changed" })).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
+  await expect(prepare({ ...input, brief: "changed" })).rejects.toMatchObject({
+    code: "IDEMPOTENCY_CONFLICT",
+  });
 });
 
 it("rechecks revoked approval and changed reference bytes before a queued purchase reaches the provider", async () => {
   const plan = await prepare();
   const accepted = await review(plan);
-  const q = await invoke("reference_storyboard_quote", { storyboardId: plan.id, expectedVersion: accepted.version, sourceShotId: "s1", stage: "video", model: "minimax-i2v" });
-  const job = await service.submit(c, { quoteId: q.quote.id, input: q.input, idempotencyKey: "revoked" });
+  const q = await invoke("reference_storyboard_quote", {
+    storyboardId: plan.id,
+    expectedVersion: accepted.version,
+    sourceShotId: "s1",
+    stage: "video",
+    model: "minimax-i2v",
+  });
+  const job = await service.submit(c, {
+    quoteId: q.quote.id,
+    input: q.input,
+    idempotencyKey: "revoked",
+  });
   await review(accepted, { decision: "rejected" });
   await new Worker(service).tick();
-  expect((await service.get(c, "job", job.id)).error.code).toBe("STORYBOARD_CONFLICT");
+  expect((await service.get(c, "job", job.id)).error.code).toBe(
+    "STORYBOARD_CONFLICT",
+  );
   expect(requests).toHaveLength(0);
-  const imageQ = await invoke("reference_storyboard_quote", { storyboardId: plan.id, expectedVersion: 3, sourceShotId: "s1", stage: "image", model: "edit" });
-  const imageJob = await service.submit(c, { quoteId: imageQ.quote.id, input: imageQ.input, idempotencyKey: "corrupt" });
+  const imageQ = await invoke("reference_storyboard_quote", {
+    storyboardId: plan.id,
+    expectedVersion: 3,
+    sourceShotId: "s1",
+    stage: "image",
+    model: "edit",
+  });
+  const imageJob = await service.submit(c, {
+    quoteId: imageQ.quote.id,
+    input: imageQ.input,
+    idempotencyKey: "corrupt",
+  });
   const asset = await service.get(c, "asset", plan.shots[0].frame.assetId);
   await service.storage.put(asset.storageKey, Buffer.from("changed"));
   await new Worker(service).tick();
-  expect((await service.get(c, "job", imageJob.id)).error.code).toBe("REFERENCE_CHANGED");
+  expect((await service.get(c, "job", imageJob.id)).error.code).toBe(
+    "REFERENCE_CHANGED",
+  );
   expect(requests).toHaveLength(0);
 });
 
 it("requires distinct endpoint bindings for first and last frames", async () => {
-  const p = { ...videoProfile, generationInput: { ...videoProfile.generationInput!, mode: "first_last_frame", bindings: [{ ...videoProfile.generationInput!.bindings[0], roles: ["first_frame", "last_frame"], array: true, max: 2 }] } };
-  expect(() => parseModelConfig({ schemaVersion: 1, mode: "custom", providers: [{ id: "p", adapter: "fal", keyEnv: "KEY", enabled: false, models: [p] }] })).toThrow();
+  const p = {
+    ...videoProfile,
+    generationInput: {
+      ...videoProfile.generationInput!,
+      mode: "first_last_frame",
+      bindings: [
+        {
+          ...videoProfile.generationInput!.bindings[0],
+          roles: ["first_frame", "last_frame"],
+          array: true,
+          max: 2,
+        },
+      ],
+    },
+  };
+  expect(() =>
+    parseModelConfig({
+      schemaVersion: 1,
+      mode: "custom",
+      providers: [
+        { id: "p", adapter: "fal", keyEnv: "KEY", enabled: false, models: [p] },
+      ],
+    }),
+  ).toThrow();
 });

@@ -33,6 +33,7 @@ const prepareSchema = z
         z
           .object({
             sourceShotId: idSchema,
+            durationMs: z.number().int().min(100).max(600000).optional(),
             frameTimeMs: z.number().int().min(0).optional(),
             motionRange: z
               .object({
@@ -208,7 +209,7 @@ export async function callStoryboardTool(
         sourceShotId: shot.id,
         sourceStartMs: shot.startMs,
         sourceEndMs: shot.endMs,
-        durationMs: shot.endMs - shot.startMs,
+        durationMs: selection.durationMs ?? shot.endMs - shot.startMs,
         frameTimeMs,
         motionRange: selection.motionRange,
         imagePrompt,

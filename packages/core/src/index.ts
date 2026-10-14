@@ -526,7 +526,7 @@ export class Service {
         validateGenerationAssets(this.provider.validate(input), input, assets);
         if (
           !this.storage.providerUrl &&
-          this.provider.referenceDelivery?.(input) === "signed_url"
+          this.provider.referenceDelivery?.(input) !== "data_uri"
         )
           throw new AppError(
             "CAPABILITY_UNAVAILABLE",

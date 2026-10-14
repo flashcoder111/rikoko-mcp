@@ -50,6 +50,7 @@ export async function extractReferenceMedia(
       );
   }
   const dir = await mkdtemp(join(tmpdir(), "rikoko-reference-"));
+  const signal = AbortSignal.timeout(50000);
   try {
     const path = join(dir, "source");
     const bytes = await service.storage.read(source.storageKey);
@@ -103,16 +104,16 @@ export async function extractReferenceMedia(
                 : ["-map", "0:v:0", "-frames:v", "1", "-vf", scale]),
               output,
             ],
-            { timeout: 45000, maxBuffer: 1024 * 1024 },
+            { timeout: 45000, maxBuffer: 1024 * 1024, signal },
           );
         } catch {
           throw new AppError(
             "MEDIA_FAILED",
-            "Reference extraction failed or timed out; no paid generation was started",
+            "Reference extraction failed or timed out; retry with fewer shots. No paid generation was started",
           );
         }
         const metadata = probeSchema.parse(
-          (await media({ command: "probe", path: output })).metadata,
+          (await media({ command: "probe", path: output }, signal)).metadata,
         );
         const asset = await service.registerAsset(
           c.accountId,
