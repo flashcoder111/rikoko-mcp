@@ -5,7 +5,7 @@
 ## 发布内容与代码
 
 - MCP 功能提交：`6eaf901033dc20c4a06060516dba8cd4b258c43e`，已推送 `origin/main`。包含素材追问、请求恢复、原对话媒体与文字交付，以及已验收的模板、素材库和安装配置更新；此前 18 个本地提交一并推送。
-- 平台运行时升级提交：`0ebfb4900e0f3c26ebadcbf131b6f580b5a32fbb`，位于独立的 `rikoko-platform` 仓库。该仓库没有配置远程，已完成本地提交并用该提交部署服务器。
+- 平台运行时升级提交：`0ebfb4900e0f3c26ebadcbf131b6f580b5a32fbb`，位于独立的 `rikoko-platform` 仓库，服务器使用该提交部署。首次部署时尚未配置远程；同日获用户明确授权后，已创建私有仓库 [flashcoder111/rikoko-platform](https://github.com/flashcoder111/rikoko-platform)，并将已有本地 `main` 首次推送为远程 `main`。未创建其他分支。
 - 平台使用固定版本 `vendor/rikoko-0.1.2.tgz`，未跨仓库复制共享源文件。包内 143 个文件，SHA-256：`7b6ae1b2ae8a685a50edf414d7a3f5ef7bf8d6e2bf8b34375b8aea049df43087`。
 
 ## 检查结果
