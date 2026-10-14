@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { Database } from "../packages/db/src/index.js";
@@ -9,6 +9,8 @@ import {
   buildProviders,
   parseModelConfig,
 } from "../packages/providers/src/config.js";
+import { media } from "../packages/render/src/media.js";
+import { compositionSchema } from "../packages/contracts/src/index.js";
 import { Worker } from "../apps/worker/src/worker.js";
 import { callTool } from "../packages/mcp/src/tools.js";
 import {
@@ -360,4 +362,138 @@ it("validates video bounds before billing and rejects forged structured referenc
   expect(
     referenceContentSchema.safeParse({ ...content(), shots: [] }).success,
   ).toBe(false);
+});
+
+it("defaults to a compact overview and paginates evidence without losing source identity", async () => {
+  const job = await enqueue();
+  await new Worker(svc).tick();
+  const done = await svc.get(c, "job", job.id);
+  const overview = await callTool(svc, c, "reference_analysis_get", {
+    analysisAssetId: done.outputs[0],
+  });
+  expect(overview.shots).toBeUndefined();
+  expect(overview.counts.shots).toBe(2);
+  const page = await callTool(svc, c, "reference_analysis_get", {
+    analysisAssetId: done.outputs[0],
+    section: "evidence",
+    limit: 1,
+  });
+  expect(page.items.map((e: any) => e.id)).toEqual(["e1"]);
+  expect(page.nextOffset).toBe(1);
+});
+it("rejects invented speech in a source that has no audio track", async () => {
+  const value = content();
+  response = {
+    ...value,
+    speech: [
+      {
+        startMs: 0,
+        endMs: 1000,
+        text: "Buy now",
+        speaker: "narrator",
+        evidenceIds: ["e1"],
+      },
+    ],
+  };
+  const job = await enqueue();
+  await new Worker(svc).tick();
+  expect(await svc.get(c, "job", job.id)).toMatchObject({
+    status: "failed",
+    error: { code: "PROVIDER_RESULT_INVALID" },
+  });
+});
+it("resumes failed result retrieval using its original ticket and refuses implicit source footage reuse", async () => {
+  response = { invalid: true };
+  const job = await enqueue();
+  await new Worker(svc).tick();
+  expect((await svc.get(c, "job", job.id)).status).toBe("failed");
+  response = content();
+  await svc.resume(c, job.id);
+  await new Worker(svc).tick();
+  const done = await svc.get(c, "job", job.id);
+  expect(done.status).toBe("completed");
+  expect(submissions).toBe(1);
+  await expect(
+    callTool(svc, c, "reference_adapt", {
+      analysisAssetId: done.outputs[0],
+      title: "Unsafe reuse",
+      replacements: [{ sourceShotId: "shot1", assetId: source.id }],
+    }),
+  ).rejects.toMatchObject({ code: "REFERENCE_REUSE_REQUIRED" });
+  const project = await svc.createProject(c, { title: "Structured remake" });
+  const plan = await callTool(svc, c, "plan_create", {
+    projectId: project.id,
+    recipe: {
+      mode: "reference-remix",
+      title: "Remake",
+      analysisAssetId: done.outputs[0],
+      referenceAssetId: source.id,
+    },
+  });
+  expect(plan.planningMethod).toBe("reference-shot-mapping");
+  expect(plan.composition.scenes).toHaveLength(2);
+  expect(
+    (await svc.get(c, "revision", plan.revisionId)).composition.scenes,
+  ).toHaveLength(2);
+});
+
+it("measures a real video cut and renders a composition adapted from the mocked analysis", async () => {
+  const rendered = await media({
+    command: "render",
+    workDir: dir,
+    assets: {},
+    composition: compositionSchema.parse({
+      schemaVersion: 1,
+      title: "Real source",
+      width: 144,
+      height: 144,
+      scenes: [
+        { id: "a", color: "#0000ff", durationMs: 1000, text: "" },
+        { id: "b", color: "#ffffff", durationMs: 1500, text: "" },
+      ],
+    }),
+  });
+  source = await svc.registerAsset(
+    c.accountId,
+    await readFile(rendered.output),
+    {
+      name: "real-reference.mp4",
+      kind: "video",
+      mime: "video/mp4",
+      metadata: rendered.metadata,
+      provenance: { evidence: "local-real" },
+    },
+  );
+  const job = await enqueue();
+  await new Worker(svc).tick();
+  const done = await svc.get(c, "job", job.id);
+  expect(done.status).toBe("completed");
+  const report = await callTool(svc, c, "reference_analysis_get", {
+    analysisAssetId: done.outputs[0],
+  });
+  expect(report.measurements.status).toBe("measured");
+  expect(
+    report.measurements.cutTimesMs.some((t: number) => Math.abs(t - 1000) < 50),
+  ).toBe(true);
+  const plan = await callTool(svc, c, "reference_adapt", {
+    analysisAssetId: done.outputs[0],
+    title: "Reused reference",
+    width: 144,
+    height: 144,
+    reuseReference: true,
+  });
+  expect(plan.generationRequired).toEqual([]);
+  const input = { kind: "render", composition: plan.composition };
+  const quote = await svc.quote(c, input);
+  const renderJob = await svc.submit(c, {
+    quoteId: quote.id,
+    input,
+    idempotencyKey: "reference-local-render",
+  });
+  await new Worker(svc).tick();
+  const final = await svc.get(c, "job", renderJob.id);
+  expect(final.status).toBe("completed");
+  const video = await svc.get(c, "asset", final.outputs[0]);
+  expect(video.metadata.durationMs).toBe(2500);
+  expect(video.bytes).toBeGreaterThan(0);
 });
