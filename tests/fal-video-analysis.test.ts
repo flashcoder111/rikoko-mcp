@@ -316,3 +316,11 @@ it("runs quote → upload → restart → report → adaptation through the conf
   ).toHaveLength(1);
   expect(calls.every((x) => !x.url.includes("googleapis.com"))).toBe(true);
 });
+it('keeps existing fal generation routes available alongside native video analysis', async () => {
+ const image:Model={id:'image',endpoint:'test/image',kind:'image',maxCostCents:0,priceVersion:'test',hardBoundConfirmed:false,parameters:{}};
+ const provider=new FalVideoProvider([image,{...model,maxCostCents:0,hardBoundConfirmed:false}],'test',true,fetcher,{testing:true});
+ expect(provider.describe().every(m=>m.available)).toBe(true);
+ expect(provider.validate({kind:'generate',model:'image',prompt:'product',parameters:{}}).id).toBe('image');
+ await provider.submit({kind:'generate',model:'image',prompt:'product',parameters:{}});
+ expect(JSON.parse(calls.at(-1)!.init!.body as string).prompt).toBe('product');
+});
