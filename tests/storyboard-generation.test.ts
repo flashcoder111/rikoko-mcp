@@ -692,3 +692,26 @@ it("requires distinct endpoint bindings for first and last frames", async () => 
     }),
   ).toThrow();
 });
+
+it.each(["review", "cancel"])("stops a %s change made while preparing reference bytes before submission", async change => {
+  const plan = await prepare();
+  const accepted = await review(plan);
+  const q = await invoke("reference_storyboard_quote", {
+    storyboardId: plan.id, expectedVersion: accepted.version, sourceShotId: "s1", stage: "video", model: "minimax-i2v",
+  });
+  const job = await service.submit(c, { quoteId: q.quote.id, input: q.input, idempotencyKey: "preparing-change" });
+  const read = service.storage.read.bind(service.storage);
+  let changed = false;
+  vi.spyOn(service.storage, "read").mockImplementation(async key => {
+    const bytes = await read(key);
+    if (!changed) {
+      changed = true;
+      if (change === "review") await review(accepted, { decision: "rejected" });
+      else await service.cancel(c, job.id);
+    }
+    return bytes;
+  });
+  await new Worker(service).tick();
+  expect(requests).toHaveLength(0);
+  expect((await service.get(c, "job", job.id)).error.code).toBe(change === "review" ? "STORYBOARD_CONFLICT" : "CANCELLED");
+});
