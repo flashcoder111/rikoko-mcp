@@ -41,7 +41,7 @@
 - `promptField` 默认 `prompt`，配音可设为 `text`。
 - `name`、`description` 控制模型选择器中的名称与规格说明。
 - `kind=image|video|audio` 决定预览；音频可额外设置 `category=speech|music|sound`。
-- 当前生成入口是文字生成；参考图、首尾帧和视频编辑输入仍需相应操作契约和素材授权路径。
+- `generate` 支持文字生成及声明了 `generationInput` 的图生图、首帧、首尾帧、多参考与视频输入。参考素材使用当前账户的 `assetId`，服务端按角色映射和报价快照传给供应商；不能通过 `parameters` 注入 URL。参考 [参考图驱动生成](../tutorials/参考图驱动生成.md) 和 `config/models.reference.example.json`。分镜流程先审阅目标图，再报价生成视频；官方网关的参考素材协议仍由 rikoko-platform 接入。
 - 密钥只读取服务端环境，不放进 config、浏览器或模型目录响应。
 - 配置在重启时加载。项目不会自动读取 `.env`，需由启动器注入环境变量。
 

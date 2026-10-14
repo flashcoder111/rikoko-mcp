@@ -1,0 +1,180 @@
+{
+  "schemaVersion": 1,
+  "mode": "custom",
+  "providers": [
+    {
+      "id": "my-reference-generation",
+      "adapter": "fal",
+      "keyEnv": "MY_FAL_KEY",
+      "enabled": false,
+      "models": [
+        {
+          "id": "nano-banana-storyboard",
+          "name": "Nano Banana 2 · 多参考图编辑",
+          "description": "以原片构图帧和目标人物、产品图片生成待审阅分镜图；示例待核价",
+          "endpoint": "fal-ai/nano-banana-2/edit",
+          "kind": "image",
+          "maxCostCents": 100,
+          "priceVersion": "EXAMPLE-REPLACE-AFTER-PRICING-REVIEW",
+          "hardBoundConfirmed": false,
+          "parameters": {
+            "num_images": 1,
+            "aspect_ratio": "16:9",
+            "resolution": "1K",
+            "output_format": "png"
+          },
+          "generationInput": {
+            "mode": "image_edit",
+            "maxTotalBytes": 41943040,
+            "bindings": [
+              {
+                "field": "image_urls",
+                "roles": [
+                  "composition",
+                  "character",
+                  "product",
+                  "scene",
+                  "style"
+                ],
+                "kind": "image",
+                "array": true,
+                "min": 1,
+                "max": 9,
+                "maxBytes": 10485760,
+                "maxPixels": 16777216
+              }
+            ]
+          }
+        },
+        {
+          "id": "minimax-storyboard-i2v",
+          "name": "MiniMax H3 · 首帧生视频",
+          "description": "5 秒 / 768P 示例，按需求调整档案和费用后重新报价；不是能力上限",
+          "endpoint": "minimax/h3/image-to-video",
+          "kind": "video",
+          "maxCostCents": 100,
+          "priceVersion": "EXAMPLE-REPLACE-AFTER-PRICING-REVIEW",
+          "hardBoundConfirmed": false,
+          "parameters": {
+            "duration": 5,
+            "resolution": "768P",
+            "prompt_expansion_mode": "disabled",
+            "enable_safety_checker": true
+          },
+          "generationInput": {
+            "mode": "image_to_video",
+            "outputDurationMs": 5000,
+            "maxTotalBytes": 41943040,
+            "bindings": [
+              {
+                "field": "image_url",
+                "roles": ["first_frame"],
+                "kind": "image",
+                "array": false,
+                "min": 1,
+                "max": 1,
+                "maxBytes": 10485760,
+                "maxPixels": 16777216
+              }
+            ]
+          }
+        },
+        {
+          "id": "minimax-storyboard-first-last",
+          "name": "MiniMax H3 · 首尾帧",
+          "description": "5 秒 / 768P 示例，按需求调整档案和费用后重新报价；不是能力上限",
+          "endpoint": "minimax/h3/image-to-video",
+          "kind": "video",
+          "maxCostCents": 100,
+          "priceVersion": "EXAMPLE-REPLACE-AFTER-PRICING-REVIEW",
+          "hardBoundConfirmed": false,
+          "parameters": {
+            "duration": 5,
+            "resolution": "768P",
+            "prompt_expansion_mode": "disabled",
+            "enable_safety_checker": true
+          },
+          "generationInput": {
+            "mode": "first_last_frame",
+            "outputDurationMs": 5000,
+            "maxTotalBytes": 41943040,
+            "bindings": [
+              {
+                "field": "image_url",
+                "roles": ["first_frame"],
+                "kind": "image",
+                "array": false,
+                "min": 1,
+                "max": 1,
+                "maxBytes": 10485760,
+                "maxPixels": 16777216
+              },
+              {
+                "field": "end_image_url",
+                "roles": ["last_frame"],
+                "kind": "image",
+                "array": false,
+                "min": 1,
+                "max": 1,
+                "maxBytes": 10485760,
+                "maxPixels": 16777216
+              }
+            ]
+          }
+        },
+        {
+          "id": "minimax-storyboard-references",
+          "name": "MiniMax H3 · 图像和动作参考",
+          "description": "5 秒 / 768P 示例，按需求调整档案和费用后重新报价；不是能力上限",
+          "endpoint": "minimax/h3/reference-to-video",
+          "kind": "video",
+          "maxCostCents": 100,
+          "priceVersion": "EXAMPLE-REPLACE-AFTER-PRICING-REVIEW",
+          "hardBoundConfirmed": false,
+          "parameters": {
+            "duration": 5,
+            "resolution": "768P",
+            "prompt_expansion_mode": "disabled",
+            "enable_safety_checker": true,
+            "aspect_ratio": "16:9"
+          },
+          "generationInput": {
+            "mode": "reference_to_video",
+            "outputDurationMs": 5000,
+            "maxTotalBytes": 41943040,
+            "bindings": [
+              {
+                "field": "reference_image_urls",
+                "roles": [
+                  "character",
+                  "product",
+                  "scene",
+                  "style",
+                  "composition"
+                ],
+                "kind": "image",
+                "array": true,
+                "min": 1,
+                "max": 9,
+                "maxBytes": 10485760,
+                "maxPixels": 16777216
+              },
+              {
+                "field": "reference_video_urls",
+                "roles": ["motion"],
+                "kind": "video",
+                "array": true,
+                "min": 0,
+                "max": 3,
+                "maxBytes": 20971520,
+                "minDurationMs": 2000,
+                "maxDurationMs": 15000,
+                "maxTotalDurationMs": 15000
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
