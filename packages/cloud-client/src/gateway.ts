@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Service, fingerprint } from "../../core/src/index.js";
 import { sha256 } from "../../storage/src/index.js";
 import { validateStoryboardInput } from "../../core/src/storyboard-state.js";
-import { importUrl } from "../../core/src/assets.js";
+import { completeUpload, importUrl } from "../../core/src/assets.js";
 import {
   AppError,
   operationSchema,
@@ -239,18 +239,43 @@ export class GatewayClient {
     let outputs = local.outputs ?? [];
     if (
       remote.status === "completed" &&
-      remote.result?.url &&
+      (remote.result?.downloadPath || remote.result?.url) &&
       !outputs.length &&
       (c.scopes.includes("write") || c.scopes.includes("admin"))
     ) {
       let pending = this.imports.get(id);
       if (!pending) {
-        pending = importUrl(this.service, c, {
-          url: remote.result.url,
-          name: `generated-${remote.result.kind}-${local.remoteJobId}`,
-          license: "provider-model-terms",
-          rightsConfirmed: true,
-        }).finally(() => this.imports.delete(id));
+        pending = (async () => {
+          const name = `generated-${remote.result.kind}-${local.remoteJobId}`;
+          if (remote.result.downloadPath) {
+            // Derive the path from the owned job; never forward credentials to a returned URL.
+            const path = `/v1/generations/${encodeURIComponent(local.remoteJobId)}/result`;
+            const { data: bytes } = await cloudRequest(
+              this.origin,
+              path,
+              this.fetcher,
+              {
+                key: this.key,
+                binary: true,
+              },
+            );
+            const intent = await this.service.createUpload(c, {
+              name,
+              bytes: bytes.byteLength,
+              sha256: sha256(bytes),
+              source: `official-generation:${local.remoteJobId}`,
+              license: "provider-model-terms",
+              rightsConfirmed: true,
+            });
+            return completeUpload(this.service, c, intent.id, bytes);
+          }
+          return importUrl(this.service, c, {
+            url: remote.result.url,
+            name,
+            license: "provider-model-terms",
+            rightsConfirmed: true,
+          });
+        })().finally(() => this.imports.delete(id));
         this.imports.set(id, pending);
       }
       outputs = [(await pending).id];

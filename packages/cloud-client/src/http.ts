@@ -27,12 +27,15 @@ export async function cloudRequest(
     body?: unknown;
     etag?: string;
     bytes?: Uint8Array;
+    binary?: boolean;
   } = {},
 ) {
   const response = await fetcher(cloudOrigin(base) + path, {
     method: options.bytes ? "PUT" : options.body === undefined ? "GET" : "POST",
     redirect: "error",
-    signal: AbortSignal.timeout(options.bytes ? 120000 : 30000),
+    signal: AbortSignal.timeout(
+      options.bytes || options.binary ? 120000 : 30000,
+    ),
     headers: {
       ...(options.key ? { Authorization: `Bearer ${options.key}` } : {}),
       ...(options.etag ? { "If-None-Match": options.etag } : {}),
@@ -55,13 +58,15 @@ export async function cloudRequest(
       const next = await reader.read();
       if (next.done) break;
       size += next.value.byteLength;
-      if (size > 8 * 1024 * 1024)
+      if (size > (options.binary && response.ok ? 100 : 8) * 1024 * 1024)
         throw new AppError("CLOUD_RESPONSE_TOO_LARGE", "云端响应超出限制", 502);
       chunks.push(next.value);
     }
   } finally {
     await reader?.cancel();
   }
+  if (options.binary && response.ok)
+    return { response, data: new Uint8Array(Buffer.concat(chunks)) };
   let data: any;
   try {
     data = JSON.parse(Buffer.concat(chunks).toString());

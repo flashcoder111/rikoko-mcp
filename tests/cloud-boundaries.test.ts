@@ -128,3 +128,15 @@ it("explicit gateway configuration without a key never falls back to paid person
     callTool(runtime.service, await principal(), "generation_usage", {}),
   ).rejects.toMatchObject({ code: "CLOUD_NOT_CONFIGURED" });
 });
+it("preserves official testing usage instead of relabeling it as credit billing", async () => {
+  vi.stubEnv("GENERATION_API_URL", gatewayUrl);
+  vi.stubEnv("GENERATION_API_KEY", "test-official-secret");
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => Response.json({ billingSource: "testing", charges: [] })),
+  );
+  runtime = await openRuntime();
+  expect(
+    await callTool(runtime.service, await principal(), "generation_usage", {}),
+  ).toMatchObject({ billingSource: "testing", mode: "official" });
+});

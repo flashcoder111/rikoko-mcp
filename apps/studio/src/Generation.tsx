@@ -15,7 +15,7 @@ export type GenerationRequest = {
   modelName: string;
   description: string;
   mediaKind: "image" | "video" | "audio";
-  billingSource: "credits" | "external";
+  billingSource: "credits" | "external" | "testing";
   nonce: string;
 };
 export default function Generation({

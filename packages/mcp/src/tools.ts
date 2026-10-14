@@ -402,7 +402,6 @@ export async function callTool(
       if (gateway)
         return {
           ...(await gateway.usage(c)),
-          billingSource: "credits",
           mode: "official",
         };
       if (serviceMode(service) === "official")

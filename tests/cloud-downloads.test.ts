@@ -164,24 +164,53 @@ it("verifies template media bytes, remaps cloud IDs and reuses downloaded assets
 });
 it("collects official results through the authenticated gateway when local CDN DNS is intercepted", async () => {
   const fetcher = vi.fn(async (url: any, init?: RequestInit) => {
-    if (String(url).endsWith('/result')) {
-      expect(init?.headers).toMatchObject({ Authorization: 'Bearer cloud-test' });
-      expect(init?.redirect).toBe('error');
-      return new Response(new Uint8Array(downloaded.bytes), { headers: { 'content-type': 'application/octet-stream' } });
+    if (String(url).endsWith("/result")) {
+      expect(init?.headers).toMatchObject({
+        Authorization: "Bearer cloud-test",
+      });
+      expect(init?.redirect).toBe("error");
+      return new Response(new Uint8Array(downloaded.bytes), {
+        headers: { "content-type": "application/octet-stream" },
+      });
     }
-    return Response.json(String(url).endsWith('/quotes') ? { id: 'q' } : {
-      id: 'remote-job', status: 'completed', result: { kind: 'image', downloadPath: '/v1/generations/remote-job/result' }
-    });
+    return Response.json(
+      String(url).endsWith("/quotes")
+        ? { id: "q" }
+        : {
+            id: "remote-job",
+            status: "completed",
+            result: {
+              kind: "image",
+              downloadPath: "/v1/generations/remote-job/result",
+            },
+          },
+    );
   });
-  const client = new GatewayClient(service, 'https://official.example', 'cloud-test', fetcher);
-  const input = { kind: 'generate', model: 'image', prompt: 'test' };
+  const client = new GatewayClient(
+    service,
+    "https://official.example",
+    "cloud-test",
+    fetcher,
+  );
+  const input = { kind: "generate", model: "image", prompt: "test" };
   const q = await client.quote(c, input);
-  const job = await client.submit(c, { input, quoteId: q.id, idempotencyKey: 'relay' });
-  const [a,b] = await Promise.all([client.get(c, job.id),client.get(c, job.id)]);
+  const job = await client.submit(c, {
+    input,
+    quoteId: q.id,
+    idempotencyKey: "relay",
+  });
+  const [a, b] = await Promise.all([
+    client.get(c, job.id),
+    client.get(c, job.id),
+  ]);
   expect(a.outputs).toHaveLength(1);
   expect(a.outputs).toEqual(b.outputs);
   expect(downloaded.calls).toBe(0);
-  expect(fetcher.mock.calls.filter(([url]) => String(url).endsWith('/result'))).toHaveLength(1);
-  const asset = await service.get(c, 'asset', a.outputs[0]);
-  expect(await service.storage.read(asset.storageKey)).toEqual(downloaded.bytes);
+  expect(
+    fetcher.mock.calls.filter(([url]) => String(url).endsWith("/result")),
+  ).toHaveLength(1);
+  const asset = await service.get(c, "asset", a.outputs[0]);
+  expect(await service.storage.read(asset.storageKey)).toEqual(
+    downloaded.bytes,
+  );
 });

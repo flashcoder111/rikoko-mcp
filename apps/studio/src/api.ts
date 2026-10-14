@@ -16,7 +16,7 @@ export type Capabilities = {
   providers: GenerationModel[];
   generation: {
     mode: "official" | "custom";
-    billingSource: "credits" | "external";
+    billingSource: "credits" | "external" | "testing";
     error: string | null;
   };
 };
