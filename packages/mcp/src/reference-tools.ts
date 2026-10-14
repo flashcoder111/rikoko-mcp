@@ -10,6 +10,7 @@ import {
   referenceReportSchema,
   type ReferenceReport,
 } from "../../contracts/src/reference-analysis.js";
+import { cloudConnection } from "../../cloud-client/src/index.js";
 import { Service, fingerprint } from "../../core/src/index.js";
 
 const analyzeSchema = referenceOperationSchema
@@ -252,8 +253,10 @@ export async function callReferenceTool(
       kind: "reference_analyze",
     });
     const source = await service.get(c, "asset", input.assetId);
-    service.provider.validateSource?.(input, source);
-    const price = service.estimate(input);
+    const gateway = cloudConnection(service)?.gateway;
+    const officialQuote = gateway ? await gateway.quote(c, input) : undefined;
+    if (!gateway) service.provider.validateSource?.(input, source);
+    const price = officialQuote ?? service.estimate(input);
     if (!refresh) {
       const jobs = await service.list(c, "job");
       const match = jobs.find(
@@ -294,7 +297,7 @@ export async function callReferenceTool(
     return {
       status: "quote_required",
       input,
-      quote: await service.quote(c, input),
+      quote: officialQuote ?? (await service.quote(c, input)),
       instruction:
         "Obtain agreement to this quote, then job_submit with the returned input and a stable idempotencyKey.",
     };

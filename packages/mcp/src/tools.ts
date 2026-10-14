@@ -512,21 +512,31 @@ export async function callTool(
       return {
         referenceAnalysis: {
           independentOfHostModel: true,
-          models: service.provider
-            .describe()
-            .filter((m) => m.kind === "analysis"),
+          models: providers.filter(
+            (m: { kind: string }) => m.kind === "analysis",
+          ),
           tools: Object.keys(referenceTools),
           schemaVersion: 2,
           nativeVideo: "gemini",
-          officialGateway: "not_available",
+          officialGateway: gateway
+            ? providerError
+              ? "unavailable"
+              : "available"
+            : "not_configured",
           estimatesRequireReview: true,
         },
         generation: {
           storyboardTools: Object.keys(storyboardTools),
           referenceWorkflow: "image_edit_then_review_then_video",
-          officialReferences: "not_available",
+          officialReferences: gateway
+            ? providerError
+              ? "unavailable"
+              : "available"
+            : "not_configured",
           mode: gateway ? "official" : (serviceMode(service) ?? "custom"),
-          billingSource: gateway ? "credits" : service.billingSource,
+          billingSource: gateway
+            ? (providers[0]?.billingSource ?? "credits")
+            : service.billingSource,
           error: providerError,
         },
         workspace: {
@@ -714,11 +724,17 @@ export async function callTool(
     case "asset_import_url":
       return importUrl(service, c, data);
     case "quote_create":
-      if (data.input.kind === "generate" && cloudConnection(service)?.gateway)
+      if (
+        ["generate", "reference_analyze"].includes(data.input.kind) &&
+        cloudConnection(service)?.gateway
+      )
         return cloudConnection(service)!.gateway!.quote(c, data.input);
       return service.quote(c, data.input);
     case "job_submit":
-      if (data.input.kind === "generate" && cloudConnection(service)?.gateway)
+      if (
+        ["generate", "reference_analyze"].includes(data.input.kind) &&
+        cloudConnection(service)?.gateway
+      )
         return cloudConnection(service)!.gateway!.submit(c, data);
       return service.submit(c, data);
     case "job_resume":

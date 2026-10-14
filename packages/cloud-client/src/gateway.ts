@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Service, fingerprint } from "../../core/src/index.js";
 import { sha256 } from "../../storage/src/index.js";
 import { validateStoryboardInput } from "../../core/src/storyboard-state.js";
+import { referenceReportSchema } from "../../contracts/src/reference-analysis.js";
 import { completeUpload, importUrl } from "../../core/src/assets.js";
 import {
   AppError,
@@ -40,14 +41,23 @@ export class GatewayClient {
   async quote(c: Context, raw: unknown) {
     await this.service.scoped(c, "write", async () => {});
     const input = operationSchema.parse(raw);
-    if (input.kind !== "generate")
+    if (input.kind !== "generate" && input.kind !== "reference_analyze")
       throw new AppError(
         "INVALID_CAPABILITY",
-        "云端仅支持图片、视频和音频生成",
+        "云端支持媒体生成与参考视频分析",
       );
     const referenceAssets = await this.references(c, input);
     const remoteInput = { ...input };
-    if (input.references?.length) {
+    if (
+      input.kind === "reference_analyze" &&
+      remoteInput.kind === "reference_analyze"
+    )
+      remoteInput.assetId = await this.upload(c, referenceAssets[0]);
+    if (
+      input.kind === "generate" &&
+      remoteInput.kind === "generate" &&
+      input.references?.length
+    ) {
       remoteInput.references = [];
       for (let i = 0; i < input.references.length; i++)
         remoteInput.references.push({
@@ -56,7 +66,7 @@ export class GatewayClient {
         });
     }
     // Storyboards and visual review remain local; the cloud receives only the validated generation operation.
-    delete remoteInput.storyboard;
+    if (remoteInput.kind === "generate") delete remoteInput.storyboard;
     await this.references(c, input, referenceAssets);
     const remote = await this.request("/v1/quotes", { input: remoteInput });
     return this.service.scoped(c, "write", (tx) =>
@@ -80,10 +90,10 @@ export class GatewayClient {
   ) {
     await this.service.scoped(c, "write", async () => {});
     const input = operationSchema.parse(p.input);
-    if (input.kind !== "generate")
+    if (input.kind !== "generate" && input.kind !== "reference_analyze")
       throw new AppError(
         "INVALID_CAPABILITY",
-        "云端仅支持图片、视频和音频生成",
+        "云端支持媒体生成与参考视频分析",
       );
     const q = await this.service.get(c, "quote", p.quoteId);
     if (q.cloudOrigin !== this.origin || q.inputHash !== fingerprint(input))
@@ -111,6 +121,8 @@ export class GatewayClient {
         accountId: c.accountId,
         type: "job",
         remoteJobId: remote.id,
+        priceVersion: q.priceVersion,
+        remoteInput: q.remoteInput,
         cloudOrigin: this.origin,
         input,
         inputHash: fingerprint(input),
@@ -129,10 +141,26 @@ export class GatewayClient {
     return this.service.scoped(c, "write", async (tx) => {
       await validateStoryboardInput(tx, c.accountId, input);
       const assets: Entity[] = [];
-      if (input.kind !== "generate") return assets;
-      for (const ref of input.references ?? []) {
+      const refs =
+        input.kind === "reference_analyze"
+          ? [{ assetId: input.assetId }]
+          : input.kind === "generate"
+            ? (input.references ?? [])
+            : [];
+      for (const ref of refs) {
         const asset = await tx.get(ref.assetId, c.accountId, "asset");
         if (!asset) throw new AppError("NOT_FOUND", "Reference not found", 404);
+        if (
+          input.kind === "reference_analyze" &&
+          (asset.kind !== "video" ||
+            !Number.isSafeInteger(asset.metadata?.durationMs) ||
+            asset.metadata.durationMs <= 0 ||
+            (input.range && input.range.endMs > asset.metadata.durationMs))
+        )
+          throw new AppError(
+            "INVALID_MEDIA",
+            "Analysis requires a probed video and valid source range",
+          );
         if (
           !asset.storageKey ||
           !Number.isSafeInteger(asset.bytes) ||
@@ -259,6 +287,53 @@ export class GatewayClient {
                 binary: true,
               },
             );
+            if (local.input.kind === "reference_analyze") {
+              if (bytes.byteLength > 2 * 1024 * 1024)
+                throw new AppError(
+                  "CLOUD_RESPONSE_TOO_LARGE",
+                  "Analysis report exceeds size limit",
+                  502,
+                );
+              const report = referenceReportSchema.parse(
+                JSON.parse(Buffer.from(bytes).toString()),
+              );
+              const source = await this.service.get(
+                c,
+                "asset",
+                local.input.assetId,
+              );
+              if (
+                report.source.assetId !== local.remoteInput?.assetId ||
+                report.source.sha256 !== source.sha256 ||
+                report.source.durationMs !== source.metadata?.durationMs ||
+                report.source.hasAudio !== (source.metadata?.hasAudio === true)
+              )
+                throw new AppError(
+                  "SOURCE_MISMATCH",
+                  "Official analysis does not match the local source",
+                  409,
+                );
+              const mapped = referenceReportSchema.parse({
+                ...report,
+                source: { ...report.source, assetId: source.id },
+              });
+              return this.service.registerAsset(
+                c.accountId,
+                Buffer.from(JSON.stringify(mapped)),
+                {
+                  name,
+                  kind: "analysis",
+                  mime: "application/json",
+                  metadata: {},
+                  provenance: {
+                    source: "official-analysis",
+                    evidence: "provider-live",
+                    model: local.input.model,
+                    remoteJobId: local.remoteJobId,
+                  },
+                },
+              );
+            }
             const intent = await this.service.createUpload(c, {
               name,
               bytes: bytes.byteLength,

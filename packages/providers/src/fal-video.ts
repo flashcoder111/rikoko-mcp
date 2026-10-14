@@ -15,6 +15,7 @@ import {
   type ProviderResult,
   type ReferenceSettings,
 } from "./index.js";
+import type { ResolvedReference } from "./generation-input.js";
 import { referenceInstructions } from "./reference-policy.js";
 
 export const falVideoProfileSchema = z
@@ -48,27 +49,30 @@ const usageSchema = z.object({
 /** fal queue + OpenRouter video input. No Google credentials or implicit model fallback. */
 export class FalVideoProvider extends FalProvider {
   override describe() {
-    return super
-      .describe()
-      .map((m) => ({
-        ...m,
-        available:
-          m.available &&
+    return super.describe().map((m) => ({
+      ...m,
+      available:
+        m.available &&
+        (m.kind !== "analysis" ||
           this.models.some(
             (profile) =>
               profile.id === m.id &&
               profile.kind === "analysis" &&
               profile.endpoint === "openrouter/router/video" &&
               falVideoProfileSchema.safeParse(profile.parameters).success,
-          ),
-      }));
+          )),
+    }));
   }
   override validate(input: Operation) {
-    if (input.kind !== "reference_analyze")
-      throw new AppError(
-        "INVALID_MODEL",
-        "fal-video supports reference_analyze only",
-      );
+    if (input.kind !== "reference_analyze") {
+      const model = super.validate(input);
+      if (model.kind === "analysis")
+        throw new AppError(
+          "INVALID_MODEL",
+          "Use reference_analyze for native video analysis",
+        );
+      return model;
+    }
     const model = super.validate({
       kind: "analyze",
       assetId: input.assetId,
@@ -128,6 +132,7 @@ export class FalVideoProvider extends FalProvider {
   }
   override estimate(input: Operation) {
     const profile = super.estimate(input);
+    if (input.kind !== "reference_analyze") return profile;
     return {
       ...profile,
       priceVersion: `${profile.priceVersion}:${REFERENCE_ANALYSIS_VERSION}:fal-video-v1`,
@@ -262,7 +267,13 @@ export class FalVideoProvider extends FalProvider {
       );
     }
   }
-  override async submit(input: Operation, assetUrl?: string) {
+  override async submit(
+    input: Operation,
+    assetUrl?: string,
+    references?: ResolvedReference[],
+  ) {
+    if (input.kind !== "reference_analyze")
+      return super.submit(input, assetUrl, references);
     const model = this.validate(input);
     if (input.kind !== "reference_analyze" || !assetUrl)
       throw new AppError("PROVIDER_REJECTED", "Prepared video is required");
@@ -282,6 +293,7 @@ export class FalVideoProvider extends FalProvider {
     ticket: Parameters<FalProvider["collect"]>[0],
     input: Operation,
   ): Promise<ProviderResult> {
+    if (input.kind !== "reference_analyze") return super.collect(ticket, input);
     this.validate(input);
     const result = await this.readJson(await this.request(ticket.resultUrl));
     try {

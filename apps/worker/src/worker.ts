@@ -24,7 +24,10 @@ const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export class Worker {
   private id = randomUUID();
   private stopped = false;
-  constructor(private service: Service) {}
+  constructor(
+    private service: Service,
+    private kinds?: string[],
+  ) {}
   stop() {
     this.stopped = true;
   }
@@ -41,7 +44,7 @@ export class Worker {
     }
   }
   async tick() {
-    let job = await this.service.claim(this.id);
+    let job = await this.service.claim(this.id, this.kinds);
     if (!job) return false;
     const input = job.input as Operation;
     const lease = job.leaseToken;

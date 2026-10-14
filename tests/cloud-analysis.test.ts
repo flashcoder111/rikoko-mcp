@@ -34,7 +34,15 @@ it("routes official analysis, remaps a source-bound report, caches it and reject
       submissions = 0;
     const fetcher = vi.fn(async (url: any, init?: RequestInit) => {
       const path = new URL(String(url)).pathname;
-      if(path === "/v1/generation-models") return Response.json([{id:"vision",kind:"analysis",available:true,billingSource:"testing"}]);
+      if (path === "/v1/generation-models")
+        return Response.json([
+          {
+            id: "vision",
+            kind: "analysis",
+            available: true,
+            billingSource: "testing",
+          },
+        ]);
       if (path === "/v1/reference-uploads")
         return Response.json({ id: "upload" });
       if (path === "/v1/reference-uploads/upload")
@@ -66,7 +74,7 @@ it("routes official analysis, remaps a source-bound report, caches it and reject
       });
     });
     connectCloud(service, "https://official.example", "test", fetcher);
-    const caps = await callTool(service,c,"capabilities",{});
+    const caps = await callTool(service, c, "capabilities", {});
     expect(caps.referenceAnalysis.models).toHaveLength(1);
     expect(caps.referenceAnalysis.officialGateway).toBe("available");
     expect(caps.generation.officialReferences).toBe("available");
@@ -100,12 +108,34 @@ it("routes official analysis, remaps a source-bound report, caches it and reject
         visualStyle: { description: "studio", evidenceIds: [] },
         speech: [],
         audio: { description: "none", evidenceIds: [] },
-        evidence: [{id:"e",startMs:0,endMs:2000,modality:"visual",observation:"Product",confidence:"high"}],
+        evidence: [
+          {
+            id: "e",
+            startMs: 0,
+            endMs: 2000,
+            modality: "visual",
+            observation: "Product",
+            confidence: "high",
+          },
+        ],
         unknowns: [],
       },
       remoteInput,
       { ...source, id: "remote-source" },
-      { id: "job", accountId: c.accountId, type: "job", createdAt: new Date().toISOString(), ticket: { requestId: "r" }, priceVersion: "v", referenceTiming: {status:"measured", method:"ffmpeg-scene-difference",threshold:0.3,cutTimesMs:[]} },
+      {
+        id: "job",
+        accountId: c.accountId,
+        type: "job",
+        createdAt: new Date().toISOString(),
+        ticket: { requestId: "r" },
+        priceVersion: "v",
+        referenceTiming: {
+          status: "measured",
+          method: "ffmpeg-scene-difference",
+          threshold: 0.3,
+          cutTimesMs: [],
+        },
+      },
       { id: "vision", endpoint: "openrouter/router/video" } as any,
       {
         fps: null,
