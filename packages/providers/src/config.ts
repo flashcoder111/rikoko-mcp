@@ -54,7 +54,29 @@ export const modelSchema = z
     responseField: z.string().regex(/^\w+$/).optional(),
     generationInput: generationInputSchema.optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((model, ctx) => {
+    const profile = model.generationInput;
+    if (!profile) return;
+    if ((profile.mode === "image_edit" ? "image" : "video") !== model.kind)
+      ctx.addIssue({
+        code: "custom",
+        path: ["generationInput", "mode"],
+        message: "Reference mode must match output kind",
+      });
+    if (
+      profile.bindings.some(
+        (b) =>
+          b.field === (model.promptField ?? "prompt") ||
+          Object.hasOwn(model.parameters, b.field),
+      )
+    )
+      ctx.addIssue({
+        code: "custom",
+        path: ["generationInput", "bindings"],
+        message: "Reference fields cannot override prompts or fixed parameters",
+      });
+  });
 const connectionSchema = z
   .object({
     id: identifier,

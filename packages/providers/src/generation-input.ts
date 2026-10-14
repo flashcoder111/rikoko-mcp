@@ -7,6 +7,11 @@ import {
 } from "../../contracts/src/index.js";
 import type { Model } from "./index.js";
 export type ResolvedReference = GenerationReference & { url: string };
+const referenceMimeTypes = {
+  image: ["image/png", "image/jpeg", "image/webp"],
+  video: ["video/mp4", "video/webm", "video/quicktime"],
+  audio: ["audio/wav", "audio/mpeg", "audio/mp4"],
+};
 export function validateGenerationInput(model: Model, input: Operation) {
   if (input.kind !== "generate") return;
   const refs = input.references ?? [];
@@ -83,11 +88,7 @@ export function validateGenerationAssets(
       a.kind !== b.kind ||
       !Number.isSafeInteger(a.bytes) ||
       a.bytes <= 0 ||
-      !{
-        image: ["image/png", "image/jpeg", "image/webp"],
-        video: ["video/mp4", "video/webm", "video/quicktime"],
-        audio: ["audio/wav", "audio/mpeg", "audio/mp4"],
-      }[b.kind].includes(a.mime)
+      !referenceMimeTypes[b.kind].includes(a.mime)
     )
       throw new AppError(
         "INVALID_MEDIA",
@@ -152,7 +153,37 @@ export function generationPayload(
   for (const b of model.generationInput?.bindings ?? []) {
     const urls = resolved
       .filter((r) => b.roles.includes(r.role))
-      .map((r) => r.url);
+      .map((r) => {
+        const data = /^data:([^;,]+);base64,/.exec(r.url);
+        if (data) {
+          const body = r.url.slice(data[0].length);
+          if (
+            referenceMimeTypes[b.kind].includes(data[1]) &&
+            body.length > 0 &&
+            body.length <= Math.ceil(b.maxBytes / 3) * 4 &&
+            body.length % 4 === 0 &&
+            /^[A-Za-z0-9+/]*={0,2}$/.test(body)
+          )
+            return r.url;
+        } else {
+          try {
+            const url = new URL(r.url);
+            if (
+              url.protocol === "https:" &&
+              !url.username &&
+              !url.password &&
+              !url.hash
+            )
+              return r.url;
+          } catch {
+            /* The error below intentionally omits the reference URL. */
+          }
+        }
+        throw new AppError(
+          "INVALID_MEDIA",
+          "Resolved reference must be a controlled HTTPS URL or a bounded media data URI",
+        );
+      });
     if (urls.length) result[b.field] = b.array ? urls : urls[0];
   }
   return result;

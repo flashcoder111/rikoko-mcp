@@ -71,6 +71,7 @@ export class ReplicateProvider extends FalProvider {
         : input.kind === "tts"
           ? input.text
           : "";
+    const referencePayload = generationPayload(m, input, references);
     let response: Response;
     try {
       response = await this.call(
@@ -79,7 +80,7 @@ export class ReplicateProvider extends FalProvider {
         {
           input: {
             ...m.parameters,
-            ...generationPayload(m, input, references),
+            ...referencePayload,
             [m.promptField ?? (input.kind === "tts" ? "text" : "prompt")]:
               prompt,
             ...(assetUrl ? { [m.assetField ?? "image"]: assetUrl } : {}),
