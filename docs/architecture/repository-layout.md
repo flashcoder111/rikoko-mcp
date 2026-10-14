@@ -27,4 +27,4 @@ MCP 的 `package.json` 通过子路径导出公共 TypeScript 模块。平台依
 
 现有项目、素材和本地数据库保留在 MCP 的 `.data/`。历史研究、抓取来源和验收产物保留，但由 Git 忽略；本次迁移前源码备份位于 MCP 的 `artifacts/repository-split/before/`。平台的网站参考原稿保留在 `outputs/website-reference/` 与 `references/`，均不进入 Git。网站已有生成页面与公开素材仍随源码保留。
 
-`HYPIT_*`、`VIDEOWORKBENCH_*` 和 MCP 注册键等历史兼容标识保持不变。
+当前运行配置使用 `RIKOKO_*` 与 MCP 注册键 `rikoko`；通用 `VIDEOWORKBENCH_*` 接口保留。

@@ -82,9 +82,9 @@ const model = JSON.parse(
 const connected = await bindOfficialKey(
   installation,
   release,
-  process.env.HYPIT_OFFICIAL_KEY,
+  process.env.RIKOKO_OFFICIAL_KEY,
 );
-delete process.env.HYPIT_OFFICIAL_KEY;
+delete process.env.RIKOKO_OFFICIAL_KEY;
 if (connected) await stopBackend(file);
 const backend = await ensureBackend(file);
 const quote = (s: string) => `'${s.replaceAll("'", "'\\''")}'`;

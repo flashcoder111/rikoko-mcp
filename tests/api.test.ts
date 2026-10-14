@@ -128,16 +128,17 @@ it("discovers and calls tools through the real MCP v2 client", async () => {
     name: "workspace_result",
     arguments: { jobId: command.jobId },
   });
-  expect(delivered.content).toHaveLength(1);
+  expect(delivered.content).toHaveLength(2);
   expect(delivered.content[0].type).toBe("text");
   const output = (delivered.structuredContent as any).result;
   expect(output.workspace).toBe(command.workspace);
-  expect(output.media).toBeUndefined();
+  expect(output.media[0].assetId).toBe(asset.id);
   expect(output.conversation).toBeUndefined();
   expect(output.outputs).toEqual([
     { assetId: asset.id, name: "MCP output.mp4", mimeType: "video/mp4" },
   ]);
-  expect(JSON.stringify(delivered)).not.toContain("/delivery/");
+  expect(delivered.content[1].type).toBe("resource_link");
+  expect(JSON.stringify(delivered)).toContain("/delivery/");
   const snapshot = await client.callTool({
     name: "workspace_snapshot",
     arguments: { projectId: command.projectId },

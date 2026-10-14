@@ -1,0 +1,227 @@
+[
+  {
+    "id": "starter-product-stage",
+    "file": "product-stage.png",
+    "name": "奶油色商品展台",
+    "category": "商品",
+    "tags": [
+      "展台",
+      "简洁",
+      "暖色"
+    ],
+    "sha256": "9ae3211b50087b809a661ff097a61878a6c0778257d2ae56a3e86bfd039ee14e",
+    "bytes": 5877,
+    "width": 720,
+    "height": 1280
+  },
+  {
+    "id": "starter-coffee-corner",
+    "file": "coffee-corner.png",
+    "name": "咖啡时光插画",
+    "category": "场景",
+    "tags": [
+      "咖啡",
+      "门店",
+      "暖色"
+    ],
+    "sha256": "721b64bbaf13801d309ec33ca9c55b73fb3f2fbd903bff1605eacffc140862c7",
+    "bytes": 6850,
+    "width": 720,
+    "height": 1280
+  },
+  {
+    "id": "starter-paper-notes",
+    "file": "paper-notes.png",
+    "name": "纸张与便签插画",
+    "category": "背景",
+    "tags": [
+      "教程",
+      "知识",
+      "浅色"
+    ],
+    "sha256": "bc32b6e0675f772740a810269f1db83f3cb504f148888c75875a5be310f80c5b",
+    "bytes": 5280,
+    "width": 720,
+    "height": 1280
+  },
+  {
+    "id": "starter-ranking-blocks",
+    "file": "ranking-blocks.png",
+    "name": "蓝色阶梯插画",
+    "category": "背景",
+    "tags": [
+      "清单",
+      "排行",
+      "蓝色"
+    ],
+    "sha256": "6a4ce43ab76fed878ac736f618da57be769f85e98334f0690a6761645fae60bf",
+    "bytes": 5878,
+    "width": 720,
+    "height": 1280
+  },
+  {
+    "id": "starter-event-sunset",
+    "file": "event-sunset.png",
+    "name": "落日拱门插画",
+    "category": "场景",
+    "tags": [
+      "活动",
+      "邀请",
+      "橙色"
+    ],
+    "sha256": "949eb5a10d646f3235e2012cdd9a5ee46b549ca35f63b474a2e0ac244ad4a066",
+    "bytes": 5855,
+    "width": 720,
+    "height": 1280
+  },
+  {
+    "id": "starter-brand-orbit",
+    "file": "brand-orbit.png",
+    "name": "深绿几何插画",
+    "category": "品牌",
+    "tags": [
+      "品牌",
+      "几何",
+      "深色"
+    ],
+    "sha256": "b4f5e4b9bef09d9e6dd4f1ed8fd220ac41d4498e9b6b0bac84c6138310a78b8c",
+    "bytes": 8127,
+    "width": 720,
+    "height": 1280
+  },
+  {
+    "id": "starter-software-overview",
+    "file": "software-overview.png",
+    "name": "软件总览示意",
+    "category": "背景",
+    "tags": [
+      "软件",
+      "截图",
+      "演示"
+    ],
+    "sha256": "71e6225443a661184555a9b98414f4cd0a9668c1eaad9e8ea3009f436d443467",
+    "bytes": 24531,
+    "width": 720,
+    "height": 1280
+  },
+  {
+    "id": "starter-software-focus",
+    "file": "software-focus.png",
+    "name": "功能操作示意",
+    "category": "背景",
+    "tags": [
+      "软件",
+      "功能",
+      "演示"
+    ],
+    "sha256": "2c325d5916cd9868a988efe6f6e0c8147abc47cd2789c842eca78897518f5fa0",
+    "bytes": 27538,
+    "width": 720,
+    "height": 1280
+  },
+  {
+    "id": "starter-software-ready",
+    "file": "software-ready.png",
+    "name": "完成效果示意",
+    "category": "背景",
+    "tags": [
+      "软件",
+      "完成",
+      "演示"
+    ],
+    "sha256": "5d1862f06c624d0910b50b1cfe220c7897d9f319b6bbbaed074a6c340d3ff61d",
+    "bytes": 27438,
+    "width": 720,
+    "height": 1280
+  },
+  {
+    "id": "starter-change-before",
+    "file": "change-before.png",
+    "name": "整理前示意",
+    "category": "场景",
+    "tags": [
+      "对比",
+      "收纳",
+      "之前"
+    ],
+    "sha256": "4be8311a0847d2df9e97378a72b8300e90d80fb0b23d5a2a0bee4417fc487faf",
+    "bytes": 24591,
+    "width": 720,
+    "height": 1280
+  },
+  {
+    "id": "starter-change-after",
+    "file": "change-after.png",
+    "name": "整理后示意",
+    "category": "场景",
+    "tags": [
+      "对比",
+      "收纳",
+      "之后"
+    ],
+    "sha256": "c71f3b9dbfa97d90dca8732608cf5ba0741c2dfe2b76347eacb9059215e009df",
+    "bytes": 25774,
+    "width": 720,
+    "height": 1280
+  },
+  {
+    "id": "starter-change-summary",
+    "file": "change-summary.png",
+    "name": "整理对照示意",
+    "category": "场景",
+    "tags": [
+      "对比",
+      "收纳",
+      "细节"
+    ],
+    "sha256": "25661a8065b363d66831bf8d1f49c89f21bca4c99d839e046aa4109d9a77b490",
+    "bytes": 25675,
+    "width": 720,
+    "height": 1280
+  },
+  {
+    "id": "starter-feedback-intro",
+    "file": "feedback-intro.png",
+    "name": "反馈场景插画",
+    "category": "品牌",
+    "tags": [
+      "评价",
+      "反馈",
+      "品牌"
+    ],
+    "sha256": "2ccfa8b1c2a8a3c1af02622f0bd589b7d9486a13fc8a79c21156167d938516f2",
+    "bytes": 24940,
+    "width": 720,
+    "height": 1280
+  },
+  {
+    "id": "starter-feedback-quote",
+    "file": "feedback-quote.png",
+    "name": "评价卡片插画",
+    "category": "品牌",
+    "tags": [
+      "评价",
+      "卡片",
+      "口碑"
+    ],
+    "sha256": "0f1ba1d46ce789d82b18f0d48dee6ed0793c2d1a5ce26e8b96727c2c1d16d729",
+    "bytes": 26829,
+    "width": 720,
+    "height": 1280
+  },
+  {
+    "id": "starter-feedback-source",
+    "file": "feedback-source.png",
+    "name": "评价来源插画",
+    "category": "品牌",
+    "tags": [
+      "评价",
+      "来源",
+      "品牌"
+    ],
+    "sha256": "63982a921bed39d850d12cc12e9e18213695d22e23b2dc3aadd0c6aa7bd0bd8a",
+    "bytes": 27007,
+    "width": 720,
+    "height": 1280
+  }
+]

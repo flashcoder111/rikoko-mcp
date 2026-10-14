@@ -35,12 +35,11 @@ export type ChatProps = {
   modelConnected: boolean;
   capabilities?: Capabilities;
   onPlans: () => void;
+  onLibrary?: () => void;
 };
 export default function Chat(props: ChatProps) {
   const { snapshot, draft, setDraft, attachments, proposal, busy } = props;
-  const [creationMode, setCreationMode] = useState(
-    props.snapshot ? "edit" : "video",
-  );
+  const [creationMode, setCreationMode] = useState("edit");
   const [modelId, setModelId] = useState("");
   const models = (props.capabilities?.providers ?? []).filter(
     (m) => m.kind === creationMode,
@@ -52,7 +51,7 @@ export default function Chat(props: ChatProps) {
   const official = props.capabilities?.generation.mode !== "custom";
   const [generation, setGeneration] = useState<GenerationRequest>();
   useEffect(() => {
-    setCreationMode(props.snapshot ? "edit" : "video");
+    setCreationMode("edit");
     setGeneration(undefined);
   }, [props.snapshot?.project.id]);
   const [showHistory, setShowHistory] = useState(false);
@@ -85,37 +84,13 @@ export default function Chat(props: ChatProps) {
             </span>
             <h1>{props.embedded ? "Describe your video" : "你想创作什么？"}</h1>
             <p>
-              发来素材、描述需求，在对话里制作视频。
+              直接描述你想做的视频，Agent 会自动匹配剪辑结构和可复用素材。
               <br />
-              需要精细调整时，随时打开工作台。
+              没有参考视频也可以开始；有图片或视频时，直接附上。
             </p>
-            <div className="prompt-grid">
-              {[
-                [
-                  "从文案开始",
-                  "用三段文字制作 9 秒竖屏短片。脚本：一杯咖啡，开启今天；把忙碌留在门外；让这一刻慢下来",
-                ],
-                ["用已有素材", "用这些素材制作一条竖屏短片"],
-                ["继续修改", "字幕大一点"],
-              ].map(([label, value]) => (
-                <button
-                  key={label}
-                  onClick={() => {
-                    setCreationMode("edit");
-                    setDraft(value);
-                  }}
-                >
-                  <strong>{label}</strong>
-                  <span>
-                    {label === "从文案开始"
-                      ? "把脚本变成可编辑的短片"
-                      : label === "用已有素材"
-                        ? "上传图片、视频，开始编排"
-                        : "选一份作品，用语言修改"}
-                  </span>
-                </button>
-              ))}
-            </div>
+            <p className="small-muted">
+              例如：帮咖啡店做一条 15 秒的新品短片，介绍生椰拿铁，温暖一点。
+            </p>
           </div>
         )}
         {messages.length > 1 && !showHistory && (
@@ -152,7 +127,8 @@ export default function Chat(props: ChatProps) {
         {current && !props.embedded && (
           <article className="conversation-result">
             <div className="tool-label">
-              <Sparkles size={15} /> rikoko · 视频结果 <ArrowUpRight size={13} />
+              <Sparkles size={15} /> rikoko · 视频结果{" "}
+              <ArrowUpRight size={13} />
             </div>
             <div className="result-heading">
               <div>
@@ -195,6 +171,22 @@ export default function Chat(props: ChatProps) {
               )}
               <button onClick={() => setDraft("字幕大一点")}>继续修改</button>
             </div>
+            {job?.status === "completed" && (
+              <details>
+                <summary>查看视频文案</summary>
+                <p>{current.composition.title}</p>
+                {current.composition.scenes
+                  .filter((scene) => scene.text)
+                  .map((scene) => (
+                    <p key={scene.id}>{scene.text}</p>
+                  ))}
+                {current.composition.events
+                  .filter((event) => event.kind === "text" && event.text)
+                  .map((event) => (
+                    <p key={event.id}>{event.text}</p>
+                  ))}
+              </details>
+            )}
           </article>
         )}
         {props.submitted && (
@@ -210,9 +202,25 @@ export default function Chat(props: ChatProps) {
         {proposal && (
           <article className="proposal-card">
             <span className="speaker-label">
-              {proposal.engine === "configured-model" ? "创作方案" : "编辑方案"}
+              {proposal.status === "waiting_input"
+                ? "等待补充"
+                : proposal.action?.type === "create" ||
+                    proposal.engine !== "local-commands"
+                  ? "创作方案"
+                  : "编辑方案"}
             </span>
             <p>{proposal.message}</p>
+            {!!proposal.missingInputs?.length && (
+              <ul>
+                {proposal.missingInputs.map((item) => (
+                  <li key={item.id}>
+                    <strong>{item.required ? "需要补充" : "可选"}：</strong>
+                    {item.prompt}
+                    <span className="small-muted"> · {item.purpose}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
             {proposal.action && (
               <>
                 <div className="proposal-details">
@@ -257,7 +265,11 @@ export default function Chat(props: ChatProps) {
         className="composer"
         onSubmit={(e) => {
           e.preventDefault();
-          if (!draft.trim() || busy) return;
+          if (
+            busy ||
+            (!draft.trim() && !(creationMode === "edit" && attachments.length))
+          )
+            return;
           if (creationMode !== "edit") {
             if (!selectedModel?.available) return;
             setGeneration({
@@ -313,7 +325,7 @@ export default function Chat(props: ChatProps) {
                 ? "描述你想生成的图片…"
                 : creationMode === "audio"
                   ? "输入配音文案，或描述音乐和音效…"
-                  : "描述你的视频，或上传素材开始…"
+                  : "描述你想做的视频，不需要先选模板…"
           }
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
@@ -345,6 +357,11 @@ export default function Chat(props: ChatProps) {
               }}
             />
           </label>
+          {props.onLibrary && (
+            <button type="button" disabled={!!busy} onClick={props.onLibrary}>
+              素材库
+            </button>
+          )}
           <select
             aria-label="创作方式"
             value={creationMode}
@@ -353,7 +370,7 @@ export default function Chat(props: ChatProps) {
             <option value="video">视频生成</option>
             <option value="image">图片生成</option>
             <option value="audio">音频生成</option>
-            <option value="edit">剪辑与编排</option>
+            <option value="edit">自动创作与修改</option>
           </select>
           {creationMode !== "edit" && (
             <select
@@ -375,7 +392,8 @@ export default function Chat(props: ChatProps) {
             className="send-button"
             disabled={
               !!busy ||
-              !draft.trim() ||
+              (!draft.trim() &&
+                !(creationMode === "edit" && attachments.length)) ||
               (creationMode !== "edit" && !selectedModel?.available)
             }
             type="submit"

@@ -33,7 +33,7 @@ export async function managedEnvironment(
       ? [model.official?.keyEnv]
       : (model.providers ?? []).map((p: { keyEnv: string }) => p.keyEnv);
   const forbidden =
-    /^(?:NODE_|LD_|DYLD_|PYTHON|PATH$|HOME$|DATABASE_URL$|DATA_DIR$|HOST$|PORT$|HYPIT_CONFIG_FILE$|VIDEOWORKBENCH_)/;
+    /^(?:NODE_|LD_|DYLD_|PYTHON|PATH$|HOME$|DATABASE_URL$|DATA_DIR$|HOST$|PORT$|RIKOKO_CONFIG_FILE$|VIDEOWORKBENCH_)/;
   for (const name of names) {
     if (
       typeof name !== "string" ||
@@ -53,7 +53,7 @@ export async function managedEnvironment(
     HOST: "127.0.0.1",
     PORT: String(i.port),
     DATA_DIR: join(i.home, "data"),
-    HYPIT_CONFIG_FILE: modelFile,
+    RIKOKO_CONFIG_FILE: modelFile,
     MEDIA_PYTHON: i.python,
     VIDEOWORKBENCH_INSTANCE_ID: i.instanceId,
     VIDEOWORKBENCH_PID_FILE: join(i.home, "data/server.pid"),

@@ -16,8 +16,8 @@ beforeEach(async () => {
   for (const name of [
     "DATABASE_URL",
     "S3_BUCKET",
-    "HYPIT_CONFIG_FILE",
-    "HYPIT_PLANS_FILE",
+    "RIKOKO_CONFIG_FILE",
+    "RIKOKO_PLANS_FILE",
     "FAL_MODELS_FILE",
     "CLOUD_API_URL",
     "CLOUD_API_KEY",
@@ -106,7 +106,7 @@ it("can disable the template service while keeping the explicit official gateway
       official: { url: gatewayUrl, keyEnv: "FIXTURE_OFFICIAL_KEY" },
     }),
   );
-  vi.stubEnv("HYPIT_CONFIG_FILE", path);
+  vi.stubEnv("RIKOKO_CONFIG_FILE", path);
   vi.stubEnv("TEMPLATE_API_URL", catalogUrl);
   vi.stubEnv("FIXTURE_OFFICIAL_KEY", "fixture");
   runtime = await openRuntime();

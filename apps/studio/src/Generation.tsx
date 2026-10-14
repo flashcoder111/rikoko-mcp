@@ -49,7 +49,7 @@ export default function Generation({
   const [prompt, setPrompt] = useState("");
   const attempt = useRef("");
   const sequence = useRef(0);
-  const storageKey = `hypit-generation:${scope}`;
+  const storageKey = `rikoko-generation:${scope}`;
   useEffect(() => {
     if (request) return;
     let live = true;

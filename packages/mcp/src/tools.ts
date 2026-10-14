@@ -16,6 +16,20 @@ import { serviceMode } from "../../core/src/service-info.js";
 import { AppError } from "../../contracts/src/index.js";
 import { cloudConnection } from "../../cloud-client/src/index.js";
 import { applyTemplateSchema } from "../../templates/src/schema.js";
+import {
+  starterAssets,
+  starterTemplates,
+} from "../../templates/src/starters.js";
+import {
+  importStarter,
+  organizeAsset,
+  organizeAssetSchema,
+  prepareStarter,
+} from "../../templates/src/local-library.js";
+import {
+  assetCategories,
+  matchesAsset,
+} from "../../core/src/library-metadata.js";
 import { importUrl } from "../../core/src/assets.js";
 import { assetWaveform, waveformInput } from "../../core/src/waveform.js";
 import {
@@ -26,8 +40,15 @@ import {
 import {
   commitSchema,
   planSchema,
+  requestSaveSchema,
 } from "../../core/src/workspace-contracts.js";
+import {
+  workspaceRequestGet,
+  workspaceRequestSave,
+} from "../../core/src/workspace-request.js";
 import { plannerConfigured } from "../../core/src/workspace-planner.js";
+import { templateLibrary } from "../../templates/src/library.js";
+import { rankTemplates, relevantAssets } from "../../templates/src/matching.js";
 import { revokeDelivery, workspaceResult } from "../../core/src/delivery.js";
 import {
   planRecipe,
@@ -54,8 +75,50 @@ export const tools = {
   },
   template_list: {
     description:
-      "Read the locally cached cloud templates. Does not contact the cloud or auto-update.",
+      "Read ready-to-use built-in templates and cached cloud templates FIRST when creating a video. No network or generation. Templates reuse existing artwork; inspect scene slots and parameters before proposing new paid imagery.",
     schema: z.object({}),
+  },
+  template_prepare: {
+    description:
+      "Prepare a template with text parameters and optional sceneAssets mapping scene IDs to owned image/video asset IDs. Imports only needed reusable media; returns composition and reuse counts without creating a project, rendering or generating. Then pass composition to workspace_commit with a stable idempotencyKey. Missing template media is downloaded, never bought. Keep accepted assets when making changes.",
+    schema: applyTemplateSchema,
+  },
+  template_match: {
+    description:
+      "Retrieve suitable template structures and reusable owned assets for a user's text brief, including when no reference video is supplied. Read-only; never downloads, renders or generates. These are internal candidates for YOU to select and adapt automatically, not choices to send to the user. Inspect the fit; use template_prepare then workspace_commit. If none fit, plan custom shots or quote only missing media. Use template_list for the full catalog when semantic fit requires broader judgment.",
+    schema: z
+      .object({
+        brief: z.string().trim().min(1).max(5000),
+        limit: z.number().int().min(1).max(5).default(3),
+      })
+      .strict(),
+  },
+  asset_starters: {
+    description:
+      "List original bundled illustrations available offline. Read-only. Use asset_import_starter to reuse a chosen item; no model calls.",
+    schema: z.object({}),
+  },
+  asset_search: {
+    description:
+      "Find reusable owned media by name/tags, purpose category, kind and favorite status before buying generation. Returns existing assets only; no external search, render or model call.",
+    schema: z
+      .object({
+        query: z.string().max(100).default(""),
+        category: z.enum(assetCategories).optional(),
+        kind: z.enum(["image", "video", "audio"]).optional(),
+        favorites: z.boolean().default(false),
+      })
+      .strict(),
+  },
+  asset_import_starter: {
+    description:
+      "Import a bundled illustration into this account's reusable media library. Identical media is reused, no generation or charges.",
+    schema: z.object({ id: idSchema }).strict(),
+  },
+  asset_organize: {
+    description:
+      "Rename an owned asset and save its purpose category, tags and favorite flag without altering its media or generating anything. Read the current library metadata before updating it.",
+    schema: organizeAssetSchema,
   },
   template_sync: {
     description:
@@ -74,8 +137,21 @@ export const tools = {
   },
   workspace_result: {
     description:
-      "Read job status, output asset IDs and the optional workspace link. Reply in the original Agent conversation with a brief status and only the workspace link; never open an MCP App, browser or separate chat. Requires write scope for result access. Does not start rendering or paid generation. Use workspace_export only for explicitly requested file downloads or attachments. Set PUBLIC_BASE_URL for remote/mobile workspace access.",
-    schema: z.object({ jobId: idSchema }),
+      "Read real job status. Completed results include video/subtitle/image delivery links, current screen text and a workspace link. Deliver the video and relevant content in the original conversation. Configured Codex/Hermes hosts also save native attachments; delivery=links skips local downloads. Never open a browser or separate chat automatically. Requires write scope for media access; never starts rendering or generation. Set PUBLIC_BASE_URL for remote/mobile access; expired links can be refreshed by querying this tool again.",
+    schema: z.object({
+      jobId: idSchema,
+      delivery: z.enum(["auto", "links"]).default("auto"),
+    }),
+  },
+  workspace_request_save: {
+    description:
+      "Persist a creative request before asking for genuinely missing material. Save the user's original message, existing assetIds and concrete missingInputs (kind, prompt, purpose, required). No model, generation or render. Continue using requestId and current requestVersion; attachments accumulate, omitted missingInputs are preserved. After checking supplied material, explicitly replace missingInputs with the remaining gaps (empty array when satisfied). User-provided identity/product facts must not be invented. Pass requestId/requestVersion to workspace_commit after all required gaps are resolved.",
+    schema: requestSaveSchema,
+  },
+  workspace_request_get: {
+    description:
+      "Resume a saved creative request, including original intent, follow-up turns, collected asset IDs, outstanding questions and submitted job. Read before accepting follow-up attachments, updating a request or recovering a lost response. Scoped to the current account; no model, render or generation.",
+    schema: z.object({ requestId: idSchema }),
   },
   delivery_revoke: {
     description:
@@ -89,12 +165,12 @@ export const tools = {
   },
   workspace_plan: {
     description:
-      "Plan a natural-language request with optional attachment IDs and selected scene. Returns a proposal only. Local explicit commands are free; a server-configured creative model may be used if enabled. Unsupported requests return clarification, never fake completion. An external agent can instead supply its own validated action to workspace_commit.",
+      "Plan and persist a natural-language request with optional attachment IDs and selected scene. Continue with requestId/requestVersion; attachment-only turns are supported and original intent is retained. Returns structured missingInputs when blocked; pass requestId/requestVersion when committing a ready plan. New requests automatically consult templates and relevant owned assets, even without a reference video. May import selected reusable template media; does not create projects, render or buy media generation. Returns one adapted proposal, never a user-facing template selection task. Local matching is deterministic; an enabled creative model can select and write the plan. Commit an authorized create action directly; clarify only genuine gaps. Existing edits preserve the current composition. A calling Agent can instead use template_match and author template_prepare/commit itself.",
     schema: planSchema,
   },
   workspace_commit: {
     description:
-      "Create a video, apply structured edits, or restore a version, then queue a real local render. Chat and studio share this endpoint. Always pass a stable idempotencyKey; editing requires projectId and the current baseRevisionId. On REVISION_CONFLICT read workspace_snapshot and re-plan. Existing media is reused; this tool does not buy new generated footage. Returns project/revision/job IDs and a workspace link. Call workspace_result for progress. Keep the user in the original Agent conversation and offer only the workspace link; do not open a window or embed a player.",
+      "Create a video, apply structured edits, or restore a version, then queue a real local render. Chat and studio share this endpoint. Always pass a stable idempotencyKey; editing requires projectId and the current baseRevisionId. On REVISION_CONFLICT read workspace_snapshot and re-plan. Existing media is reused; this tool does not buy new generated footage. Returns project/revision/job IDs and a workspace link. Call workspace_result for progress. Keep the user in the original Agent conversation. Deliver completed video and content using workspace_result; do not open a window automatically.",
     schema: commitSchema,
   },
   capabilities: {
@@ -333,16 +409,62 @@ export async function callTool(
         throw new AppError("CLOUD_NOT_CONFIGURED", "官方套餐尚未连接", 409);
       return { ...(await service.usage(c)), mode: "custom" };
     }
-    case "template_list":
-      return (
-        cloudConnection(service)?.templates?.list(c) ?? {
-          templates: [],
-          syncedAt: null,
-          configured: false,
-        }
+    case "asset_starters":
+      await service.scoped(c, "read", async () => {});
+      return starterAssets;
+    case "asset_search":
+      return (await service.list(c, "asset")).filter(
+        (a) =>
+          ["image", "video", "audio"].includes(a.kind) &&
+          (!data.kind || a.kind === data.kind) &&
+          matchesAsset(a, data.query, data.category, data.favorites),
       );
+    case "asset_import_starter":
+      return importStarter(service, c, data.id);
+    case "asset_organize":
+      return organizeAsset(service, c, data);
+    case "template_list":
+      return templateLibrary(service, c);
+    case "template_match": {
+      const catalog = await templateLibrary(service, c);
+      return {
+        candidates: rankTemplates(data.brief, catalog.templates).slice(
+          0,
+          data.limit,
+        ),
+        assets: relevantAssets(data.brief, await service.list(c, "asset")),
+        generationRequests: 0,
+      };
+    }
+    case "template_prepare": {
+      if (starterTemplates.some((t) => t.id === data.id))
+        return prepareStarter(service, c, data);
+      const client = cloudConnection(service)?.templates;
+      if (!client)
+        throw new AppError(
+          "CLOUD_NOT_CONFIGURED",
+          "这个云端模板尚未缓存，请先配置模板源并更新",
+          409,
+        );
+      return client.prepare(c, data);
+    }
     case "template_sync":
     case "template_apply": {
+      if (
+        name === "template_apply" &&
+        starterTemplates.some((t) => t.id === data.id)
+      ) {
+        const prepared = await prepareStarter(service, c, data);
+        const project = await service.createProject(c, {
+          title: prepared.composition.title,
+        });
+        const revision = await service.addRevision(
+          c,
+          project.id,
+          prepared.composition,
+        );
+        return { project, revision };
+      }
       const connection = cloudConnection(service);
       if (!connection?.templates)
         throw new AppError(
@@ -350,9 +472,11 @@ export async function callTool(
           "尚未配置模板源，请配置 TEMPLATE_API_URL 或 config.templates.url 后手动更新；无需开通付费 API",
           409,
         );
-      return name === "template_sync"
-        ? connection.templates.sync(c)
-        : connection.templates.apply(c, data);
+      if (name === "template_sync") {
+        await connection.templates.sync(c);
+        return callTool(service, c, "template_list", {});
+      }
+      return connection.templates.apply(c, data);
     }
     case "cloud_usage": {
       const gateway = cloudConnection(service)?.gateway;
@@ -368,6 +492,10 @@ export async function callTool(
       return revokeDelivery(service, c, data.grantId);
     case "workspace_snapshot":
       return workspaceSnapshot(service, c, data.projectId, data.revisionId);
+    case "workspace_request_get":
+      return workspaceRequestGet(service, c, data.requestId);
+    case "workspace_request_save":
+      return workspaceRequestSave(service, c, data);
     case "workspace_plan":
       return workspacePlan(service, c, data);
     case "workspace_commit":
@@ -426,11 +554,13 @@ export async function callTool(
             "format",
             "restore",
           ],
+          resumableRequests: true,
+          resultDelivery: "media-and-content",
           conversationPlanner: plannerConfigured()
             ? "configured-model"
             : "local-commands",
           modelPlanningMayIncurCost: plannerConfigured(),
-          delivery: "mcp-app-and-expiring-media-links",
+          delivery: "native-conversation-and-expiring-media-links",
         },
         local: [
           "render",

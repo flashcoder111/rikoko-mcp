@@ -31,6 +31,20 @@ export async function workspaceResult(
     }[],
   };
   if (job.status !== "completed" || !job.outputs.length) return result;
+  const textContent = revision
+    ? {
+        title: revision.composition.title as string,
+        screenText: [
+          ...revision.composition.scenes.map(
+            (scene: { text?: string }) => scene.text ?? "",
+          ),
+          ...revision.composition.events
+            .filter((event: { kind: string }) => event.kind === "text")
+            .map((event: { text?: string }) => event.text ?? ""),
+        ].filter((text: string) => text.trim()),
+        source: "composition-screen-text" as const,
+      }
+    : undefined;
   const token = randomBytes(32).toString("base64url"),
     grantId = sha256(token),
     expiresAt = Date.now() + 3600_000;
@@ -59,7 +73,12 @@ export async function workspaceResult(
     mimeType: asset!.mime,
     url: `${base}/delivery/${token}/${asset!.id}`,
   }));
-  return { ...result, expiresAt: new Date(expiresAt).toISOString(), grantId };
+  return {
+    ...result,
+    textContent,
+    expiresAt: new Date(expiresAt).toISOString(),
+    grantId,
+  };
 }
 export async function revokeDelivery(
   service: Service,

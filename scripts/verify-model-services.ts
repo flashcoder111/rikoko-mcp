@@ -13,7 +13,7 @@ import { setServiceInfo } from "../packages/core/src/service-info.js";
 import { connectCloud } from "../packages/cloud-client/src/index.js";
 
 // Isolated browser fixture. Media is synthesized locally; no provider or checkout is called.
-const dir = await mkdtemp(join(tmpdir(), "hypit-model-ui-"));
+const dir = await mkdtemp(join(tmpdir(), "rikoko-model-ui-"));
 const db = await Database.open();
 const models = (["image", "video", "audio"] as const).map((kind) => ({
   id: `fixture-${kind}`,

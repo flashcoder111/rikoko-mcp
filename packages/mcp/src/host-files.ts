@@ -116,10 +116,11 @@ export class HostFiles {
     const root = await realpath(this.outputDir);
     const delivered: DeliveredMedia[] = [];
     for (const item of media) {
-      const path = join(
-        root,
-        `${jobId}-${item.assetId}${extension[item.mimeType] ?? ".bin"}`,
-      );
+      const suffix =
+        item.mimeType === "text/plain" && /\.srt$/i.test(item.name)
+          ? ".srt"
+          : (extension[item.mimeType] ?? ".bin");
+      const path = join(root, `${jobId}-${item.assetId}${suffix}`);
       const tmp = `${path}.${randomUUID()}.tmp`;
       const response = await this.connection.request(
         `/api/assets/${item.assetId}/file`,

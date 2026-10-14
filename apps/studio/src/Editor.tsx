@@ -34,6 +34,10 @@ import { latestJob, type Snapshot } from "./api";
 import { AssetThumb } from "./media";
 import StudioPlayer, { Filmstrip, timestamp } from "./StudioPlayer";
 import AudioControls from "./AudioControls";
+import {
+  assetCategories,
+  matchesAsset,
+} from "../../../packages/core/src/library-metadata.js";
 export default function Editor({
   snapshot,
   assets,
@@ -65,6 +69,7 @@ export default function Editor({
     [searchOpen, setSearchOpen] = useState(false),
     [filter, setFilter] = useState("all"),
     [libraryScope, setLibraryScope] = useState("project"),
+    [assetPurpose, setAssetPurpose] = useState("全部"),
     [sort, setSort] = useState("date"),
     [list, setList] = useState(false),
     [side, setSide] = useState(false),
@@ -106,12 +111,12 @@ export default function Editor({
       revision?.id &&
       pendingSave.current !== revision.id
     ) {
-      sessionStorage.removeItem(`hypit-draft:${pendingSave.current}`);
+      sessionStorage.removeItem(`rikoko-draft:${pendingSave.current}`);
       pendingSave.current = "";
     }
     if (revision && !historical)
       try {
-        const raw = sessionStorage.getItem(`hypit-draft:${revision.id}`);
+        const raw = sessionStorage.getItem(`rikoko-draft:${revision.id}`);
         if (raw) {
           saved = JSON.parse(raw);
           if (saved)
@@ -129,7 +134,7 @@ export default function Editor({
   useEffect(() => {
     if (revision?.id && loadedRevision === revision.id && !historical) {
       sessionStorage.setItem(
-        `hypit-draft:${revision.id}`,
+        `rikoko-draft:${revision.id}`,
         JSON.stringify({ history, cursor }),
       );
     }
@@ -165,7 +170,7 @@ export default function Editor({
       applyEdits(revision.composition, nextEdits);
       setHistory((h) => [...h.slice(0, cursor + 1), nextEdits]);
       sessionStorage.setItem(
-        `hypit-draft:${revision.id}`,
+        `rikoko-draft:${revision.id}`,
         JSON.stringify({
           history: [...history.slice(0, cursor + 1), nextEdits],
           cursor: cursor + 1,
@@ -229,7 +234,7 @@ export default function Editor({
         ["video", "image", "audio"].includes(a.kind) &&
         (libraryScope === "all" || projectAssets.has(a.id)) &&
         (filter === "all" || a.kind === filter) &&
-        a.name?.toLowerCase().includes(search.toLowerCase()),
+        matchesAsset(a, search, assetPurpose),
     )
     .sort((a, b) =>
       sort === "name"
@@ -662,7 +667,7 @@ export default function Editor({
         </div>
         <section className="media-library">
           <header>
-            <strong>Media</strong>
+            <strong>素材</strong>
             <select
               aria-label="素材范围"
               value={libraryScope}
@@ -671,12 +676,22 @@ export default function Editor({
               <option value="project">本作品</option>
               <option value="all">全部素材</option>
             </select>
+            <select
+              aria-label="素材用途分类"
+              value={assetPurpose}
+              onChange={(e) => setAssetPurpose(e.target.value)}
+            >
+              {["全部", ...assetCategories].map((c) => (
+                <option key={c}>{c}</option>
+              ))}
+            </select>
+            {chat.onLibrary && <button onClick={chat.onLibrary}>素材库</button>}
             <div className="toolbar-spacer" />
             {searchOpen && (
               <input
                 autoFocus
                 aria-label="搜索素材"
-                placeholder="Search media…"
+                placeholder="搜索名称或标签…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -755,6 +770,26 @@ export default function Editor({
                   <span className="media-name">{a.name}</span>
                 </button>
                 <div className="media-actions">
+                  {["image", "video"].includes(a.kind) && (
+                    <button
+                      className="replace-asset-button"
+                      disabled={!scene || historical || !!busy}
+                      onClick={() =>
+                        scene &&
+                        edit([
+                          {
+                            type: "visual",
+                            sceneId: scene.id,
+                            assetId: a.id,
+                            preserveAudio: true,
+                            fit: "contain",
+                          },
+                        ])
+                      }
+                    >
+                      替换画面
+                    </button>
+                  )}
                   <button
                     title="添加到时间线"
                     disabled={!revision || historical}
@@ -774,7 +809,7 @@ export default function Editor({
             ))}
             {!media.length && (
               <p className="empty-library">
-                上传素材，或在对话中生成图片、视频和音频。
+                从素材库复用已有画面，或上传自己的素材。
               </p>
             )}
           </div>

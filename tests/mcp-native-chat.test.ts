@@ -35,7 +35,7 @@ afterEach(async () => {
 });
 
 it.each(["codex", "hermes", "claude", "generic"])(
-  "%s keeps the original conversation and does not export or advertise embedded UI by default",
+  "%s delivers completed media in the original conversation without opening embedded UI",
   async (host) => {
     const address = server.address();
     if (!address || typeof address === "string") throw Error("No test port");
@@ -64,18 +64,16 @@ it.each(["codex", "hermes", "claude", "generic"])(
       expect(tools.tools.every((tool) => !tool._meta)).toBe(true);
       expect(client.getServerCapabilities()?.resources).toBeUndefined();
       expect(client.getInstructions()).toContain("original conversation");
-      expect(client.getInstructions()).toContain(
-        "only the returned workspace link",
-      );
-      for (const name of ["hypit_create", "hypit_resume"]) {
+      expect(client.getInstructions()).toContain("deliver the video");
+      for (const name of ["rikoko_create", "rikoko_resume"]) {
         const prompt = await client.getPrompt({
           name,
           arguments:
-            name === "hypit_create"
+            name === "rikoko_create"
               ? { request: "Make a local clip" }
               : { projectId: "project" },
         });
-        expect(JSON.stringify(prompt)).toContain("only the workspace link");
+        expect(JSON.stringify(prompt)).toContain("deliver the video");
       }
       const committed = await client.callTool({
         name: "workspace_commit",
@@ -116,18 +114,22 @@ it.each(["codex", "hermes", "claude", "generic"])(
         arguments: { jobId: command.jobId },
       });
       expect(delivered.isError).not.toBe(true);
-      expect(delivered.content).toHaveLength(1);
+      expect(delivered.content).toHaveLength(2);
       expect(delivered.content[0].type).toBe("text");
       const result = (delivered.structuredContent as any).result;
       expect(result.workspace).toContain("/workspace?project=");
-      expect(result.media).toBeUndefined();
+      expect(result.media[0].assetId).toBe(asset.id);
+      expect(result.textContent.title).toBe("Native chat contract");
       expect(result.outputs[0].assetId).toBe(asset.id);
-      expect(JSON.stringify(delivered)).not.toMatch(
-        /resource_link|ui:\/\/|\/delivery\/|MEDIA:|!\[video\]/,
-      );
-      expect(await readdir(exports).catch(() => [])).toEqual([]);
+      expect(delivered.content[1].type).toBe("resource_link");
+      expect(JSON.stringify(delivered)).not.toContain("ui://");
+      if (["codex", "hermes"].includes(host)) {
+        expect(await readFile(result.media[0].localPath)).toEqual(bytes);
+      } else {
+        expect(await readdir(exports).catch(() => [])).toEqual([]);
+      }
 
-      // Downloading is a separate, explicit action and never creates another job.
+      // Explicit export remains available and never creates another job.
       const downloaded = await client.callTool({
         name: "workspace_export",
         arguments: { jobId: command.jobId },

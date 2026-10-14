@@ -6,8 +6,8 @@ vwb_main() {
   local vwb_release='__VWB_RELEASE_BASE64__'
   local vwb_home="${XDG_DATA_HOME:-$HOME/.local/share}/video-workbench"
   local vwb_client=auto vwb_tmp vwb_node vwb_os vwb_arch vwb_archive vwb_expected vwb_actual
-  local vwb_official_key="${HYPIT_OFFICIAL_KEY:-}"
-  unset HYPIT_OFFICIAL_KEY
+  local vwb_official_key="${RIKOKO_OFFICIAL_KEY:-}"
+  unset RIKOKO_OFFICIAL_KEY
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --client) [ "$#" -ge 2 ] || return 2; vwb_client="$2"; shift 2 ;;
@@ -129,7 +129,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 const read = name => { const p = join(process.argv[2], 'config', name); return existsSync(p) ? JSON.parse(readFileSync(p, 'utf8')) : {}; };
 const model = read('models.json'), keys = read('credentials.json');
-process.exit(model.mode === 'custom' || keys.HYPIT_OFFICIAL_KEY ? 1 : 0);
+process.exit(model.mode === 'custom' || keys.RIKOKO_OFFICIAL_KEY ? 1 : 0);
 JS
   then
     if ( : < /dev/tty ) 2>/dev/null; then
@@ -138,8 +138,8 @@ JS
       printf '\n' > /dev/tty
     fi
   fi
-  export HYPIT_OFFICIAL_KEY="$vwb_official_key"
+  export RIKOKO_OFFICIAL_KEY="$vwb_official_key"
   "$vwb_node" --experimental-strip-types scripts/setup.ts --home "$vwb_home" --release "$vwb_home/.release.json" --client "$vwb_client"
-  unset HYPIT_OFFICIAL_KEY
+  unset RIKOKO_OFFICIAL_KEY
 }
 vwb_main "$@"

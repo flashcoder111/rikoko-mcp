@@ -4,11 +4,13 @@
 
 第一次使用请看[中文使用教程](docs/tutorials/使用教程.md)：从启动、首个本地样片，到 Agent 对话、工作台剪辑、声音调整与版本恢复，附实际操作截图。
 
+直接描述想做的视频，Agent 会自动检索模板和已有素材、选择合适结构并填入文案，无需先选模板或提供参考视频。本地内置 9 个模板、15 张原创插画；素材分类、标签与收藏用于辅助自动检索。修改字幕复用当前画面，详见[自动创作与素材复用](docs/tutorials/模板与素材复用.md)。
+
 官方云服务只承担**模板更新分发与统一模型 API 收费**。项目、素材、剪辑、版本与 FFmpeg 渲染保留在本地；模板更新和本地处理不消耗官方 API 额度。
 
 支持**官方综合 API 套餐**和**config 自有模型接入**两种方式：官方套餐统一消耗额度，自有服务直接使用自己的供应商账户。图片、视频和音频共用模型目录与素材流程；自有连接只通过配置文件管理。配置示例、计费规则、当前供应商支持范围及支付边界见 [模型服务说明](docs/architecture/model-services.md)。
 
-rikoko 是可自部署的视频创作 MCP，提供可选剪辑工作台。用户始终在 Codex、Hermes 或 Claude 原对话中提出要求、查看状态和继续修改；默认只附一个工作台链接，由用户点击打开。不自动弹出 MCP 窗口、嵌入播放器或另开网页对话。客户端适配与安装见 [三端接入](examples/clients/README.md)，当前交互验收见 [原对话与工作台链接](docs/acceptance/native-conversation.md)。实现计划见 [计划书](plans/框架搭建与开源整合实施计划书.md)。
+rikoko 是可自部署的视频创作 MCP，提供可选剪辑工作台。用户在 Codex、Hermes 或 Claude 原对话中提出要求、查看状态和继续修改；支持的客户端安装后可使用 `/rikoko` 入口。完成时在原对话交付视频附件或媒体链接，并可附工作台链接供用户点击精修；用户也可要求只返回链接。不自动弹出 MCP 窗口、注册卡片播放器或另开网页对话。客户端适配与安装见 [三端接入](examples/clients/README.md)，交互验收见 [原对话与工作台链接](docs/acceptance/native-conversation.md)。实现计划见 [计划书](plans/框架搭建与开源整合实施计划书.md)。
 
 本仓库新增原创实现，不复制 Hypit 的源代码、Skill 或示例。原有 `plans/`、`research/`、`outputs/` 保留。
 
@@ -40,7 +42,7 @@ pnpm dev
 
 两个入口共用作品、素材、任务、版本和编辑记录。支持字幕、裁剪、分割、删除、顺序、替换画面保留声音、音量、背景音乐、画幅、历史恢复；修改创建新版本，过期版本会报冲突。打开或关闭工作台不触发重新生成。
 
-宿主 Agent 直接调用 `workspace_commit`，无需网页或额外创作模型；MCP 的 `workspace_result` 返回状态、素材 ID 和工作台链接，不自动导出附件，不声明 MCP Apps 资源。用户明确要求文件或附件时才调用 `workspace_export`。网页内自由描述可选接入创作模型；未配置时只处理明确编辑指令、已有素材和脚本卡片。详见 [双模式接入](docs/architecture/dual-mode.md)。
+宿主 Agent 直接调用 `workspace_commit`，无需网页或额外创作模型；MCP 的 `workspace_result` 在完成后返回媒体资源链接、画面文案和工作台链接；配置了导出目录的 Codex/Hermes 桥接自动保存附件，其他宿主使用媒体链接。`delivery: "links"` 可跳过本地保存，`workspace_export` 可重试导出，不重新生成。缺素材时通过 `workspace_request_save/get` 保存和恢复请求。MCP 不声明 Apps 资源。网页内自由描述可选接入创作模型；未配置时只处理明确编辑指令、已有素材和脚本卡片。详见 [双模式接入](docs/architecture/dual-mode.md)。
 
 ## 已有功能
 

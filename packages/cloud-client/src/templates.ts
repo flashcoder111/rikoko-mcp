@@ -10,6 +10,10 @@ import { cloudOrigin, cloudRequest } from "./http.js";
 import { downloadPublic } from "../../storage/src/download.js";
 import { sha256 } from "../../storage/src/index.js";
 import { completeUpload } from "../../core/src/assets.js";
+import {
+  validateSceneAssets,
+  bindSceneAssets,
+} from "../../templates/src/local-library.js";
 const snapshotSchema = z.object({
   schemaVersion: z.literal(1),
   revision: z.number().int().nonnegative(),
@@ -83,7 +87,7 @@ export class TemplateClient {
       }),
     );
   }
-  async apply(c: Context, raw: unknown) {
+  async prepare(c: Context, raw: unknown) {
     await this.service.scoped(c, "write", async () => {});
     const p = applyTemplateSchema.parse(raw),
       snapshot = await this.list(c);
@@ -99,7 +103,30 @@ export class TemplateClient {
     const { hash: _hash, ...definition } = entry;
     const template = templateSchema.parse(definition),
       mapping: Record<string, string> = {};
+    const bindings = await validateSceneAssets(
+      this.service,
+      c,
+      template.composition.scenes.map((s) => s.id),
+      p.sceneAssets,
+    );
+    const draft = bindSceneAssets(
+      instantiate(
+        template,
+        p.parameters,
+        Object.fromEntries(template.assets.map((a) => [a.id, a.id])),
+      ),
+      bindings,
+    );
+    const needed = new Set([
+      ...draft.scenes.flatMap((s) => [s.assetId, s.audioAssetId]),
+      ...draft.events.map((e) => e.assetId),
+      draft.audio?.assetId,
+    ]);
     for (const a of template.assets) {
+      if (!needed.has(a.id)) {
+        mapping[a.id] = a.id;
+        continue;
+      }
       let asset = (await this.service.list(c, "asset")).find(
         (x) => x.sha256 === a.sha256,
       );
@@ -124,7 +151,29 @@ export class TemplateClient {
       }
       mapping[a.id] = asset.id;
     }
-    const composition = instantiate(template, p.parameters, mapping);
+    const composition = bindSceneAssets(
+      instantiate(template, p.parameters, mapping),
+      bindings,
+    );
+    return {
+      composition,
+      templateSource: {
+        id: template.id,
+        version: template.version,
+        hash: entry.hash,
+        source: this.origin,
+        parameters: p.parameters,
+        snapshot: template,
+      },
+      reuse: {
+        existingScenes: Object.keys(bindings).length,
+        bundledScenes: composition.scenes.length - Object.keys(bindings).length,
+        generationRequests: 0,
+      },
+    };
+  }
+  async apply(c: Context, raw: unknown) {
+    const { composition, templateSource } = await this.prepare(c, raw);
     const project = await this.service.createProject(c, {
       title: composition.title,
     });
@@ -132,14 +181,7 @@ export class TemplateClient {
     revision = await this.service.scoped(c, "write", (tx) =>
       tx.put({
         ...revision,
-        templateSource: {
-          id: template.id,
-          version: template.version,
-          hash: entry.hash,
-          source: this.origin,
-          parameters: p.parameters,
-          snapshot: template,
-        },
+        templateSource,
       }),
     );
     return { project, revision };

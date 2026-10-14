@@ -135,6 +135,8 @@ export const actionSchema = z.discriminatedUnion("type", [
 ]);
 export const commitSchema = z
   .object({
+    requestId: idSchema.optional(),
+    requestVersion: z.number().int().positive().optional(),
     projectId: idSchema.optional(),
     baseRevisionId: idSchema.optional(),
     action: actionSchema,
@@ -145,21 +147,71 @@ export const commitSchema = z
   .strict();
 export const planSchema = z
   .object({
+    requestId: idSchema.optional(),
+    requestVersion: z.number().int().positive().optional(),
     projectId: idSchema.optional(),
     revisionId: idSchema.optional(),
     selectedSceneId: idSchema.optional(),
-    message: z.string().trim().min(1).max(5000),
+    message: z.string().trim().max(5000).default(""),
     assetIds: z.array(idSchema).max(14).default([]),
   })
   .strict();
+export const missingInputSchema = z
+  .object({
+    id: idSchema,
+    kind: z.enum(["image", "video", "audio", "text"]),
+    prompt: z.string().trim().min(1).max(1000),
+    purpose: z.string().trim().min(1).max(500),
+    required: z.boolean().default(true),
+    sceneId: idSchema.optional(),
+  })
+  .strict();
+export const requestSaveSchema = z
+  .object({
+    requestId: idSchema.optional(),
+    requestVersion: z.number().int().positive().optional(),
+    projectId: idSchema.optional(),
+    revisionId: idSchema.optional(),
+    selectedSceneId: idSchema.optional(),
+    message: z.string().trim().max(5000).default(""),
+    assetIds: z.array(idSchema).max(14).default([]),
+    missingInputs: z.array(missingInputSchema).max(14).optional(),
+  })
+  .strict();
+export type MissingInput = z.infer<typeof missingInputSchema>;
+export type CreationRequest = {
+  requestId: string;
+  requestVersion: number;
+  originalMessage: string;
+  turns: { message: string; assetIds: string[] }[];
+  assetIds: string[];
+  missingInputs: MissingInput[];
+  status: "waiting_input" | "ready" | "submitted";
+  projectId?: string;
+  revisionId?: string;
+  selectedSceneId?: string;
+  jobId?: string;
+  proposal?: Proposal;
+};
 export type Edit = z.infer<typeof editSchema>;
 export type Action = z.infer<typeof actionSchema>;
 export type Commit = z.infer<typeof commitSchema>;
 export type PlanInput = z.infer<typeof planSchema>;
 export type Proposal = {
+  requestId?: string;
+  requestVersion?: number;
+  status?: "waiting_input" | "ready";
+  missingInputs?: MissingInput[];
   message: string;
   action?: Action;
   baseRevisionId?: string;
   projectId?: string;
-  engine: "local-commands" | "configured-model";
+  engine: "local-commands" | "configured-model" | "template-library";
+  autoApply?: boolean;
+  reuse?: {
+    templateId: string;
+    templateTitle: string;
+    assetIds: string[];
+    generationRequests: 0;
+  };
 };

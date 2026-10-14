@@ -80,7 +80,7 @@ function matching(old: unknown, desired: unknown) {
     JSON.stringify(previous.env) !== JSON.stringify(next.env)
   )
     throw Error(
-      "An existing hypit MCP entry differs. Preserve it; choose its original workspace or review the configuration manually.",
+      "An existing rikoko MCP entry differs. Preserve it; choose its original workspace or review the configuration manually.",
     );
 }
 export function mergeHostConfig(
@@ -91,10 +91,10 @@ export function mergeHostConfig(
   if (client === "codex") {
     const config = existing.trim() ? parseToml(existing) : {};
     const old = (config.mcp_servers as Record<string, unknown> | undefined)
-      ?.hypit;
+      ?.rikoko;
     matching(old, launch);
     if (old) return existing;
-    return `${existing.trimEnd()}\n\n[mcp_servers.hypit]\ncommand = ${JSON.stringify(launch.command)}\nargs = ${JSON.stringify(launch.args)}\nstartup_timeout_sec = 30\ntool_timeout_sec = 120\n[mcp_servers.hypit.env]\n${Object.entries(
+    return `${existing.trimEnd()}\n\n[mcp_servers.rikoko]\ncommand = ${JSON.stringify(launch.command)}\nargs = ${JSON.stringify(launch.args)}\nstartup_timeout_sec = 30\ntool_timeout_sec = 120\n[mcp_servers.rikoko.env]\n${Object.entries(
       launch.env,
     )
       .map(([k, v]) => `${k} = ${JSON.stringify(v)}`)
@@ -105,10 +105,10 @@ export function mergeHostConfig(
     if (doc.errors.length)
       throw Error("Existing Hermes YAML is invalid; no changes written.");
     const data = doc.toJS() as { mcp_servers?: Record<string, unknown> };
-    const old = data?.mcp_servers?.hypit;
+    const old = data?.mcp_servers?.rikoko;
     matching(old, launch);
     if (old) return existing;
-    doc.setIn(["mcp_servers", "hypit"], {
+    doc.setIn(["mcp_servers", "rikoko"], {
       ...launch,
       timeout: 120,
       connect_timeout: 30,
@@ -116,12 +116,12 @@ export function mergeHostConfig(
     return doc.toString();
   }
   const config = existing.trim() ? JSON.parse(existing) : {};
-  const old = config.mcpServers?.hypit;
+  const old = config.mcpServers?.rikoko;
   matching(old, launch);
   if (old) return existing;
   config.mcpServers = {
     ...config.mcpServers,
-    hypit: {
+    rikoko: {
       ...(client === "claude-code" ? { type: "stdio" } : {}),
       ...launch,
     },

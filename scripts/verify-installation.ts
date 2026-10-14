@@ -83,7 +83,7 @@ const env = {
   ...process.env,
   PATH: `${shims}:${process.env.PATH}`,
   VIDEOWORKBENCH_CLIENT_HOME: profile,
-  HYPIT_OFFICIAL_KEY: "",
+  RIKOKO_OFFICIAL_KEY: "",
   UV_OFFLINE: "true",
   VWB_FIXTURE_URL: result.release.archiveUrl,
   VWB_FIXTURE_ARCHIVE: join(directory, "release/video-workbench-0.1.0.tar.gz"),
@@ -105,9 +105,9 @@ try {
   await stopBackend(installerFile);
   // Start actual stdio bridges from the installed host configs, with no backend running.
   const codex = (
-    parseToml(before).mcp_servers as unknown as { hypit: HostLaunch }
-  ).hypit;
-  const claude = JSON.parse(claudeBefore).mcpServers.hypit as HostLaunch;
+    parseToml(before).mcp_servers as unknown as { rikoko: HostLaunch }
+  ).rikoko;
+  const claude = JSON.parse(claudeBefore).mcpServers.rikoko as HostLaunch;
   await Promise.all(
     [codex, claude, codex].map(async (launch, index) => {
       const client = new Client({

@@ -37,7 +37,7 @@ export async function hostCredential(env: NodeJS.ProcessEnv = process.env) {
         "-s",
         env.VIDEOWORKBENCH_KEYCHAIN_SERVICE,
         "-a",
-        "hypit-mcp",
+        "rikoko-mcp",
         "-w",
       ]);
       if (stdout.trim()) return stdout.trim();

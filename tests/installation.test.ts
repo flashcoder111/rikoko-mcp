@@ -73,7 +73,7 @@ it("defaults to official API and separate template distribution without includin
   expect(config).toEqual({
     schemaVersion: 1,
     mode: "official",
-    official: { url: release.apiUrl, keyEnv: "HYPIT_OFFICIAL_KEY" },
+    official: { url: release.apiUrl, keyEnv: "RIKOKO_OFFICIAL_KEY" },
     templates: { url: release.templateUrl },
   });
   expect(
@@ -117,7 +117,7 @@ it("loads only the selected provider's secrets and ignores host database and pai
   await writeFile(
     join(installation.home, "config/credentials.json"),
     JSON.stringify({
-      HYPIT_OFFICIAL_KEY: "user-key",
+      RIKOKO_OFFICIAL_KEY: "user-key",
       MY_KEY: "other-key",
       NODE_OPTIONS: "evil",
     }),
@@ -128,7 +128,7 @@ it("loads only the selected provider's secrets and ignores host database and pai
     FAL_KEY: "wrong",
     NODE_OPTIONS: "evil",
   });
-  expect(env.HYPIT_OFFICIAL_KEY).toBe("user-key");
+  expect(env.RIKOKO_OFFICIAL_KEY).toBe("user-key");
   expect(env.MY_KEY).toBeUndefined();
   expect(env.DATABASE_URL).toBeUndefined();
   expect(env.FAL_KEY).toBeUndefined();
@@ -140,9 +140,9 @@ it("loads only the selected provider's secrets and ignores host database and pai
     JSON.stringify({ mode: "custom", providers: [{ keyEnv: "MY_KEY" }] }),
   );
   const custom = await managedEnvironment(installation, {
-    HYPIT_OFFICIAL_KEY: "inherited",
+    RIKOKO_OFFICIAL_KEY: "inherited",
   });
-  expect(custom.HYPIT_OFFICIAL_KEY).toBeUndefined();
+  expect(custom.RIKOKO_OFFICIAL_KEY).toBeUndefined();
   expect(custom.MY_KEY).toBe("other-key");
 });
 
@@ -221,7 +221,7 @@ it("binds only a verified individual official key and never forwards it to templ
   expect(fetcher).toHaveBeenCalledOnce();
   expect(
     await readPrivateJson(join(installation.home, "config/credentials.json")),
-  ).toEqual({ HYPIT_OFFICIAL_KEY: "individual-key" });
+  ).toEqual({ RIKOKO_OFFICIAL_KEY: "individual-key" });
   await writeFile(
     join(installation.home, "config/models.json"),
     JSON.stringify({
@@ -236,6 +236,35 @@ it("binds only a verified individual official key and never forwards it to templ
     await bindOfficialKey(installation, release, "must-not-send", fetcher),
   ).toBe(false);
   expect(fetcher).toHaveBeenCalledOnce();
+  await writeFile(
+    join(installation.home, "config/models.json"),
+    JSON.stringify({
+      mode: "official",
+      official: { url: release.apiUrl, keyEnv: "NODE_OPTIONS" },
+    }),
+  );
+  expect(
+    await bindOfficialKey(installation, release, "must-not-send", fetcher),
+  ).toBe(false);
+  expect(fetcher).toHaveBeenCalledOnce();
+});
+
+it("binds to the key name already selected by an existing managed installation", async () => {
+  const { installation } = await fixture();
+  await writeFile(
+    join(installation.home, "config/models.json"),
+    JSON.stringify({
+      mode: "official",
+      official: { url: release.apiUrl, keyEnv: "PREVIOUS_OFFICIAL_KEY" },
+    }),
+  );
+  const fetcher = vi.fn(async () => Response.json({ balanceCents: 0 }));
+  expect(
+    await bindOfficialKey(installation, release, "individual-key", fetcher),
+  ).toBe(true);
+  expect(
+    await readPrivateJson(join(installation.home, "config/credentials.json")),
+  ).toEqual({ PREVIOUS_OFFICIAL_KEY: "individual-key" });
 });
 
 it("failed official authentication does not store a token or change local credentials", async () => {

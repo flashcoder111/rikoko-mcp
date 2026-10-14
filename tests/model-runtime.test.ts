@@ -11,8 +11,8 @@ beforeEach(async () => {
   for (const key of [
     "DATABASE_URL",
     "S3_BUCKET",
-    "HYPIT_CONFIG_FILE",
-    "HYPIT_PLANS_FILE",
+    "RIKOKO_CONFIG_FILE",
+    "RIKOKO_PLANS_FILE",
     "FAL_MODELS_FILE",
     "CLOUD_API_URL",
     "CLOUD_API_KEY",
@@ -33,7 +33,7 @@ it("explicit custom config overrides legacy credentials and does not enable the 
     path,
     JSON.stringify({ schemaVersion: 1, mode: "custom", providers: [] }),
   );
-  vi.stubEnv("HYPIT_CONFIG_FILE", path);
+  vi.stubEnv("RIKOKO_CONFIG_FILE", path);
   vi.stubEnv("FAL_MODELS_FILE", join(dir, "obsolete-missing.json"));
   vi.stubEnv("CLOUD_API_URL", "https://api.example.com");
   vi.stubEnv("CLOUD_API_KEY", "legacy-must-not-be-used");
@@ -72,7 +72,7 @@ it("official mode without its key remains unavailable and cannot fall back to a 
       },
     }),
   );
-  vi.stubEnv("HYPIT_CONFIG_FILE", path);
+  vi.stubEnv("RIKOKO_CONFIG_FILE", path);
   vi.stubEnv("FAL_KEY", "must-not-be-used");
   vi.stubEnv("ENABLE_PAID_PROVIDERS", "true");
   const runtime = await openRuntime();

@@ -8,11 +8,11 @@
 
 官网的一行命令下载版本对应的 `install.sh` 并交给 Bash 执行；该脚本内置本版本源码下载地址、SHA-256、官方 API 地址与模板源。用户无需填写 URL，也不在安装流程中选择供应商。
 
-默认识别现有 Codex、Claude Code 配置目录；macOS 也识别 Claude Desktop。可在命令末尾使用 `bash -s -- --client codex` 或 `bash -s -- --client claude-code` 指定目标。安装器注册 rikoko MCP，当前沿用 `hypit` 配置键以兼容已有连接；保留其他 MCP 配置，遇到同名但不同来源的条目时停止，不覆盖它。
+默认识别现有 Codex、Claude Code 配置目录；macOS 也识别 Claude Desktop。可在命令末尾使用 `bash -s -- --client codex` 或 `bash -s -- --client claude-code` 指定目标。安装器以 `rikoko` 注册 MCP，并为支持的客户端安装 `/rikoko` 技能；保留其他 MCP 配置，遇到同名但不同来源的条目时停止，不覆盖它。
 
 首次交互安装可输入自己的官方用户 Key，输入不回显，也不进入命令历史；回车可跳过绑定，先使用本地编辑。Key 只向内置的官方 API origin 请求 `/v1/usage` 验证，禁止重定向；不会发起付费生成。没有公开注册/设备授权接口时，安装器不能凭空创建官方账户，官方地址已配置也不等于用户已经登录。
 
-非交互环境可通过宿主的秘密环境注入 `HYPIT_OFFICIAL_KEY`；不要把它明文拼进分享的安装命令。无 Key 的非交互安装仍可完成本地流程，最终明确提示尚未绑定。重新运行同版本安装保留 config 与凭据，不覆盖已有自有供应商设置。
+非交互环境可通过宿主的秘密环境注入 `RIKOKO_OFFICIAL_KEY`；不要把它明文拼进分享的安装命令。无 Key 的非交互安装仍可完成本地流程，最终明确提示尚未绑定。重新运行同版本安装保留 config 与凭据，不覆盖已有自有供应商设置。
 
 ## 本地目录与生命周期
 

@@ -17,6 +17,10 @@ import { publicServiceInfo } from "../../../packages/core/src/service-info.js";
 import { publicBaseUrl } from "../../../packages/core/src/urls.js";
 import { completeUpload } from "../../../packages/core/src/assets.js";
 import {
+  starterBytes,
+  starterPreview,
+} from "../../../packages/templates/src/local-library.js";
+import {
   deliveryAsset,
   mediaResponse,
 } from "../../../packages/core/src/delivery.js";
@@ -148,6 +152,24 @@ export function createApp(
     await next();
   };
   app.use("/api/*", auth);
+  app.get("/api/starter-templates/:id/preview", async (c) => {
+    await service.scoped(c.get("principal"), "read", async () => {});
+    return mediaResponse(
+      await starterPreview(c.req.param("id")),
+      "video/mp4",
+      "rikoko-template-preview.mp4",
+      c.req.header("range"),
+    );
+  });
+  app.get("/api/starter-assets/:id/file", async (c) => {
+    await service.scoped(c.get("principal"), "read", async () => {});
+    return mediaResponse(
+      await starterBytes(c.req.param("id")),
+      "image/png",
+      "rikoko-illustration.png",
+      c.req.header("range"),
+    );
+  });
   app.use("/mcp", auth);
   app.use("/mcp", bodyLimit({ maxSize: 2 * 1024 * 1024 }));
   app.use("/api/tools/*", bodyLimit({ maxSize: 2 * 1024 * 1024 }));

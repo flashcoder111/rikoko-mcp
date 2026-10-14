@@ -34,7 +34,7 @@ async function connect(client: ClientName) {
     client,
     root,
     node: process.execPath,
-    keychainService: `ai.hypit.mcp.${identity}.${client}`,
+    keychainService: `ai.rikoko.mcp.${identity}.${client}`,
   });
   const test = new Client({
     name: `${client}-protocol-acceptance`,
@@ -48,7 +48,7 @@ async function connect(client: ClientName) {
       ...(client === "hermes"
         ? {
             VIDEOWORKBENCH_API_KEY: await hostCredential({
-              VIDEOWORKBENCH_KEYCHAIN_SERVICE: `ai.hypit.mcp.${identity}.codex`,
+              VIDEOWORKBENCH_KEYCHAIN_SERVICE: `ai.rikoko.mcp.${identity}.codex`,
             }),
           }
         : {}),

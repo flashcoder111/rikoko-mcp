@@ -45,7 +45,16 @@ const identity = createHash("sha256")
   .update(`${root}\n${base}`)
   .digest("hex")
   .slice(0, 12);
-const service = `ai.hypit.mcp.${identity}.${client}`;
+const service = `ai.rikoko.mcp.${identity}.${client}`;
+const clientHome = process.env.VIDEOWORKBENCH_CLIENT_HOME ?? homedir();
+const skillPath =
+  client === "codex"
+    ? join(clientHome, ".codex/skills/rikoko/SKILL.md")
+    : client === "claude-code"
+      ? join(clientHome, ".claude/skills/rikoko/SKILL.md")
+      : client === "hermes"
+        ? join(clientHome, ".hermes/skills/rikoko/SKILL.md")
+        : undefined;
 const launch = hostLaunch({
   client,
   root,
@@ -76,7 +85,10 @@ async function connectCheck() {
     env: { ...env, ...launch.env },
     stderr: "pipe",
   });
-  const test = new Client({ name: `rikoko-${client}-doctor`, version: "1.0.0" });
+  const test = new Client({
+    name: `rikoko-${client}-doctor`,
+    version: "1.0.0",
+  });
   try {
     await test.connect(transport);
     const list = await test.listTools();
@@ -100,7 +112,7 @@ async function connectCheck() {
           protocol: "stdio",
           connected: true,
           tools: list.tools.map((t) => t.name),
-          interaction: "native-conversation-workspace-link",
+          interaction: "native-conversation-media-and-content",
           inlineCardResource: false,
           paidTestExecuted: false,
         },
@@ -124,16 +136,23 @@ if (command === "config") {
     process.exitCode = 1;
   }
 } else {
-  const path = clientConfigPath(
-    client,
-    process.env.VIDEOWORKBENCH_CLIENT_HOME ?? homedir(),
-  );
+  const path = clientConfigPath(client, clientHome);
   const existing = await readOptional(path);
   if (client === "hermes" && !existing)
     throw Error(
       "Hermes is not configured on this machine. Use 'pnpm clients config hermes' on its actual host instead.",
     );
   const updated = mergeHostConfig(client, existing, launch);
+  const skill = skillPath
+    ? await readFile(join(root, "skills/rikoko/SKILL.md"), "utf8")
+    : undefined;
+  const currentSkill = skillPath ? await readOptional(skillPath) : undefined;
+  if (
+    currentSkill &&
+    currentSkill !== skill &&
+    !currentSkill.includes("<!-- Managed by the rikoko installer.")
+  )
+    throw Error(`A different rikoko skill already exists at ${skillPath}`);
   await mkdir(join(root, "media-inbox"), { recursive: true });
   await mkdir(join(root, "artifacts"), { recursive: true });
   if (managed && credentialFile) {
@@ -187,7 +206,7 @@ if (command === "config") {
           "-s",
           service,
           "-a",
-          "hypit-mcp",
+          "rikoko-mcp",
           "-w",
           issued.key,
         ]);
@@ -207,15 +226,26 @@ if (command === "config") {
   if (updated !== existing) {
     await mkdir(dirname(path), { recursive: true });
     if (existing) {
-      const backup = `${path}.hypit-${Date.now()}.bak`;
+      const backup = `${path}.rikoko-${Date.now()}.bak`;
       await copyFile(path, backup);
       await chmod(backup, 0o600);
     }
-    const temp = `${path}.hypit-tmp`;
+    const temp = `${path}.rikoko-tmp`;
     await writeFile(temp, updated, { mode: 0o600, flag: "wx" });
     await rename(temp, path);
   }
+  if (skillPath && skill && currentSkill !== skill) {
+    await mkdir(dirname(skillPath), { recursive: true });
+    if (currentSkill) {
+      const backup = `${skillPath}.rikoko-${Date.now()}.bak`;
+      await copyFile(skillPath, backup);
+      await chmod(backup, 0o600);
+    }
+    const temp = `${skillPath}.rikoko-tmp`;
+    await writeFile(temp, skill, { mode: 0o644, flag: "wx" });
+    await rename(temp, skillPath);
+  }
   console.log(
-    `Registered ${client}: ${path}. Reload the host's MCP connections to activate. Existing servers were preserved. The dedicated key has no paid-generation budget.`,
+    `Registered ${client}: ${path}${skillPath ? `; skill: ${skillPath}` : ""}. Reload the host's MCP connections to activate. Existing servers were preserved. The dedicated key has no paid-generation budget.`,
   );
 }

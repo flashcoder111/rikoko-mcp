@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { AppError, compositionSchema } from "../../contracts/src/index.js";
+import {
+  AppError,
+  compositionSchema,
+  idSchema,
+} from "../../contracts/src/index.js";
 const key = z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/);
 export const templateSchema = z
   .object({
@@ -68,6 +72,7 @@ export const applyTemplateSchema = z
     id: key,
     version: z.number().int().positive(),
     parameters: z.record(key, z.string().max(1000)).default({}),
+    sceneAssets: z.record(idSchema, idSchema).default({}),
   })
   .strict();
 export function instantiate(

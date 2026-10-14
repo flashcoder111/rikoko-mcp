@@ -32,7 +32,7 @@ afterEach(async () => {
   );
 });
 async function temp() {
-  const dir = await mkdtemp(join(tmpdir(), "hypit-host-"));
+  const dir = await mkdtemp(join(tmpdir(), "rikoko-host-"));
   dirs.push(dir);
   return dir;
 }
@@ -65,7 +65,7 @@ it("preserves existing host settings and installs four repeatable secret-free pr
     expect((parsed.mcp_servers ?? parsed.mcpServers).other.command).toBe(
       "other",
     );
-    expect((parsed.mcp_servers ?? parsed.mcpServers).hypit.args[2]).toContain(
+    expect((parsed.mcp_servers ?? parsed.mcpServers).rikoko.args[2]).toContain(
       "My Project/packages/mcp/src/stdio.ts",
     );
     expect(next).not.toContain("VIDEOWORKBENCH_API_KEY");
@@ -169,10 +169,19 @@ it("uploads actual bytes and exports through authenticated owned-asset endpoints
   );
   expect(await readFile(exported[0].localPath!)).toEqual(Buffer.from(bytes));
   expect(exported[0].localPath).not.toContain("unsafe");
+  const subtitles = await files.materialize("job-1", [
+    {
+      assetId: "captions",
+      name: "captions.srt",
+      mimeType: "text/plain",
+      url: "https://media.example/subtitles",
+    },
+  ]);
+  expect(subtitles[0].localPath).toMatch(/\.srt$/);
   await expect(files.materialize("../escape", [])).rejects.toThrow();
 });
 
-it("returns only a workspace link by default and exports attachments only when requested", () => {
+it("returns completed video with host-native attachment instructions and an optional workspace link", () => {
   const result = {
     jobId: "job",
     projectId: "project",
@@ -192,10 +201,8 @@ it("returns only a workspace link by default and exports attachments only when r
   for (const client of ["codex", "hermes", "claude", "generic"] as const) {
     const text = resultText(result, client);
     expect(text).toContain(`[打开工作台](<${result.workspace}>)`);
-    expect(text).not.toContain("https://media.example/video");
-    expect(text).not.toContain("Local attachment:");
-    expect(text).not.toContain("![video]");
-    expect(text).not.toContain("MEDIA:");
+    expect(text).toContain("https://media.example/video");
+    expect(text).toContain("Local attachment:");
   }
   expect(resultText(result, "codex", true)).toContain(
     "![video](</tmp/My Project/video.mp4>)",

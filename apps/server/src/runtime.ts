@@ -23,12 +23,12 @@ import { Service } from "../../../packages/core/src/index.js";
 import { connectServices } from "../../../packages/cloud-client/src/index.js";
 import { resolveCloudConfig } from "../../../packages/cloud-client/src/config.js";
 export async function openRuntime() {
-  const config = process.env.HYPIT_CONFIG_FILE
-    ? await loadModelConfig(process.env.HYPIT_CONFIG_FILE)
+  const config = process.env.RIKOKO_CONFIG_FILE
+    ? await loadModelConfig(process.env.RIKOKO_CONFIG_FILE)
     : undefined;
   const cloudConfig = resolveCloudConfig(config);
   const { mode } = cloudConfig;
-  const plans = await loadPlans(process.env.HYPIT_PLANS_FILE);
+  const plans = await loadPlans(process.env.RIKOKO_PLANS_FILE);
   let models: Model[] = h3Models;
   if (!config && process.env.FAL_MODELS_FILE)
     models = JSON.parse(await readFile(process.env.FAL_MODELS_FILE, "utf8"));

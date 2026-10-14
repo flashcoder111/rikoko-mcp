@@ -16,6 +16,20 @@ import {
 } from "./workspace-contracts.js";
 import { planRequest, plannerConfigured } from "./workspace-planner.js";
 import { publicBaseUrl } from "./urls.js";
+import { templateLibrary } from "../../templates/src/library.js";
+import {
+  templateContext,
+  validateTemplateDecision,
+  adaptTemplateComposition,
+} from "../../templates/src/planning.js";
+import { prepareStarter } from "../../templates/src/local-library.js";
+import { cloudConnection } from "../../cloud-client/src/index.js";
+import { avoidsTemplates } from "../../templates/src/matching.js";
+import {
+  readRequest,
+  workspaceRequestGet,
+  workspaceRequestSave,
+} from "./workspace-request.js";
 
 function fail(code: string, message: string, status = 400): never {
   throw new AppError(code, message, status);
@@ -174,6 +188,21 @@ export async function workspaceCommit(
         );
       return previous;
     }
+    const request = input.requestId
+      ? await readRequest(tx, c, input.requestId, input.requestVersion)
+      : undefined;
+    if (request) {
+      if (input.requestVersion === undefined)
+        fail("INVALID_INPUT", "提交请求时需要当前 requestVersion。");
+      if (request.status !== "ready")
+        fail(
+          "REQUEST_NOT_READY",
+          "请先补齐必需素材；已经提交的请求请查询结果。",
+          409,
+        );
+      if ((request.projectId ?? undefined) !== input.projectId)
+        fail("INVALID_INPUT", "创作请求与作品不匹配。");
+    }
     let project: Entity,
       composition: Composition,
       parent: Entity | null = null;
@@ -252,6 +281,13 @@ export async function workspaceCommit(
       updatedAt: revision.createdAt,
     });
     await tx.put(revision);
+    if (request)
+      await tx.put({
+        ...request,
+        status: "submitted",
+        projectId: project.id,
+        revisionId: revision.id,
+      });
     return tx.put({
       ...make(c.accountId, "workspace-command", {}),
       id: commandId,
@@ -286,12 +322,18 @@ export async function workspaceCommit(
   await service.scoped(c, "write", (tx) =>
     tx.put({ ...command, jobId: job.id }),
   );
+  if (input.requestId)
+    await service.scoped(c, "write", async (tx) => {
+      const request = await readRequest(tx, c, input.requestId!);
+      await tx.put({ ...request, jobId: job.id });
+    });
   return {
     projectId: command.projectId,
     revisionId: command.revisionId,
     jobId: job.id,
     commandId,
     message: command.summary,
+    status: job.status,
     ...workspaceLinks(command.projectId, command.revisionId),
   };
 }
@@ -301,7 +343,125 @@ export async function workspacePlan(
   c: Context,
   raw: unknown,
 ): Promise<Proposal> {
-  const input = planSchema.parse(raw);
+  const submitted = planSchema.parse(raw);
+  await service.scoped(c, "write", async () => undefined);
+  const previous = submitted.requestId
+    ? await workspaceRequestGet(service, c, submitted.requestId)
+    : undefined;
+  if (
+    previous &&
+    (submitted.requestVersion !== previous.requestVersion ||
+      previous.status === "submitted")
+  )
+    fail(
+      "REQUEST_CONFLICT",
+      "请读取当前创作请求后继续；已提交的请求请查询结果。",
+      409,
+    );
+  if (!previous && !submitted.message)
+    fail("INVALID_INPUT", "请先描述创作要求，再补充素材。");
+  // Keep original intent and all follow-ups even when the next turn is attachment-only.
+  const input = {
+    ...submitted,
+    projectId: submitted.projectId ?? previous?.projectId,
+    revisionId: submitted.revisionId ?? previous?.revisionId,
+    selectedSceneId: submitted.selectedSceneId ?? previous?.selectedSceneId,
+    message: [
+      ...(previous?.turns.map((turn) => turn.message) ?? []),
+      submitted.message,
+    ]
+      .filter(Boolean)
+      .join("\n"),
+    assetIds: [
+      ...new Set([...(previous?.assetIds ?? []), ...submitted.assetIds]),
+    ],
+  };
+  if (input.assetIds.length > 14)
+    fail("INVALID_INPUT", "一次创作最多使用 14 份素材。");
+  if (previous?.projectId && input.projectId !== previous.projectId)
+    fail("INVALID_INPUT", "不能把待补充请求转移到其他作品。");
+  const proposal = await prepareWorkspacePlan(service, c, input, previous);
+  let missingInputs =
+    proposal.missingInputs ??
+    (proposal.action
+      ? []
+      : [
+          {
+            id: "clarification",
+            kind: "text" as const,
+            required: true,
+            prompt: proposal.message.slice(0, 1000),
+            purpose: "确认可执行的创作要求",
+          },
+        ]);
+  // A local template match cannot silently discard questions saved by the host agent.
+  // Only a single unambiguous media slot can be fulfilled automatically here.
+  if (previous && proposal.engine !== "configured-model") {
+    const incoming = await Promise.all(
+      submitted.assetIds
+        .filter((id) => !previous.assetIds.includes(id))
+        .map((id) => service.get(c, "asset", id)),
+    );
+    const unresolved = previous.missingInputs.filter((item) => {
+      if (!item.required) return false;
+      if (item.kind === "text")
+        return !submitted.message.trim() || !proposal.action;
+      const sameKind = previous.missingInputs.filter(
+        (other) => other.required && other.kind === item.kind,
+      );
+      return (
+        sameKind.length !== 1 ||
+        !incoming.some(
+          (asset) =>
+            asset.kind === item.kind ||
+            (item.kind === "image" && asset.kind === "video") ||
+            (item.kind === "audio" &&
+              asset.kind === "video" &&
+              asset.metadata?.hasAudio),
+        )
+      );
+    });
+    missingInputs = [
+      ...new Map(
+        [...missingInputs, ...unresolved].map((item) => [item.id, item]),
+      ).values(),
+    ];
+  }
+  const waiting = missingInputs.some((item) => item.required);
+  const safeProposal: Proposal = {
+    ...proposal,
+    ...(waiting && proposal.action
+      ? { message: "已保留创作要求。请补充以下必需素材后继续。" }
+      : {}),
+    missingInputs,
+    status: waiting ? "waiting_input" : "ready",
+    ...(waiting ? { action: undefined, autoApply: false } : {}),
+  };
+  const saved = await workspaceRequestSave(
+    service,
+    c,
+    {
+      ...submitted,
+      projectId: input.projectId,
+      revisionId: input.revisionId,
+      selectedSceneId: input.selectedSceneId,
+      missingInputs,
+    },
+    safeProposal,
+  );
+  return {
+    ...safeProposal,
+    requestId: saved.requestId,
+    requestVersion: saved.requestVersion,
+  };
+}
+
+async function prepareWorkspacePlan(
+  service: Service,
+  c: Context,
+  input: import("./workspace-contracts.js").PlanInput,
+  previous?: import("./workspace-contracts.js").CreationRequest,
+): Promise<Proposal> {
   const state = input.projectId
     ? await workspaceSnapshot(service, c, input.projectId, input.revisionId)
     : undefined;
@@ -324,13 +484,66 @@ export async function workspacePlan(
     plannerConfigured() ? "write" : "read",
     async () => undefined,
   );
+  const library =
+    !state?.revision && !avoidsTemplates(input.message)
+      ? templateContext(
+          input.message,
+          (await templateLibrary(service, c)).templates,
+          await service.list(c, "asset"),
+          assets,
+        )
+      : undefined;
   const planned = await planRequest(
     input,
     state?.revision ?? undefined,
     assets,
+    library,
+    previous,
   );
+  if (planned.missingInputs?.some((item) => item.required))
+    return { ...planned, action: undefined, autoApply: false };
+  if (planned.template && library) {
+    const selected = validateTemplateDecision(planned.template, library);
+    const {
+      durationMs: _duration,
+      format: _format,
+      ...selection
+    } = planned.template;
+    const prepared =
+      selected.sourceKind === "builtin"
+        ? await prepareStarter(service, c, selection)
+        : await cloudConnection(service)!.templates!.prepare(c, selection);
+    const composition = adaptTemplateComposition(
+      prepared.composition,
+      planned.template,
+      library.assets,
+    );
+    const assetIds = [
+      ...new Set(
+        composition.scenes.flatMap((s) => (s.assetId ? [s.assetId] : [])),
+      ),
+    ];
+    const illustrated =
+      selected.sourceKind === "builtin" && prepared.reuse.bundledScenes > 0;
+    return {
+      engine: planned.engine,
+      message: `已自动采用「${selected.title}」的结构并填入文案，复用 ${assetIds.length} 份画面素材。${illustrated ? "未提供的画面使用内置图形插画。" : ""}本次只进行本地合成，没有生成新图片或视频。`,
+      action: { type: "create", composition },
+      autoApply:
+        !/(?:先|只|仅).{0,6}(?:方案|建议|计划|看看)|(?:不要|别|暂不).{0,4}(?:渲染|合成|出片)/.test(
+          input.message,
+        ),
+      reuse: {
+        templateId: selected.id,
+        templateTitle: selected.title,
+        assetIds,
+        generationRequests: 0,
+      },
+    } satisfies Proposal;
+  }
+  const { template: _template, ...proposal } = planned;
   return {
-    ...planned,
+    ...proposal,
     ...(state
       ? { projectId: state.project.id, baseRevisionId: state.revision?.id }
       : {}),

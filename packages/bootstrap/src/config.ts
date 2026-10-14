@@ -82,15 +82,17 @@ export async function bindOfficialKey(
   const model = JSON.parse(
     await readFile(join(i.home, "config/models.json"), "utf8"),
   );
+  const keyEnv = model.official?.keyEnv;
   if (
     model.mode !== "official" ||
     model.official?.url !== release.apiUrl ||
-    model.official?.keyEnv !== "HYPIT_OFFICIAL_KEY"
+    typeof keyEnv !== "string" ||
+    !/^[A-Z][A-Z0-9_]{0,80}_OFFICIAL_KEY$/.test(keyEnv)
   )
     return false;
   const file = join(i.home, "config/credentials.json");
   const credentials = await readPrivateJson(file);
-  if (credentials.HYPIT_OFFICIAL_KEY) return false;
+  if (credentials[keyEnv]) return false;
   const key = candidate.trim();
   const response = await fetcher(`${release.apiUrl}/v1/usage`, {
     headers: { Authorization: `Bearer ${key}` },
@@ -102,7 +104,7 @@ export async function bindOfficialKey(
     throw Error(
       `官方用户 Key 验证未通过（HTTP ${response.status}）；未保存凭据，请检查后重试。`,
     );
-  credentials.HYPIT_OFFICIAL_KEY = key;
+  credentials[keyEnv] = key;
   const temporary = `${file}.${randomUUID()}.tmp`;
   await writeFile(temporary, JSON.stringify(credentials, null, 2) + "\n", {
     flag: "wx",
@@ -185,7 +187,7 @@ export async function initializeInstallation(options: {
   await writeOnce(join(home, "config/models.json"), {
     schemaVersion: 1,
     mode: "official",
-    official: { url: release.apiUrl, keyEnv: "HYPIT_OFFICIAL_KEY" },
+    official: { url: release.apiUrl, keyEnv: "RIKOKO_OFFICIAL_KEY" },
     templates: { url: release.templateUrl },
   });
   await writeOnce(join(home, "config/credentials.json"), {});

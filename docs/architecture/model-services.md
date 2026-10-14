@@ -6,7 +6,7 @@
 
 一行安装版会自动创建 `config/models.json`，内置本次发行的官方 API 与模板源；用户无需填写 URL。首次安装可绑定自己的官方用户 Key。安装版从本机 0600 的 `config/credentials.json` 读取当前模式所需凭据，再注入后端进程；自有供应商同样通过这两份 config 文件接入。详见 [安装说明](installation.md)。以下环境变量方式继续用于手动运行源码。
 
-复制 `config/models.official.example.json` 为 `config/models.local.json`，将 `official.url` 改为实际网关 origin，通过 `HYPIT_OFFICIAL_KEY` 环境变量注入官方用户 Key，设置 `HYPIT_CONFIG_FILE=config/models.local.json` 启动工作台。
+复制 `config/models.official.example.json` 为 `config/models.local.json`，将 `official.url` 改为实际网关 origin，通过 `RIKOKO_OFFICIAL_KEY` 环境变量注入官方用户 Key，设置 `RIKOKO_CONFIG_FILE=config/models.local.json` 启动工作台。
 
 `official.url` 只接受 HTTPS origin，本机开发允许 loopback HTTP。`keyEnv` 是环境变量名，不是 Key 本身。工作空间登录 Key 保护本地项目；官方套餐 Key 仅由本地服务发送到官方网关，两者不能互换。
 
@@ -46,7 +46,7 @@
 - 配置在重启时加载。项目不会自动读取 `.env`，需由启动器注入环境变量。
 
 ```sh
-HYPIT_CONFIG_FILE=config/models.local.json pnpm dev
+RIKOKO_CONFIG_FILE=config/models.local.json pnpm dev
 ```
 
 自有服务不要求平台余额，也不预留或扣除官方额度。本地 Key 预算上限仍有效；未知实际费用保留在本地预算记录里，需按供应商账单核对。该记录不代表供应商余额。自有模式面向用户自己的可信运行环境，共享该工作空间的使用者会共用进程配置的供应商账户。
@@ -73,7 +73,7 @@ HYPIT_CONFIG_FILE=config/models.local.json pnpm dev
 
 ## 套餐目录与支付边界
 
-`CLOUD_PLANS_FILE` 配置云端套餐，通过公开 `GET /v1/plans` 发布。官方模式工作台读取它；`HYPIT_PLANS_FILE` 可覆盖本地展示目录。`/plans` 展示套餐，登录工作空间后从网关读取余额；自有模式只标明费用来源，不把本地余额显示为官方余额。
+`CLOUD_PLANS_FILE` 配置云端套餐，通过公开 `GET /v1/plans` 发布。官方模式工作台读取它；`RIKOKO_PLANS_FILE` 可覆盖本地展示目录。`/plans` 展示套餐，登录工作空间后从网关读取余额；自有模式只标明费用来源，不把本地余额显示为官方余额。
 
 `config/plans.example.json` 默认没有套餐。单个条目需包含：`id`、`name`、`description`、`priceMinor`（售价最小货币单位）、`currency`（USD/CNY）、`allowanceCents`（API 额度美元分）、`features`（字符串数组）、`purchaseUrl`（真实 HTTPS 购买链接）。不配置时显示“暂未开放购买”，不填充虚构价格。
 

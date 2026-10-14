@@ -133,6 +133,25 @@ it("verifies template media bytes, remaps cloud IDs and reuses downloaded assets
     fetcher,
   );
   await client.sync(c);
+  const owned = await service.registerAsset(
+    c.accountId,
+    Buffer.from("existing-owned-image"),
+    {
+      name: "existing.png",
+      kind: "image",
+      mime: "image/png",
+      metadata: { kind: "image", width: 360, height: 640 },
+      provenance: { source: "test" },
+    },
+  );
+  const prepared = await client.prepare(c, {
+    id: t.id,
+    version: 1,
+    sceneAssets: { s: owned.id },
+  });
+  expect(prepared.composition.scenes[0].assetId).toBe(owned.id);
+  expect(downloaded.calls).toBe(0);
+  expect((await service.list(c, "project")).length).toBe(0);
   const a = await client.apply(c, { id: t.id, version: 1 });
   expect(a.revision.composition.scenes[0].assetId).not.toBe("cloud-image");
   expect(downloaded.calls).toBe(1);

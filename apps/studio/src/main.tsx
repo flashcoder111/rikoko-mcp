@@ -6,12 +6,14 @@ import type {
   Commit,
   Edit,
   Proposal,
+  CreationRequest,
 } from "../../../packages/core/src/workspace-contracts.js";
 import { api, ApiError, type Snapshot, type Capabilities } from "./api";
 import Chat, { type ChatProps } from "./Chat";
 import Editor from "./Editor";
 import LegacyApp from "./legacy";
-import Templates from "./Templates";
+import AssetLibrary from "./AssetLibrary";
+import LibraryPicker from "./LibraryPicker";
 import Plans from "./Plans";
 import "./style.css";
 import "./workspace.css";
@@ -21,16 +23,21 @@ import "@fontsource/ibm-plex-sans/600.css";
 import "./replica.css";
 import "./models.css";
 
-type Mode = "chat" | "studio" | "tools" | "templates" | "plans";
-type Route = { mode: Mode; projectId?: string; revisionId?: string };
+type Mode = "chat" | "studio" | "tools" | "plans" | "library";
+type Route = {
+  mode: Mode;
+  projectId?: string;
+  revisionId?: string;
+  requestId?: string;
+};
 function readRoute(): Route {
   const params = new URLSearchParams(location.search);
   return {
     mode:
       location.pathname === "/workspace"
         ? "studio"
-        : location.pathname === "/templates"
-          ? "templates"
+        : location.pathname === "/library"
+          ? "library"
           : location.pathname === "/plans"
             ? "plans"
             : location.pathname === "/tools"
@@ -38,6 +45,7 @@ function readRoute(): Route {
               : "chat",
     projectId: params.get("project") ?? undefined,
     revisionId: params.get("revision") ?? undefined,
+    requestId: params.get("request") ?? undefined,
   };
 }
 function App() {
@@ -45,6 +53,7 @@ function App() {
     [connected, setConnected] = useState(false),
     [checking, setChecking] = useState(true);
   const [showConnect, setShowConnect] = useState(false),
+    [showLibrary, setShowLibrary] = useState(false),
     [keyDraft, setKeyDraft] = useState(""),
     [showProjects, setShowProjects] = useState(false),
     [uploadFiles, setUploadFiles] = useState<File[]>([]);
@@ -53,6 +62,7 @@ function App() {
     [snapshot, setSnapshot] = useState<Snapshot>(),
     [modelConnected, setModelConnected] = useState(false);
   const [capabilities, setCapabilities] = useState<Capabilities>();
+  const [creationRequest, setCreationRequest] = useState<CreationRequest>();
   const [draft, setDraft] = useState(""),
     [submitted, setSubmitted] = useState(""),
     [proposal, setProposal] = useState<Proposal>(),
@@ -77,11 +87,12 @@ function App() {
     const params = new URLSearchParams({
       ...(next.projectId ? { project: next.projectId } : {}),
       ...(next.revisionId ? { revision: next.revisionId } : {}),
+      ...(next.requestId ? { request: next.requestId } : {}),
     });
     history[replace ? "replaceState" : "pushState"](
       {},
       "",
-      `${next.mode === "studio" ? "/workspace" : next.mode === "templates" ? "/templates" : next.mode === "plans" ? "/plans" : next.mode === "tools" ? "/tools" : "/"}${params.size ? `?${params}` : ""}`,
+      `${next.mode === "studio" ? "/workspace" : next.mode === "library" ? "/library" : next.mode === "plans" ? "/plans" : next.mode === "tools" ? "/tools" : "/"}${params.size ? `?${params}` : ""}`,
     );
     setRoute(next);
     setShowProjects(false);
@@ -143,6 +154,9 @@ function App() {
       setProjects([]);
       setAssets([]);
       setCapabilities(undefined);
+      setCreationRequest(undefined);
+      setProposal(undefined);
+      setAttachments([]);
     };
     window.addEventListener("session-expired", expired);
     return () => window.removeEventListener("session-expired", expired);
@@ -157,6 +171,53 @@ function App() {
     setAttachments([]);
     commitAttempt.current = null;
   }, [route.projectId]);
+  useEffect(() => {
+    setCreationRequest(undefined);
+    if (!route.requestId) {
+      setProposal(undefined);
+      setSubmitted("");
+      setAttachments([]);
+      return;
+    }
+    if (!connected) return;
+    let active = true;
+    const epoch = authEpoch.current;
+    void api<CreationRequest>("workspace_request_get", {
+      requestId: route.requestId,
+    })
+      .then(async (request) => {
+        const media = await Promise.all(
+          request.assetIds.map((id) =>
+            api<Entity>("record_get", { type: "asset", id }),
+          ),
+        );
+        if (!active || epoch !== authEpoch.current) return;
+        setCreationRequest(request);
+        setAttachments(media);
+        if (request.status !== "submitted") {
+          proposalAttempt.current = request.originalMessage;
+          setSubmitted(request.originalMessage);
+          setProposal({
+            ...(request.proposal ?? {
+              message: request.missingInputs
+                .map((item) => item.prompt)
+                .join("\n"),
+              engine: "local-commands" as const,
+            }),
+            requestId: request.requestId,
+            requestVersion: request.requestVersion,
+            status: request.status,
+            missingInputs: request.missingInputs,
+          });
+        }
+      })
+      .catch((e) => {
+        if (active) setError(e.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, [connected, route.requestId]);
   useEffect(() => {
     if (!connected || !route.projectId) return;
     let active = true,
@@ -218,10 +279,17 @@ function App() {
     action: Action,
     message: string,
     baseRevisionId = snapshot?.revision?.id,
+    request?: Pick<Proposal, "requestId" | "requestVersion">,
   ) {
     const body = {
       action,
       message,
+      ...(request?.requestId
+        ? {
+            requestId: request.requestId,
+            requestVersion: request.requestVersion,
+          }
+        : {}),
       origin:
         routeRef.current.mode === "studio"
           ? ("studio" as const)
@@ -246,6 +314,7 @@ function App() {
     setSubmitted("");
     setDraft("");
     setAttachments([]);
+    setCreationRequest(undefined);
     setNotice(result.message);
     navigate({
       mode: routeRef.current.mode,
@@ -264,12 +333,21 @@ function App() {
       return;
     }
     const message = draft.trim();
-    if (!message) return;
+    if (!message && !attachments.length) return;
+    if (route.requestId && !creationRequest) {
+      setError("正在恢复创作请求，请稍候。");
+      return;
+    }
     void run("理解创作要求…", async () => {
-      setSubmitted(message);
-      setProposal(undefined);
+      setSubmitted(message || "已补充素材");
       const result = await api<Proposal>("workspace_plan", {
-        message,
+        message: message || (creationRequest ? "" : "用这些素材制作短片"),
+        ...(creationRequest
+          ? {
+              requestId: creationRequest.requestId,
+              requestVersion: creationRequest.requestVersion,
+            }
+          : {}),
         ...(snapshot
           ? {
               projectId: snapshot.project.id,
@@ -281,8 +359,27 @@ function App() {
           : {}),
         assetIds: attachments.map((a) => a.id),
       });
-      proposalAttempt.current = message;
+      proposalAttempt.current =
+        creationRequest?.originalMessage ?? (message || "用这些素材制作短片");
       setProposal(result);
+      setDraft("");
+      if (result.requestId) {
+        const request = await api<CreationRequest>("workspace_request_get", {
+          requestId: result.requestId,
+        });
+        setCreationRequest(request);
+        navigate({ ...routeRef.current, requestId: result.requestId }, true);
+      }
+      if (result.autoApply && result.action?.type === "create") {
+        setBusy("正在复用素材并合成预览…");
+        await commit(
+          result.action,
+          proposalAttempt.current,
+          result.baseRevisionId,
+          result,
+        );
+        setNotice(result.message);
+      }
     });
   }
   function requestUpload(files: FileList) {
@@ -366,6 +463,7 @@ function App() {
     modelConnected,
     capabilities,
     onPlans: () => navigate({ ...route, mode: "plans" }),
+    onLibrary: () => (connected ? setShowLibrary(true) : setShowConnect(true)),
     removeAttachment: (id) =>
       setAttachments((previous) => previous.filter((a) => a.id !== id)),
     onSend: send,
@@ -427,6 +525,7 @@ function App() {
           proposal.action!,
           proposalAttempt.current,
           proposal.baseRevisionId,
+          proposal,
         ),
       ),
     onDismiss: () => {
@@ -534,9 +633,9 @@ function App() {
             </button>
             <button
               disabled={!connected}
-              onClick={() => navigate({ mode: "templates" })}
+              onClick={() => navigate({ ...route, mode: "library" })}
             >
-              模板库
+              素材库
             </button>
             <button
               className={route.mode === "plans" ? "selected" : ""}
@@ -633,19 +732,31 @@ function App() {
               onConnect={() => setShowConnect(true)}
             />
           )}
-          {route.mode === "templates" &&
+          {route.mode === "library" &&
             (connected ? (
-              <Templates
-                onOpen={(projectId) => {
-                  void loadLibrary();
-                  navigate({ mode: "studio", projectId });
+              <AssetLibrary
+                title="素材库"
+                assets={assets}
+                onRefresh={loadLibrary}
+                onUpload={requestUpload}
+                onPick={(asset) => {
+                  if (
+                    attachments.length >= 14 &&
+                    !attachments.some((a) => a.id === asset.id)
+                  ) {
+                    setError("一次最多附加 14 份素材。");
+                    return;
+                  }
+                  setAttachments((old) =>
+                    old.some((a) => a.id === asset.id) ? old : [...old, asset],
+                  );
+                  navigate({ ...route, mode: "chat" });
                 }}
               />
             ) : (
               <div className="panel-empty">
-                <p>连接工作空间后使用模板库。</p>
                 <button onClick={() => setShowConnect(true)}>
-                  连接工作空间
+                  连接工作空间后查看素材
                 </button>
               </div>
             ))}
@@ -673,6 +784,31 @@ function App() {
               }
               onViewRevision={(id) => navigate({ ...route, revisionId: id })}
             />
+          )}
+          {showLibrary && connected && (
+            <LibraryPicker
+              label="选择对话素材"
+              onClose={() => setShowLibrary(false)}
+            >
+              <AssetLibrary
+                assets={assets}
+                onRefresh={loadLibrary}
+                onUpload={requestUpload}
+                onPick={(asset) => {
+                  if (
+                    attachments.length >= 14 &&
+                    !attachments.some((a) => a.id === asset.id)
+                  ) {
+                    setError("一次最多附加 14 份素材。");
+                    return;
+                  }
+                  setAttachments((old) =>
+                    old.some((a) => a.id === asset.id) ? old : [...old, asset],
+                  );
+                  setShowLibrary(false);
+                }}
+              />
+            </LibraryPicker>
           )}
           {route.mode === "tools" &&
             (connected ? (
