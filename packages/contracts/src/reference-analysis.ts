@@ -172,6 +172,13 @@ export const referenceReportSchema = referenceContentSchema
         item.endMs <= item.startMs
       )
         fail("Invalid source interval");
+    if (
+      !r.source.hasAudio &&
+      (r.speech.length ||
+        r.evidence.some((e) => e.modality !== "visual") ||
+        r.audio.evidenceIds.length)
+    )
+      fail("Silent source cannot support speech or audio evidence");
     const ids = new Set<string>();
     for (const item of [
       ...r.shots,

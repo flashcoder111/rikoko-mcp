@@ -221,6 +221,7 @@ it("uploads private local video, returns evidence-linked structure and makes a s
   expect(done.providerCostStatus).toBe("pending_reconciliation");
   const report = await callTool(svc, c, "reference_analysis_get", {
     analysisAssetId: done.outputs[0],
+    section: "all",
   });
   expect(report.source).toMatchObject({
     assetId: source.id,

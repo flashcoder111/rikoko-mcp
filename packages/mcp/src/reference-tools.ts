@@ -29,7 +29,7 @@ const getSchema = z
         "speech",
         "unknowns",
       ])
-      .default("all"),
+      .default("overview"),
     offset: z.number().int().min(0).default(0),
     limit: z.number().int().min(1).max(50).default(20),
   })
@@ -181,7 +181,10 @@ export async function adaptReference(
       if (asset.kind === "image" && sourceStartMs !== 0)
         throw new AppError("INVALID_INTERVAL", "Images have no source offset");
     }
-    const id = `ref-${shot.id}`;
+    const id =
+      shot.id.length <= 96
+        ? `ref-${shot.id}`
+        : `ref-${fingerprint(shot.id).slice(0, 32)}`;
     scenes.push({
       id,
       durationMs,
@@ -278,7 +281,7 @@ export async function callReferenceTool(
           ["queued", "running", "submission_unknown", "failed"].includes(
             j.status,
           ) &&
-          (j.status !== "failed" || (j.ticket && !j.settledAt)),
+          (j.status !== "failed" || (j.ticket && !j.settled)),
       );
       if (active)
         return {
