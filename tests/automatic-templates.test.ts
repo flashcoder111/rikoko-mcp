@@ -267,7 +267,16 @@ it("keeps plan-only requests reviewable and read-only keys cannot import templat
     (await call("workspace_plan", { message: brief }, reader)).status,
   ).toBe(403);
 });
-it.each(['文案是：','文案为：','字幕内容为：'])('keeps explicit %s copy separate from production instructions', async label => {
- const planned=await call('workspace_plan',{message:`制作一个介绍原创香氛的竖屏短片，${label}温暖木香，日常陪伴。`});
- expect(planned.result.action.composition.scenes.map((s:any)=>s.text).filter(Boolean)).toEqual(['温暖木香，日常陪伴。']);
-});
+it.each(["文案是：", "文案为：", "字幕内容为："])(
+  "keeps explicit %s copy separate from production instructions",
+  async (label) => {
+    const planned = await call("workspace_plan", {
+      message: `制作一个介绍原创香氛的竖屏短片，${label}温暖木香，日常陪伴。`,
+    });
+    expect(
+      planned.result.action.composition.scenes
+        .map((s: any) => s.text)
+        .filter(Boolean),
+    ).toEqual(["温暖木香，日常陪伴。"]);
+  },
+);

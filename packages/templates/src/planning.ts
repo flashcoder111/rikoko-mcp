@@ -65,7 +65,7 @@ export function localTemplatePlan(
   )
     return;
   const script = input.message.match(
-    /(?:脚本|文案|文字)\s*[:：]\s*([\s\S]+)/,
+    /(?:脚本|文案|文字|字幕)(?:内容)?\s*(?:是|为)?\s*[:：]\s*([\s\S]+)/,
   )?.[1];
   const content =
     script ??
