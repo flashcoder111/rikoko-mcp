@@ -130,7 +130,7 @@ it("uploads with a fal key and submits the documented Gemini model without Googl
     model: "google/gemini-3.8-flash",
     video_urls: [fileUrl],
     max_tokens: 8192,
-    reasoning: false,
+    reasoning: true,
     temperature: 0,
     enable_web_search: false,
   });
