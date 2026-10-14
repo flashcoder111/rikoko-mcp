@@ -18,6 +18,12 @@ import { downloadPublic } from "../../../packages/storage/src/download.js";
 import { SubmissionUnknown } from "../../../packages/providers/src/index.js";
 import { referenceTiming } from "../../../packages/render/src/reference-timing.js";
 import { bindReferenceReport } from "../../../packages/core/src/reference-report.js";
+import { validateStoryboardInput } from "../../../packages/core/src/storyboard-state.js";
+import {
+  validateGenerationAssets,
+  type ResolvedReference,
+} from "../../../packages/providers/src/generation-input.js";
+import { sha256 } from "../../../packages/storage/src/index.js";
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export class Worker {
   private id = randomUUID();
@@ -74,6 +80,10 @@ export class Worker {
               "Provider profile changed after reservation; request a new quote.",
             );
           let assetUrl: string | undefined;
+          const references =
+            input.kind === "generate"
+              ? await this.generationReferences(job, input)
+              : undefined;
           if (input.kind === "reference_analyze") {
             if (!this.service.provider.prepare)
               throw new AppError(
@@ -160,7 +170,11 @@ export class Worker {
               },
             ],
           });
-          const ticket = await this.service.provider.submit(input, assetUrl);
+          const ticket = await this.service.provider.submit(
+            input,
+            assetUrl,
+            references,
+          );
           await checkpoint({
             ticket,
             phase: "provider_wait",
@@ -389,6 +403,67 @@ export class Worker {
       await rm(work, { recursive: true, force: true });
     }
     return true;
+  }
+  private async generationReferences(
+    job: Entity,
+    input: Extract<Operation, { kind: "generate" }>,
+  ): Promise<ResolvedReference[]> {
+    const refs = input.references ?? [];
+    const assets = await this.service.db.transaction(async (tx) => {
+      await validateStoryboardInput(tx, job.accountId, input);
+      const list: Entity[] = [];
+      for (const ref of refs) {
+        const asset = await tx.get(ref.assetId, job.accountId, "asset");
+        if (!asset)
+          throw new AppError(
+            "NOT_FOUND",
+            "Generation reference not found",
+            404,
+          );
+        list.push(asset);
+      }
+      return list;
+    });
+    validateGenerationAssets(
+      this.service.provider.validate(input),
+      input,
+      assets,
+    );
+    const resolved: ResolvedReference[] = [];
+    for (let i = 0; i < refs.length; i++) {
+      const asset = assets[i],
+        snapshot = job.referenceAssets?.[i];
+      if (
+        !snapshot ||
+        snapshot.assetId !== asset.id ||
+        snapshot.role !== refs[i].role ||
+        snapshot.sha256 !== asset.sha256 ||
+        snapshot.bytes !== asset.bytes
+      )
+        throw new AppError(
+          "REFERENCE_CHANGED",
+          "Reference no longer matches the quoted asset",
+        );
+      let url: string;
+      if (this.service.storage.providerUrl)
+        url = await this.service.storage.providerUrl(asset.storageKey);
+      else {
+        if (this.service.provider.referenceDelivery?.(input) !== "data_uri")
+          throw new AppError(
+            "CAPABILITY_UNAVAILABLE",
+            "Reference delivery is not configured",
+          );
+        const bytes = await this.service.storage.read(asset.storageKey);
+        if (bytes.byteLength !== asset.bytes || sha256(bytes) !== asset.sha256)
+          throw new AppError(
+            "REFERENCE_CHANGED",
+            "Reference bytes no longer match the quoted asset",
+          );
+        url = `data:${asset.mime};base64,${Buffer.from(bytes).toString("base64")}`;
+      }
+      resolved.push({ ...refs[i], url });
+    }
+    return resolved;
   }
   private async stage(job: Entity, assetId: string, work: string) {
     const asset = await this.service.db.transaction((tx) =>

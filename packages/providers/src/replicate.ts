@@ -1,5 +1,9 @@
 import { AppError, type Operation } from "../../contracts/src/index.js";
 import {
+  generationPayload,
+  type ResolvedReference,
+} from "./generation-input.js";
+import {
   FalProvider,
   SubmissionUnknown,
   type Model,
@@ -44,7 +48,14 @@ export class ReplicateProvider extends FalProvider {
       body: body === undefined ? undefined : JSON.stringify(body),
     });
   }
-  override async submit(input: Operation, assetUrl?: string): Promise<Ticket> {
+  override referenceDelivery(): "signed_url" {
+    return "signed_url";
+  }
+  override async submit(
+    input: Operation,
+    assetUrl?: string,
+    references?: ResolvedReference[],
+  ): Promise<Ticket> {
     const m = this.validate(input);
     if (
       !["image", "video", "audio"].includes(m.kind) ||
@@ -68,6 +79,7 @@ export class ReplicateProvider extends FalProvider {
         {
           input: {
             ...m.parameters,
+            ...generationPayload(m, input, references),
             [m.promptField ?? (input.kind === "tts" ? "text" : "prompt")]:
               prompt,
             ...(assetUrl ? { [m.assetField ?? "image"]: assetUrl } : {}),

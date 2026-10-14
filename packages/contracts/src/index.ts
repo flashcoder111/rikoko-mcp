@@ -1,6 +1,12 @@
 import { z } from "zod";
 import { referenceOperationSchema } from "./reference-analysis.js";
+import {
+  generationModeSchema,
+  generationReferenceSchema,
+  storyboardLinkSchema,
+} from "./generation.js";
 export * from "./reference-analysis.js";
+export * from "./generation.js";
 export const idSchema = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/);
 const ms = z.number().int().min(0).max(3_600_000);
 const color = z.string().regex(/^#[0-9a-fA-F]{6}$/);
@@ -239,6 +245,9 @@ export const operationSchema = z.discriminatedUnion("kind", [
       model: z.string().min(1).max(120),
       prompt: z.string().min(1).max(5000),
       parameters: z.record(z.string(), z.json()).default({}),
+      mode: generationModeSchema.optional(),
+      references: z.array(generationReferenceSchema).min(1).max(12).optional(),
+      storyboard: storyboardLinkSchema.optional(),
     })
     .strict(),
   z

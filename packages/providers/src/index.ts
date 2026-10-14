@@ -6,6 +6,12 @@ import {
   type Operation,
   type Entity,
 } from "../../contracts/src/index.js";
+import type { GenerationInput } from "../../contracts/src/generation.js";
+import {
+  generationPayload,
+  validateGenerationInput,
+  type ResolvedReference,
+} from "./generation-input.js";
 export type Model = {
   id: string;
   name?: string;
@@ -21,6 +27,7 @@ export type Model = {
   promptField?: string;
   assetField?: string;
   responseField?: string;
+  generationInput?: GenerationInput;
 };
 export type Ticket = {
   connectionId?: string;
@@ -80,6 +87,18 @@ export class FalProvider {
       maxCostCents: m.maxCostCents,
       creditPriceCents: m.creditPriceCents,
       priceVersion: m.priceVersion,
+      ...(m.generationInput
+        ? {
+            generationInput: {
+              mode: m.generationInput.mode,
+              outputDurationMs: m.generationInput.outputDurationMs,
+              maxTotalBytes: m.generationInput.maxTotalBytes,
+              references: m.generationInput.bindings.map(
+                ({ field: _field, ...binding }) => binding,
+              ),
+            },
+          }
+        : {}),
       available: !!this.key && this.enabled && m.hardBoundConfirmed,
     }));
   }
@@ -125,6 +144,7 @@ export class FalProvider {
         "INVALID_MODEL",
         "Model capability does not match operation",
       );
+    validateGenerationInput(m, input);
     return m;
   }
   estimate(input: Operation) {
@@ -167,7 +187,14 @@ export class FalProvider {
       redirect: "error",
     });
   }
-  async submit(input: Operation, assetUrl?: string): Promise<Ticket> {
+  referenceDelivery(_input: Operation): "data_uri" | "signed_url" {
+    return "data_uri";
+  }
+  async submit(
+    input: Operation,
+    assetUrl?: string,
+    references?: ResolvedReference[],
+  ): Promise<Ticket> {
     const m = this.validate(input);
     const prompt =
       input.kind === "tts"
@@ -189,6 +216,7 @@ export class FalProvider {
           : prompt;
     return this.submitPayload(m, {
       ...m.parameters,
+      ...generationPayload(m, input, references),
       [m.promptField ?? (input.kind === "tts" ? "text" : "prompt")]:
         requestPrompt,
       ...(assetUrl ? { [m.assetField ?? "video_url"]: assetUrl } : {}),
@@ -313,6 +341,7 @@ export type MediaProvider = Pick<
   | "cancel"
   | "collect"
 > & {
+  referenceDelivery?(input: Operation): "data_uri" | "signed_url";
   validateSource?(input: Operation, asset: Entity): void;
   analysisSettings?(input: Operation): ReferenceSettings;
   prepare?(

@@ -5,7 +5,9 @@ import {
   AppError,
   type Operation,
   type Entity,
+  generationInputSchema,
 } from "../../contracts/src/index.js";
+import type { ResolvedReference } from "./generation-input.js";
 import { cloudOrigin } from "../../cloud-client/src/http.js";
 import {
   FalProvider,
@@ -50,6 +52,7 @@ export const modelSchema = z
     promptField: z.string().regex(/^\w+$/).optional(),
     assetField: z.string().regex(/^\w+$/).optional(),
     responseField: z.string().regex(/^\w+$/).optional(),
+    generationInput: generationInputSchema.optional(),
   })
   .strict();
 const connectionSchema = z
@@ -200,10 +203,19 @@ export class ProviderRegistry implements MediaProvider {
       price = c.provider.estimate(input);
     return { ...price, priceVersion: `${price.priceVersion}:${c.version}` };
   }
-  async submit(input: Operation, assetUrl?: string) {
+  referenceDelivery(input: Operation) {
+    return (
+      this.forInput(input).provider.referenceDelivery?.(input) ?? "signed_url"
+    );
+  }
+  async submit(
+    input: Operation,
+    assetUrl?: string,
+    references?: ResolvedReference[],
+  ) {
     const c = this.forInput(input);
     return {
-      ...(await c.provider.submit(input, assetUrl)),
+      ...(await c.provider.submit(input, assetUrl, references)),
       connectionId: c.id,
       connectionVersion: c.version,
     };

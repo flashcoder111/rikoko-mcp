@@ -37,6 +37,7 @@ export class GatewayClient {
   async quote(c: Context, raw: unknown) {
     await this.service.scoped(c, "write", async () => {});
     const input = operationSchema.parse(raw);
+    this.requireSupportedInput(input);
     if (input.kind !== "generate")
       throw new AppError(
         "INVALID_CAPABILITY",
@@ -62,6 +63,7 @@ export class GatewayClient {
   ) {
     await this.service.scoped(c, "write", async () => {});
     const input = operationSchema.parse(p.input);
+    this.requireSupportedInput(input);
     if (input.kind !== "generate")
       throw new AppError(
         "INVALID_CAPABILITY",
@@ -101,6 +103,19 @@ export class GatewayClient {
         executionTarget: "cloud",
       }),
     );
+  }
+  private requireSupportedInput(
+    input: ReturnType<typeof operationSchema.parse>,
+  ) {
+    if (
+      input.kind === "generate" &&
+      (input.references?.length || input.mode || input.storyboard)
+    )
+      throw new AppError(
+        "REFERENCE_GATEWAY_UNAVAILABLE",
+        "Official reference upload/generation must be connected in rikoko-platform; local references cannot be sent as remote asset IDs",
+        409,
+      );
   }
   async get(c: Context, id: string) {
     const local = await this.service.get(c, "job", id);

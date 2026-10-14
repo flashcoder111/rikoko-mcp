@@ -15,6 +15,8 @@ import {
 } from "../../contracts/src/index.js";
 import { FalProvider, type MediaProvider } from "../../providers/src/index.js";
 import { sha256, type Storage } from "../../storage/src/index.js";
+import { validateGenerationAssets } from "../../providers/src/generation-input.js";
+import { validateStoryboardInput } from "./storyboard-state.js";
 export const fingerprint = (v: unknown): string =>
   createHash("sha256").update(canonical(v)).digest("hex");
 function canonical(v: any): string {
@@ -516,6 +518,23 @@ export class Service {
     c: Context,
     input: Operation,
   ) {
+    if (input.kind === "generate") {
+      const assets = [];
+      for (const ref of input.references ?? [])
+        assets.push(await this.owned(tx, c, "asset", ref.assetId));
+      if (input.references?.length) {
+        validateGenerationAssets(this.provider.validate(input), input, assets);
+        if (
+          !this.storage.providerUrl &&
+          this.provider.referenceDelivery?.(input) === "signed_url"
+        )
+          throw new AppError(
+            "CAPABILITY_UNAVAILABLE",
+            "This reference provider requires controlled signed storage URLs",
+          );
+      }
+      await validateStoryboardInput(tx, c.accountId, input);
+    }
     if (input.kind === "render") {
       await this.checkAssets(tx, c, input.composition);
       if (input.revisionId) {
@@ -595,6 +614,11 @@ export class Service {
       return tx.put(
         entity(c.accountId, "quote", {
           inputHash: fingerprint(input),
+          referenceAssets: await this.referenceSnapshots(
+            tx,
+            c.accountId,
+            input,
+          ),
           ...price,
           billingSource: this.billingSource,
           expiresAt: new Date(Date.now() + 300_000).toISOString(),
@@ -652,6 +676,20 @@ export class Service {
         409,
       );
       await this.validateOperation(tx, c, data.input);
+      const referenceAssets = await this.referenceSnapshots(
+        tx,
+        c.accountId,
+        data.input,
+      );
+      if (
+        q.referenceAssets &&
+        fingerprint(q.referenceAssets) !== fingerprint(referenceAssets)
+      )
+        throw new AppError(
+          "REFERENCE_CHANGED",
+          "Reference assets changed after quotation",
+          409,
+        );
       const account = (
         await tx.query("SELECT * FROM accounts WHERE id=$1", [c.accountId])
       ).rows[0];
@@ -672,6 +710,7 @@ export class Service {
       );
       const job = entity(c.accountId, "job", {
         input: data.input,
+        referenceAssets,
         billingSource: this.billingSource,
         inputHash: hash,
         status: "queued",
@@ -717,6 +756,20 @@ export class Service {
       await tx.query("INSERT INTO outbox(job_id) VALUES($1)", [job.id]);
       return job;
     });
+  }
+  private async referenceSnapshots(
+    tx: Transaction,
+    accountId: string,
+    input: Operation,
+  ) {
+    const snapshots = [];
+    if (input.kind === "generate")
+      for (const ref of input.references ?? []) {
+        const asset = await tx.get(ref.assetId, accountId, "asset");
+        if (!asset) throw new AppError("NOT_FOUND", "Reference not found", 404);
+        snapshots.push({ ...ref, sha256: asset.sha256, bytes: asset.bytes });
+      }
+    return snapshots;
   }
   private async settle(
     tx: Transaction,

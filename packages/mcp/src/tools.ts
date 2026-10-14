@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { storyboardTools, callStoryboardTool } from "./storyboard-tools.js";
 import { randomUUID } from "node:crypto";
 import {
   compositionSchema,
@@ -40,6 +41,7 @@ import {
 } from "./reference-tools.js";
 export const tools = {
   ...referenceTools,
+  ...storyboardTools,
   asset_waveform: {
     description:
       "Read peak-amplitude waveform for an owned audio/video source interval (milliseconds). Free local FFmpeg analysis; read scope, no render or paid model. Up to 10 minutes and 1024 bins per request. These are source times, before scene speed or volume edits.",
@@ -111,7 +113,7 @@ export const tools = {
   records_list: {
     description: "List your projects, assets, revisions, jobs or feedback.",
     schema: z.object({
-      type: z.enum(["project", "asset", "revision", "job", "feedback", "plan"]),
+      type: z.enum(["project", "asset", "revision", "job", "feedback", "plan", "storyboard"]),
     }),
   },
   record_get: {
@@ -125,6 +127,7 @@ export const tools = {
         "feedback",
         "plan",
         "quote",
+        "storyboard",
       ]),
       id: idSchema,
     }),
@@ -293,6 +296,7 @@ export async function callTool(
       "请恢复任务原有的官方套餐连接后查询；不会改用其他付费来源",
       409,
     );
+  if (Object.hasOwn(storyboardTools, name)) return callStoryboardTool(service, c, name as keyof typeof storyboardTools, raw);
   if (Object.hasOwn(referenceTools, name))
     return callReferenceTool(
       service,
@@ -377,6 +381,9 @@ export async function callTool(
           estimatesRequireReview: true,
         },
         generation: {
+          storyboardTools: Object.keys(storyboardTools),
+          referenceWorkflow: "image_edit_then_review_then_video",
+          officialReferences: "not_available",
           mode: gateway ? "official" : (serviceMode(service) ?? "custom"),
           billingSource: gateway ? "credits" : service.billingSource,
           error: providerError,
