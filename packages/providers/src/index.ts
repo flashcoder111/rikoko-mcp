@@ -76,6 +76,7 @@ export class FalProvider {
     protected key?: string,
     private enabled = false,
     protected fetcher: typeof fetch = fetch,
+    private options: { testing?: boolean } = {},
   ) {}
   describe() {
     return this.models.map((m) => ({
@@ -99,7 +100,10 @@ export class FalProvider {
             },
           }
         : {}),
-      available: !!this.key && this.enabled && m.hardBoundConfirmed,
+      available:
+        !!this.key &&
+        this.enabled &&
+        (m.hardBoundConfirmed || !!this.options.testing),
     }));
   }
   validate(input: Operation) {
@@ -109,7 +113,12 @@ export class FalProvider {
         ? input.model
         : undefined;
     const m = this.models.find((m) => m.id === modelId);
-    if (!m || !this.enabled || !this.key || !m.hardBoundConfirmed)
+    if (
+      !m ||
+      !this.enabled ||
+      !this.key ||
+      (!m.hardBoundConfirmed && !this.options.testing)
+    )
       throw new AppError(
         "CAPABILITY_UNAVAILABLE",
         "Model is not configured with credentials, paid enablement and a confirmed cost bound",
@@ -119,7 +128,7 @@ export class FalProvider {
       !/^[a-zA-Z0-9_./-]+$/.test(m.endpoint) ||
       m.endpoint.includes("..") ||
       !Number.isSafeInteger(m.maxCostCents) ||
-      m.maxCostCents <= 0 ||
+      (this.options.testing ? m.maxCostCents < 0 : m.maxCostCents <= 0) ||
       (m.creditPriceCents !== undefined &&
         (!Number.isSafeInteger(m.creditPriceCents) || m.creditPriceCents <= 0))
     )

@@ -39,7 +39,7 @@ export default function Generation({
     maxCents?: number;
     maxChargeCents?: number;
     fixedChargeCents?: number;
-    billingSource?: "credits" | "external";
+    billingSource?: "credits" | "external" | "testing";
   }>();
   const [job, setJob] = useState<Job>();
   const [asset, setAsset] = useState<Entity>();
@@ -272,20 +272,26 @@ export default function Generation({
               <p>
                 {details?.modelName} {details?.description}
                 <br />
-                {external
-                  ? "供应商费用上限"
-                  : quote.fixedChargeCents !== undefined
-                    ? "本次消耗官方套餐额度"
-                    : "官方套餐额度预留上限"}{" "}
-                {typeof cents === "number"
-                  ? `US$${(cents / 100).toFixed(2)}`
-                  : "尚未取得"}
+                {quote.billingSource === "testing"
+                  ? "上线前测试模式"
+                  : external
+                    ? "供应商费用上限"
+                    : quote.fixedChargeCents !== undefined
+                      ? "本次消耗官方套餐额度"
+                      : "官方套餐额度预留上限"}{" "}
+                {quote.billingSource === "testing"
+                  ? ""
+                  : typeof cents === "number"
+                    ? `US$${(cents / 100).toFixed(2)}`
+                    : "尚未取得"}
                 <br />
-                {external
-                  ? "由你的供应商账户付费，不扣官方套餐额度。"
-                  : quote.fixedChargeCents !== undefined
-                    ? "成功生成按本次报价扣费，可在 API 调用账单查看。"
-                    : "先预留额度，费用核对后结算，可在 API 调用账单查看。"}
+                {quote.billingSource === "testing"
+                  ? "测试不检查本地余额或额度；上游服务费用由测试账户承担。"
+                  : external
+                    ? "由你的供应商账户付费，不扣官方套餐额度。"
+                    : quote.fixedChargeCents !== undefined
+                      ? "成功生成按本次报价扣费，可在 API 调用账单查看。"
+                      : "先预留额度，费用核对后结算，可在 API 调用账单查看。"}
               </p>
               <button
                 className="primary"

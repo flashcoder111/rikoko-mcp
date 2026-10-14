@@ -48,7 +48,7 @@ export class Service {
     public db: Database,
     public storage: Storage,
     public provider: MediaProvider = new FalProvider(),
-    public billingSource: "credits" | "external" = "credits",
+    public billingSource: "credits" | "external" | "testing" = "credits",
   ) {}
   /** All workspace and session operations recheck revocation inside their transaction. */
   async scoped<T>(
@@ -587,6 +587,14 @@ export class Service {
   estimate(input: Operation) {
     if (isPaidOperation(input)) {
       const price = this.provider.estimate(input);
+      if (this.billingSource === "testing")
+        return {
+          ...price,
+          priceVersion: `testing:${price.priceVersion}`,
+          maxCents: 0,
+          fixedChargeCents: 0,
+          providerMaxCostCents: null,
+        };
       const fixedChargeCents =
         this.billingSource === "credits"
           ? this.provider.validate(input).creditPriceCents
@@ -622,7 +630,7 @@ export class Service {
           ...price,
           billingSource: this.billingSource,
           expiresAt: new Date(Date.now() + 300_000).toISOString(),
-          evidence: price.maxCents ? "provider-live" : "local-real",
+          evidence: isPaidOperation(input) ? "provider-live" : "local-real",
         }),
       );
     });
@@ -694,7 +702,7 @@ export class Service {
         await tx.query("SELECT * FROM accounts WHERE id=$1", [c.accountId])
       ).rows[0];
       ensure(
-        this.billingSource === "external" ||
+        this.billingSource !== "credits" ||
           Number(account.balance_cents) - Number(account.reserved_cents) >=
             q.maxCents,
         "INSUFFICIENT_BALANCE",
@@ -702,8 +710,9 @@ export class Service {
         402,
       );
       ensure(
-        Number(key.spent_cents) + Number(key.reserved_cents) + q.maxCents <=
-          Number(key.budget_cents),
+        this.billingSource === "testing" ||
+          Number(key.spent_cents) + Number(key.reserved_cents) + q.maxCents <=
+            Number(key.budget_cents),
         "KEY_BUDGET_EXCEEDED",
         "Key budget exceeded",
         402,
@@ -718,7 +727,10 @@ export class Service {
         quoteId: q.id,
         reservedCents: q.maxCents,
         fixedChargeCents: q.fixedChargeCents,
-        providerMaxCostCents: q.providerMaxCostCents ?? q.maxCents,
+        providerMaxCostCents:
+          this.billingSource === "testing"
+            ? null
+            : (q.providerMaxCostCents ?? q.maxCents),
         providerActualCostCents: 0,
         providerCostStatus: "not_incurred",
         chargedCents: null,
@@ -923,7 +935,7 @@ export class Service {
     job.providerCostStatus =
       cost === null ? "pending_reconciliation" : "confirmed";
     job.providerCostOverrunCents =
-      cost === null
+      job.billingSource === "testing" || cost === null
         ? null
         : Math.max(0, cost - (job.providerMaxCostCents ?? job.reservedCents));
   }
@@ -931,6 +943,7 @@ export class Service {
     job: Entity,
     providerCost: number | null,
   ): number | null {
+    if (job.billingSource === "testing") return 0;
     if (
       job.fixedChargeCents !== undefined &&
       job.billingSource !== "external"
