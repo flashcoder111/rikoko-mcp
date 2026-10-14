@@ -15,7 +15,10 @@ import {
 import { media, probeSchema } from "../../../packages/render/src/media.js";
 import { editMap } from "../../../packages/render/src/index.js";
 import { downloadPublic } from "../../../packages/storage/src/download.js";
-import { SubmissionUnknown } from "../../../packages/providers/src/index.js";
+import {
+  type ReferenceSource,
+  SubmissionUnknown,
+} from "../../../packages/providers/src/index.js";
 import { referenceTiming } from "../../../packages/render/src/reference-timing.js";
 import { bindReferenceReport } from "../../../packages/core/src/reference-report.js";
 import { validateStoryboardInput } from "../../../packages/core/src/storyboard-state.js";
@@ -79,6 +82,7 @@ export class Worker {
               "Provider profile changed after reservation; request a new quote.",
             );
           let assetUrl: string | undefined;
+          let analysisSource: ReferenceSource | undefined;
           const references =
             input.kind === "generate"
               ? await generationReferences(this.service, job, input)
@@ -100,6 +104,10 @@ export class Worker {
                 404,
               );
             this.service.provider.validateSource?.(input, source);
+            analysisSource = {
+              durationMs: source.metadata.durationMs,
+              hasAudio: source.metadata.hasAudio === true,
+            };
             if (!job.referenceTiming) {
               const staged = await this.stage(job, input.assetId, work);
               await checkpoint({
@@ -183,6 +191,7 @@ export class Worker {
             input,
             assetUrl,
             references,
+            analysisSource,
           );
           await checkpoint({
             ticket,

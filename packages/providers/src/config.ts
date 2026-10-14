@@ -15,6 +15,7 @@ import {
   type MediaProvider,
   type Ticket,
   type PreparedMedia,
+  type ReferenceSource,
 } from "./index.js";
 import { FalVideoProvider } from "./fal-video.js";
 import { GeminiProvider } from "./gemini.js";
@@ -234,10 +235,11 @@ export class ProviderRegistry implements MediaProvider {
     input: Operation,
     assetUrl?: string,
     references?: ResolvedReference[],
+    source?: ReferenceSource,
   ) {
     const c = this.forInput(input);
     return {
-      ...(await c.provider.submit(input, assetUrl, references)),
+      ...(await c.provider.submit(input, assetUrl, references, source)),
       connectionId: c.id,
       connectionVersion: c.version,
     };

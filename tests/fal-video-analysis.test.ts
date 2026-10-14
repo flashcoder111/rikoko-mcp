@@ -286,9 +286,14 @@ it("runs quote → upload → restart → report → adaptation through the conf
   await new Worker(service).tick();
   pending = false;
   await new Worker(service).tick();
-  const submitted = calls.find(x => x.url.startsWith("https://queue.fal.run/") && x.init?.method === "POST")!;
+  const submitted = calls.find(
+    (x) =>
+      x.url.startsWith("https://queue.fal.run/") && x.init?.method === "POST",
+  )!;
   const submittedPrompt = JSON.parse(String(submitted.init?.body)).prompt;
-  expect(submittedPrompt).toContain("Source duration measured by server: 2000ms");
+  expect(submittedPrompt).toContain(
+    "Source duration measured by server: 2000ms",
+  );
   expect(submittedPrompt).toContain("All interval endMs must be <= 2000");
   const completed = await service.get(c, "job", job.id);
   expect(completed.status).toBe("completed");

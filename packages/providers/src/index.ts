@@ -43,6 +43,7 @@ export type ProviderUsage = {
   total_tokens?: number;
   cost?: number;
 };
+export type ReferenceSource = { durationMs: number; hasAudio: boolean };
 export type ReferenceSettings = {
   fps: number | null;
   mode: "static_video_and_audio" | "provider_controlled";
@@ -203,6 +204,7 @@ export class FalProvider {
     input: Operation,
     assetUrl?: string,
     references?: ResolvedReference[],
+    _source?: ReferenceSource,
   ): Promise<Ticket> {
     const m = this.validate(input);
     const prompt =
