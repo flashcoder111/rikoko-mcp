@@ -129,8 +129,10 @@ export const referenceReportSchema = referenceContentSchema
     coverage: z
       .object({
         ...interval,
-        fps: z.number().positive().max(30),
-        mode: z.literal("static_video_and_audio"),
+        fps: z.number().positive().max(30).nullable(),
+        mode: z.enum(["static_video_and_audio", "provider_controlled"]),
+        rangeControl: z.enum(["api", "prompt"]).optional(),
+        submittedRange: z.object(interval).strict().optional(),
         timing: z.literal("model_estimated"),
         gaps: z.array(z.object(interval).strict()).max(101),
       })
@@ -140,6 +142,7 @@ export const referenceReportSchema = referenceContentSchema
         provider: text,
         model: text,
         endpoint: text,
+        upstreamModel: text.optional(),
         requestId: text,
         jobId: id,
         analysisVersion: text,
@@ -156,6 +159,15 @@ export const referenceReportSchema = referenceContentSchema
     const { startMs, endMs } = r.coverage;
     if (endMs <= startMs || endMs > r.source.durationMs)
       fail("Coverage exceeds source");
+    if (r.coverage.mode === "provider_controlled" && r.coverage.fps !== null)
+      fail("Provider-controlled sampling has unknown FPS");
+    if (
+      r.coverage.submittedRange &&
+      (r.coverage.submittedRange.startMs < 0 ||
+        r.coverage.submittedRange.endMs > r.source.durationMs ||
+        r.coverage.submittedRange.endMs <= r.coverage.submittedRange.startMs)
+    )
+      fail("Invalid submitted source interval");
     const allTimed = [
       ...r.shots,
       ...r.events,

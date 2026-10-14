@@ -228,6 +228,7 @@ export class Worker {
                 source,
                 job,
                 this.service.provider.validate(input),
+                this.service.provider.analysisSettings?.(input),
               );
             }
             const asset = await this.service.registerAsset(
@@ -252,6 +253,7 @@ export class Worker {
               outputs: [asset.id],
               phase: "collected",
               analysis: result.data,
+              providerUsage: result.usage ?? null,
               collectedProviderCostCents: result.costCents,
             });
           } else {

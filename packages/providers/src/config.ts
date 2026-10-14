@@ -14,6 +14,7 @@ import {
   type Ticket,
   type PreparedMedia,
 } from "./index.js";
+import { FalVideoProvider } from "./fal-video.js";
 import { GeminiProvider } from "./gemini.js";
 import { ReplicateProvider } from "./replicate.js";
 
@@ -54,7 +55,7 @@ export const modelSchema = z
 const connectionSchema = z
   .object({
     id: identifier,
-    adapter: z.enum(["fal", "replicate", "gemini"]),
+    adapter: z.enum(["fal", "fal-video", "replicate", "gemini"]),
     keyEnv: envName,
     enabled: z.boolean().default(false),
     models: z.array(modelSchema).min(1).max(100),
@@ -152,6 +153,16 @@ export class ProviderRegistry implements MediaProvider {
   validate(input: Operation) {
     return this.forInput(input).provider.validate(input);
   }
+  analysisSettings(input: Operation) {
+    const provider = this.forInput(input).provider;
+    if (!provider.analysisSettings)
+      throw new AppError(
+        "CAPABILITY_UNAVAILABLE",
+        "Provider has no reference analysis profile",
+        409,
+      );
+    return provider.analysisSettings(input);
+  }
   validateSource(input: Operation, asset: Entity) {
     this.forInput(input).provider.validateSource?.(input, asset);
   }
@@ -232,11 +243,13 @@ export function buildProviders(
             id: c.id,
             version,
             provider:
-              c.adapter === "gemini"
-                ? new GeminiProvider(c.models, key, c.enabled, fetcher)
-                : c.adapter === "fal"
-                  ? new FalProvider(c.models, key, c.enabled, fetcher)
-                  : new ReplicateProvider(c.models, key, c.enabled, fetcher),
+              c.adapter === "fal-video"
+                ? new FalVideoProvider(c.models, key, c.enabled, fetcher)
+                : c.adapter === "gemini"
+                  ? new GeminiProvider(c.models, key, c.enabled, fetcher)
+                  : c.adapter === "fal"
+                    ? new FalProvider(c.models, key, c.enabled, fetcher)
+                    : new ReplicateProvider(c.models, key, c.enabled, fetcher),
           };
         }),
   );

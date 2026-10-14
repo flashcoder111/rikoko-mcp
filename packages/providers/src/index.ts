@@ -30,8 +30,25 @@ export type Ticket = {
   resultUrl: string;
   cancelUrl: string;
 };
+export type ProviderUsage = {
+  prompt_tokens?: number | null;
+  completion_tokens?: number | null;
+  total_tokens?: number;
+  cost?: number;
+};
+export type ReferenceSettings = {
+  fps: number | null;
+  mode: "static_video_and_audio" | "provider_controlled";
+  rangeControl: "api" | "prompt";
+  upstreamModel: string;
+};
 export type ProviderResult =
-  | { kind: "analysis" | "translation"; data: unknown; costCents: null }
+  | {
+      kind: "analysis" | "translation";
+      data: unknown;
+      costCents: null;
+      usage?: ProviderUsage;
+    }
   | {
       url: string;
       kind: "image" | "video" | "audio";
@@ -49,9 +66,9 @@ export class SubmissionUnknown extends AppError {
 export class FalProvider {
   constructor(
     public models: Model[] = [],
-    private key?: string,
+    protected key?: string,
     private enabled = false,
-    private fetcher: typeof fetch = fetch,
+    protected fetcher: typeof fetch = fetch,
   ) {}
   describe() {
     return this.models.map((m) => ({
@@ -138,7 +155,7 @@ export class FalProvider {
       throw new AppError("INVALID_PROVIDER_RESPONSE", "Untrusted provider URL");
     return u.toString();
   }
-  private async request(url: string, method = "GET", body?: unknown) {
+  protected async request(url: string, method = "GET", body?: unknown) {
     return this.fetcher(this.safeUrl(url), {
       method,
       headers: {
@@ -170,19 +187,29 @@ export class FalProvider {
         : input.kind === "translate"
           ? `Translate to ${input.language}. Preserve product names, numbers and claims. Return only JSON with schemaVersion:1, language:"${input.language}", text. Input: ${input.text}`
           : prompt;
+    return this.submitPayload(m, {
+      ...m.parameters,
+      [m.promptField ?? (input.kind === "tts" ? "text" : "prompt")]:
+        requestPrompt,
+      ...(assetUrl ? { [m.assetField ?? "video_url"]: assetUrl } : {}),
+    });
+  }
+  protected async submitPayload(
+    m: Model,
+    payload: Record<string, unknown>,
+  ): Promise<Ticket> {
     let r: Response;
     try {
-      r = await this.request(`https://queue.fal.run/${m.endpoint}`, "POST", {
-        ...m.parameters,
-        [m.promptField ?? (input.kind === "tts" ? "text" : "prompt")]:
-          requestPrompt,
-        ...(assetUrl ? { [m.assetField ?? "video_url"]: assetUrl } : {}),
-      });
+      r = await this.request(
+        `https://queue.fal.run/${m.endpoint}`,
+        "POST",
+        payload,
+      );
     } catch {
       throw new SubmissionUnknown();
     }
     if (!r.ok) {
-      if (r.status >= 500) throw new SubmissionUnknown();
+      if (r.status >= 500 || r.status === 408) throw new SubmissionUnknown();
       throw new AppError(
         "PROVIDER_REJECTED",
         `Provider rejected submission (${r.status})`,
@@ -287,6 +314,7 @@ export type MediaProvider = Pick<
   | "collect"
 > & {
   validateSource?(input: Operation, asset: Entity): void;
+  analysisSettings?(input: Operation): ReferenceSettings;
   prepare?(
     input: Operation,
     bytes?: Uint8Array,

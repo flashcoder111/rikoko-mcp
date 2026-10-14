@@ -5,8 +5,7 @@ import {
   referenceReportSchema,
   type ReferenceOperation,
 } from "../../contracts/src/reference-analysis.js";
-import { geminiProfileSchema } from "../../providers/src/gemini.js";
-import type { Model } from "../../providers/src/index.js";
+import type { Model, ReferenceSettings } from "../../providers/src/index.js";
 
 export function bindReferenceReport(
   data: unknown,
@@ -14,8 +13,10 @@ export function bindReferenceReport(
   source: Entity,
   job: Entity,
   model: Model,
+  settings?: ReferenceSettings,
 ) {
   try {
+    if (!settings) throw Error("Missing reference analysis profile");
     const content = referenceContentSchema.parse(data);
     const startMs = input.range?.startMs ?? 0,
       endMs = input.range?.endMs ?? source.metadata.durationMs;
@@ -39,8 +40,13 @@ export function bindReferenceReport(
       coverage: {
         startMs,
         endMs,
-        fps: geminiProfileSchema.parse(model.parameters).fps,
-        mode: "static_video_and_audio",
+        fps: settings.fps,
+        mode: settings.mode,
+        rangeControl: settings.rangeControl,
+        submittedRange:
+          settings.rangeControl === "prompt"
+            ? { startMs: 0, endMs: source.metadata.durationMs }
+            : { startMs, endMs },
         timing: "model_estimated",
         gaps,
       },
@@ -48,6 +54,7 @@ export function bindReferenceReport(
         provider: job.ticket.connectionId ?? "gemini",
         model: input.model,
         endpoint: model.endpoint,
+        upstreamModel: settings.upstreamModel,
         requestId: job.ticket.requestId,
         jobId: job.id,
         analysisVersion: REFERENCE_ANALYSIS_VERSION,
