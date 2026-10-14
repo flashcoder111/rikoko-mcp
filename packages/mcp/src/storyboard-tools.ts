@@ -297,7 +297,8 @@ export async function callStoryboardTool(
     });
   }
   const input = quoteSchema.parse(raw);
-  if (cloudConnection(service)?.gateway || serviceMode(service) === "official")
+  const gateway = cloudConnection(service)?.gateway;
+  if (!gateway && serviceMode(service) === "official")
     throw new AppError(
       "REFERENCE_GATEWAY_UNAVAILABLE",
       "Official reference generation requires rikoko-platform support; payment sources are never switched",
@@ -323,7 +324,8 @@ export async function callStoryboardTool(
       "STORYBOARD_REVIEW_REQUIRED",
       "Inspect and accept the target image first",
     );
-  const model = service.provider.models.find((m) => m.id === input.model),
+  const models = gateway ? await gateway.models(c) : service.provider.models;
+  const model = models.find((m: any) => m.id === input.model),
     mode = model?.generationInput?.mode;
   if (
     !mode ||
@@ -403,7 +405,9 @@ export async function callStoryboardTool(
   return {
     status: "quote_required",
     input: operation,
-    quote: await service.quote(c, operation),
+    quote: gateway
+      ? await gateway.quote(c, operation)
+      : await service.quote(c, operation),
     targetDurationMs: shot.durationMs,
     generationDurationMs: model!.generationInput!.outputDurationMs,
     instruction:

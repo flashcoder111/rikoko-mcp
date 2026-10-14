@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { AppError } from "../../contracts/src/index.js";
 export const probeSchema = z.object({
@@ -17,7 +18,9 @@ export async function media(
   payload: Record<string, unknown>,
   signal?: AbortSignal,
 ): Promise<any> {
-  const root = process.env.WORKBENCH_ROOT ?? process.cwd();
+  const root =
+    process.env.WORKBENCH_ROOT ??
+    fileURLToPath(new URL("../../../", import.meta.url));
   const venv = resolve(root, "python/.venv/bin/python");
   const python =
     process.env.MEDIA_PYTHON ?? (existsSync(venv) ? venv : "python3");

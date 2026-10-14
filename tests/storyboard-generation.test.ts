@@ -537,8 +537,18 @@ it("validates declared reference fields and capabilities and rejects URL injecti
     }),
   ).toThrow();
 });
-it("blocks local asset references at the official gateway instead of dropping them or changing billing source", async () => {
-  const network = vi.fn();
+it("surfaces official upload failures without dropping references or changing billing source", async () => {
+  const network = vi.fn(async () =>
+    Response.json(
+      {
+        error: {
+          code: "REFERENCE_UPLOAD_UNAVAILABLE",
+          message: "Upload not deployed",
+        },
+      },
+      { status: 409 },
+    ),
+  );
   const gateway = new GatewayClient(
     service,
     "https://example.com",
@@ -553,8 +563,8 @@ it("blocks local asset references at the official gateway instead of dropping th
       prompt: "new",
       references: [{ assetId: source.id, role: "product" }],
     }),
-  ).rejects.toMatchObject({ code: "REFERENCE_GATEWAY_UNAVAILABLE" });
-  expect(network).not.toHaveBeenCalled();
+  ).rejects.toMatchObject({ code: "REFERENCE_UPLOAD_UNAVAILABLE" });
+  expect(network).toHaveBeenCalledTimes(1);
 });
 
 it("completes reviewed image-to-video, maps its result back to the shot and renders locally", async () => {

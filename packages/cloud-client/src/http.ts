@@ -22,18 +22,29 @@ export async function cloudRequest(
   base: string,
   path: string,
   fetcher: typeof fetch,
-  options: { key?: string; body?: unknown; etag?: string } = {},
+  options: {
+    key?: string;
+    body?: unknown;
+    etag?: string;
+    bytes?: Uint8Array;
+  } = {},
 ) {
   const response = await fetcher(cloudOrigin(base) + path, {
-    method: options.body === undefined ? "GET" : "POST",
+    method: options.bytes ? "PUT" : options.body === undefined ? "GET" : "POST",
     redirect: "error",
-    signal: AbortSignal.timeout(30000),
+    signal: AbortSignal.timeout(options.bytes ? 120000 : 30000),
     headers: {
       ...(options.key ? { Authorization: `Bearer ${options.key}` } : {}),
       ...(options.etag ? { "If-None-Match": options.etag } : {}),
-      "Content-Type": "application/json",
+      "Content-Type": options.bytes
+        ? "application/octet-stream"
+        : "application/json",
     },
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+    body: options.bytes
+      ? new Uint8Array(options.bytes)
+      : options.body === undefined
+        ? undefined
+        : JSON.stringify(options.body),
   });
   if (response.status === 304) return { response, data: null };
   const reader = response.body?.getReader();

@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { Service, fingerprint } from "../../core/src/index.js";
+import { sha256 } from "../../storage/src/index.js";
+import { validateStoryboardInput } from "../../core/src/storyboard-state.js";
 import { importUrl } from "../../core/src/assets.js";
 import {
   AppError,
@@ -9,6 +11,7 @@ import {
 } from "../../contracts/src/index.js";
 import { cloudOrigin, cloudRequest } from "./http.js";
 export class GatewayClient {
+  private uploads = new Map<string, Promise<string>>();
   private imports = new Map<string, Promise<Entity>>();
   constructor(
     private service: Service,
@@ -37,13 +40,25 @@ export class GatewayClient {
   async quote(c: Context, raw: unknown) {
     await this.service.scoped(c, "write", async () => {});
     const input = operationSchema.parse(raw);
-    this.requireSupportedInput(input);
     if (input.kind !== "generate")
       throw new AppError(
         "INVALID_CAPABILITY",
         "云端仅支持图片、视频和音频生成",
       );
-    const remote = await this.request("/v1/quotes", { input });
+    const referenceAssets = await this.references(c, input);
+    const remoteInput = { ...input };
+    if (input.references?.length) {
+      remoteInput.references = [];
+      for (let i = 0; i < input.references.length; i++)
+        remoteInput.references.push({
+          ...input.references[i],
+          assetId: await this.upload(c, referenceAssets[i]),
+        });
+    }
+    // Storyboards and visual review remain local; the cloud receives only the validated generation operation.
+    delete remoteInput.storyboard;
+    await this.references(c, input, referenceAssets);
+    const remote = await this.request("/v1/quotes", { input: remoteInput });
     return this.service.scoped(c, "write", (tx) =>
       tx.put({
         ...remote,
@@ -51,6 +66,8 @@ export class GatewayClient {
         accountId: c.accountId,
         type: "quote",
         remoteQuoteId: remote.id,
+        remoteInput,
+        referenceAssets,
         cloudOrigin: this.origin,
         inputHash: fingerprint(input),
         createdAt: new Date().toISOString(),
@@ -63,7 +80,6 @@ export class GatewayClient {
   ) {
     await this.service.scoped(c, "write", async () => {});
     const input = operationSchema.parse(p.input);
-    this.requireSupportedInput(input);
     if (input.kind !== "generate")
       throw new AppError(
         "INVALID_CAPABILITY",
@@ -81,9 +97,10 @@ export class GatewayClient {
         throw new AppError("IDEMPOTENCY_CONFLICT", "重复请求内容不同", 409);
       return existing;
     }
+    await this.references(c, input, q.referenceAssets ?? []);
     const remote = await this.request("/v1/generations", {
       ...p,
-      input,
+      input: q.remoteInput ?? input,
       quoteId: q.remoteQuoteId,
       idempotencyKey: fingerprint([c.accountId, p.idempotencyKey]),
     });
@@ -104,18 +121,113 @@ export class GatewayClient {
       }),
     );
   }
-  private requireSupportedInput(
+  private async references(
+    c: Context,
     input: ReturnType<typeof operationSchema.parse>,
+    expected?: Entity[],
   ) {
-    if (
-      input.kind === "generate" &&
-      (input.references?.length || input.mode || input.storyboard)
-    )
-      throw new AppError(
-        "REFERENCE_GATEWAY_UNAVAILABLE",
-        "Official reference upload/generation must be connected in rikoko-platform; local references cannot be sent as remote asset IDs",
-        409,
-      );
+    return this.service.scoped(c, "write", async (tx) => {
+      await validateStoryboardInput(tx, c.accountId, input);
+      const assets: Entity[] = [];
+      if (input.kind !== "generate") return assets;
+      for (const ref of input.references ?? []) {
+        const asset = await tx.get(ref.assetId, c.accountId, "asset");
+        if (!asset) throw new AppError("NOT_FOUND", "Reference not found", 404);
+        if (
+          !asset.storageKey ||
+          !Number.isSafeInteger(asset.bytes) ||
+          asset.bytes <= 0 ||
+          asset.bytes > 100 * 1024 * 1024
+        )
+          throw new AppError(
+            "INVALID_MEDIA",
+            "Reference must be an uploaded local media asset",
+          );
+        assets.push({
+          id: asset.id,
+          type: "asset",
+          accountId: c.accountId,
+          createdAt: asset.createdAt,
+          sha256: asset.sha256,
+          bytes: asset.bytes,
+          storageKey: asset.storageKey,
+          name: asset.name,
+          license: asset.provenance?.license ?? "user-provided",
+        });
+      }
+      if (expected && fingerprint(assets) !== fingerprint(expected))
+        throw new AppError(
+          "REFERENCE_CHANGED",
+          "References changed after quoting; request a new quote",
+          409,
+        );
+      return assets;
+    });
+  }
+  private async upload(c: Context, asset: Entity): Promise<string> {
+    const id = `cloud-ref-${fingerprint([c.accountId, this.origin, sha256(this.key), asset.id, asset.sha256, asset.bytes])}`;
+    const cached = await this.service.scoped(c, "read", (tx) =>
+      tx.get(id, c.accountId, "cloud-reference"),
+    );
+    if (cached) return cached.remoteAssetId;
+    let pending = this.uploads.get(id);
+    if (!pending) {
+      pending = (async () => {
+        const bytes = await this.service.storage.read(asset.storageKey);
+        if (bytes.byteLength !== asset.bytes || sha256(bytes) !== asset.sha256)
+          throw new AppError(
+            "REFERENCE_CHANGED",
+            "Reference bytes do not match local metadata",
+            409,
+          );
+        const intent = await this.request("/v1/reference-uploads", {
+          name: asset.name.slice(0, 120),
+          bytes: asset.bytes,
+          sha256: asset.sha256,
+          source: "rikoko-reference",
+          license: asset.license,
+          rightsConfirmed: true,
+        });
+        if (
+          typeof intent.id !== "string" ||
+          !/^[A-Za-z0-9_-]+$/.test(intent.id)
+        )
+          throw new AppError(
+            "CLOUD_RESPONSE_INVALID",
+            "Invalid reference upload response",
+            502,
+          );
+        const { data: remote } = await cloudRequest(
+          this.origin,
+          `/v1/reference-uploads/${intent.id}`,
+          this.fetcher,
+          { key: this.key, bytes },
+        );
+        if (
+          typeof remote.id !== "string" ||
+          !/^[A-Za-z0-9_-]+$/.test(remote.id) ||
+          remote.sha256 !== asset.sha256 ||
+          remote.bytes !== asset.bytes
+        )
+          throw new AppError(
+            "CLOUD_RESPONSE_INVALID",
+            "Cloud reference integrity verification failed",
+            502,
+          );
+        await this.service.scoped(c, "write", (tx) =>
+          tx.put({
+            id,
+            accountId: c.accountId,
+            type: "cloud-reference",
+            createdAt: new Date().toISOString(),
+            remoteAssetId: remote.id,
+          }),
+        );
+        return remote.id;
+      })().finally(() => this.uploads.delete(id));
+      this.uploads.set(id, pending);
+    }
+    return pending;
   }
   async get(c: Context, id: string) {
     const local = await this.service.get(c, "job", id);
