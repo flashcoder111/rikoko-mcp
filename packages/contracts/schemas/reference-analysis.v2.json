@@ -419,13 +419,50 @@
           "maximum": 3600000
         },
         "fps": {
-          "type": "number",
-          "exclusiveMinimum": 0,
-          "maximum": 30
+          "anyOf": [
+            {
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 30
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "mode": {
           "type": "string",
-          "const": "static_video_and_audio"
+          "enum": [
+            "static_video_and_audio",
+            "provider_controlled"
+          ]
+        },
+        "rangeControl": {
+          "type": "string",
+          "enum": [
+            "api",
+            "prompt"
+          ]
+        },
+        "submittedRange": {
+          "type": "object",
+          "properties": {
+            "startMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 3600000
+            },
+            "endMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 3600000
+            }
+          },
+          "required": [
+            "startMs",
+            "endMs"
+          ],
+          "additionalProperties": false
         },
         "timing": {
           "type": "string",
@@ -480,6 +517,11 @@
           "maxLength": 2000
         },
         "endpoint": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "upstreamModel": {
           "type": "string",
           "minLength": 1,
           "maxLength": 2000

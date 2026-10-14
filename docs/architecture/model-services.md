@@ -30,11 +30,12 @@
 | ----------- | ------------------- | ---------------------------------------------------------------------------- |
 | `fal`       | fal API Key         | 队列端点；图片、视频、音频，保留分析与翻译能力                               |
 | `replicate` | Replicate API Token | 官方 owner/model prediction 端点；返回单个 URL 或 URL 数组的图片、视频、音频 |
+| `fal-video` | fal API Key | `openrouter/router/video` + `google/gemini-3.8-flash`，参考视频分析，结构化 v2 报告 |
 | `gemini` | Google Gemini API Key | 原生音视频参考分析；Files 上传与 Interactions 后台任务，输出结构化 v2 报告 |
 
 通过 fal 使用某品牌模型，需要 fal Key，不能使用该品牌的原生 Key。Google 原生协议现支持参考视频分析；OpenAI、MiniMax、ElevenLabs 原生协议尚未各自实现；ComfyUI、Replicate 自定义版本/deployment 不在本次适配范围。新增供应商应实现 `MediaProvider`，不能只换 base URL 假定协议兼容。
 
-示例包含 Nano Banana、MiniMax H3、ElevenLabs 配音、FLUX 和独立 Gemini 视频分析档案。示例的 `maxCostCents=100` **只是占位值，不是供应商价格或已确认上限**。示例连接默认 `enabled=false`，模型 `hardBoundConfirmed=false`。核对账号权限、固定参数和最大费用后，填写实际费用上限及 `priceVersion`，再显式开启这两个字段。
+示例包含 Nano Banana、MiniMax H3、ElevenLabs 配音、FLUX 和通过 fal 接入的独立 Gemini 3.8 Flash 视频分析档案。示例的 `maxCostCents=100` **只是占位值，不是供应商价格或已确认上限**。示例连接默认 `enabled=false`，模型 `hardBoundConfirmed=false`。核对账号权限、固定参数和最大费用后，填写实际费用上限及 `priceVersion`，再显式开启这两个字段。
 
 - `parameters` 固定尺寸、时长、数量、音色等参数；客户端不能覆盖，不同规格创建不同模型 ID。
 - `promptField` 默认 `prompt`，配音可设为 `text`。
@@ -52,7 +53,7 @@ HYPIT_CONFIG_FILE=config/models.local.json pnpm dev
 
 ## 独立参考视频分析
 
-`reference_analyze` 使用服务器配置的 Gemini 分析档案，宿主即使采用纯文本模型也能获取带源时间、镜头、事件和证据的结果。先返回缓存、已有任务或报价；只有报价获同意后通过 `job_submit` 才上传和分析。结果由 `reference_analysis_get` 分页读取，`reference_analysis_query` 支持局部证据检索和另行报价的定向复查，`reference_adapt` 将镜头结构映射为可编辑 composition。生成模型配置与此独立。
+`reference_analyze` 使用服务器配置的独立分析档案；默认示例通过 fal 调用 Gemini 3.8 Flash，使用与 fal 生成连接相同的 `MY_FAL_KEY`，无需 Google Key。宿主即使采用纯文本模型也能获取带源时间、镜头、事件和证据的结果。先返回缓存、已有任务或报价；只有报价获同意后通过 `job_submit` 才上传和分析。结果由 `reference_analysis_get` 分页读取，`reference_analysis_query` 支持局部证据检索和另行报价的定向复查，`reference_adapt` 将镜头结构映射为可编辑 composition。生成模型配置与此独立。
 
 详见 [参考视频分析配置与调用](../tutorials/参考视频分析.md)。本版本支持自定义供应商模式；官方网关目前仅接受生成操作，未宣称官方分析已上线。
 

@@ -72,7 +72,7 @@ export const referenceTools = {
   reference_analyze: {
     schema: analyzeSchema,
     description:
-      "Prepare independent native-video analysis using an explicitly configured analysis model. Returns a cached report or a quote and exact job input; NEVER purchases automatically. Obtain agreement to the quote, then job_submit with a stable idempotency key. Host text-only agents can read the resulting report. Use range/question and a separately configured higher-FPS model for focused reinspection.",
+      "Prepare independent native-video analysis using an explicitly configured analysis model. Returns a cached report or a quote and exact job input; NEVER purchases automatically. Obtain agreement to the quote, then job_submit with a stable idempotency key. Host text-only agents can read the resulting report. Use range/question for focused reinspection. fal-video focuses by prompt on the full upload and does not expose FPS; Google direct profiles can separately configure FPS.",
   },
   reference_analysis_get: {
     schema: getSchema,

@@ -86,39 +86,23 @@
     },
     {
       "id": "my-video-analysis",
-      "adapter": "gemini",
-      "keyEnv": "GEMINI_VIDEO_API_KEY",
+      "adapter": "fal-video",
+      "keyEnv": "MY_FAL_KEY",
       "enabled": false,
       "models": [
         {
           "id": "gemini-reference",
-          "name": "Gemini · 参考视频整体分析",
-          "description": "独立于宿主对话模型；示例费用不是报价，启用前核对供应商价格与上界",
-          "endpoint": "gemini-3.8-flash",
+          "name": "Gemini 3.8 Flash · fal 视频分析",
+          "description": "通过 fal 的 OpenRouter 视频接口分析；采样由供应商控制，费用上界启用前核对",
+          "endpoint": "openrouter/router/video",
           "kind": "analysis",
           "maxCostCents": 100,
           "priceVersion": "EXAMPLE-REPLACE-AFTER-PRICING-REVIEW",
           "hardBoundConfirmed": false,
           "parameters": {
-            "fps": 2,
+            "model": "google/gemini-3.8-flash",
             "maxDurationMs": 60000,
-            "maxBytes": 104857600,
-            "maxOutputTokens": 8192
-          }
-        },
-        {
-          "id": "gemini-reference-detail",
-          "name": "Gemini · 参考片段细查",
-          "description": "仅在新报价获同意后用于关键区间复查；8 FPS 不是准确率保证",
-          "endpoint": "gemini-3.8-flash",
-          "kind": "analysis",
-          "maxCostCents": 100,
-          "priceVersion": "EXAMPLE-REPLACE-AFTER-PRICING-REVIEW",
-          "hardBoundConfirmed": false,
-          "parameters": {
-            "fps": 8,
-            "maxDurationMs": 60000,
-            "maxBytes": 104857600,
+            "maxBytes": 83886080,
             "maxOutputTokens": 8192
           }
         }
