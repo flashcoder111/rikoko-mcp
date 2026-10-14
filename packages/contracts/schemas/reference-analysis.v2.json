@@ -1,0 +1,588 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 5000
+    },
+    "shots": {
+      "minItems": 1,
+      "maxItems": 100,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+          },
+          "startMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3600000
+          },
+          "endMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3600000
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "framing": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "cameraMotion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "action": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "transition": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "evidenceIds": {
+            "maxItems": 30,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "startMs",
+          "endMs",
+          "description",
+          "framing",
+          "cameraMotion",
+          "action",
+          "transition",
+          "evidenceIds"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "narrativeBeats": {
+      "maxItems": 100,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+          },
+          "startMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3600000
+          },
+          "endMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3600000
+          },
+          "role": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "evidenceIds": {
+            "maxItems": 30,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "startMs",
+          "endMs",
+          "role",
+          "description",
+          "evidenceIds"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "events": {
+      "maxItems": 200,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+          },
+          "startMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3600000
+          },
+          "endMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3600000
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "action",
+              "text",
+              "transition",
+              "sound",
+              "other"
+            ]
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "evidenceIds": {
+            "maxItems": 30,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "startMs",
+          "endMs",
+          "type",
+          "description",
+          "evidenceIds"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "visualStyle": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "evidenceIds": {
+          "maxItems": 30,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+          }
+        }
+      },
+      "required": [
+        "description",
+        "evidenceIds"
+      ],
+      "additionalProperties": false
+    },
+    "speech": {
+      "maxItems": 200,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "startMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3600000
+          },
+          "endMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3600000
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "speaker": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "evidenceIds": {
+            "maxItems": 30,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+            }
+          }
+        },
+        "required": [
+          "startMs",
+          "endMs",
+          "text",
+          "speaker",
+          "evidenceIds"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "audio": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "evidenceIds": {
+          "maxItems": 30,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+          }
+        }
+      },
+      "required": [
+        "description",
+        "evidenceIds"
+      ],
+      "additionalProperties": false
+    },
+    "evidence": {
+      "minItems": 1,
+      "maxItems": 300,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+          },
+          "startMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3600000
+          },
+          "endMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3600000
+          },
+          "modality": {
+            "type": "string",
+            "enum": [
+              "visual",
+              "audio",
+              "audiovisual"
+            ]
+          },
+          "observation": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "startMs",
+          "endMs",
+          "modality",
+          "observation",
+          "confidence"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "unknowns": {
+      "maxItems": 100,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "startMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3600000
+          },
+          "endMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3600000
+          },
+          "question": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "suggestedFps": {
+            "type": "number",
+            "minimum": 0.1,
+            "maximum": 30
+          }
+        },
+        "required": [
+          "startMs",
+          "endMs",
+          "question",
+          "reason",
+          "suggestedFps"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "schemaVersion": {
+      "type": "number",
+      "const": 2
+    },
+    "source": {
+      "type": "object",
+      "properties": {
+        "assetId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "durationMs": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 3600000
+        },
+        "hasAudio": {
+          "type": "boolean"
+        },
+        "timebase": {
+          "type": "string",
+          "const": "source_ms"
+        }
+      },
+      "required": [
+        "assetId",
+        "sha256",
+        "durationMs",
+        "hasAudio",
+        "timebase"
+      ],
+      "additionalProperties": false
+    },
+    "coverage": {
+      "type": "object",
+      "properties": {
+        "startMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600000
+        },
+        "endMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600000
+        },
+        "fps": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 30
+        },
+        "mode": {
+          "type": "string",
+          "const": "static_video_and_audio"
+        },
+        "timing": {
+          "type": "string",
+          "const": "model_estimated"
+        },
+        "gaps": {
+          "maxItems": 101,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "startMs": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 3600000
+              },
+              "endMs": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 3600000
+              }
+            },
+            "required": [
+              "startMs",
+              "endMs"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "startMs",
+        "endMs",
+        "fps",
+        "mode",
+        "timing",
+        "gaps"
+      ],
+      "additionalProperties": false
+    },
+    "provenance": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "endpoint": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "jobId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+        },
+        "analysisVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "priceVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "analyzedAt": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+        },
+        "evidence": {
+          "type": "string",
+          "const": "provider-live"
+        }
+      },
+      "required": [
+        "provider",
+        "model",
+        "endpoint",
+        "requestId",
+        "jobId",
+        "analysisVersion",
+        "priceVersion",
+        "analyzedAt",
+        "evidence"
+      ],
+      "additionalProperties": false
+    },
+    "measurements": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "measured",
+            "unavailable"
+          ]
+        },
+        "method": {
+          "type": "string",
+          "const": "ffmpeg-scene-difference"
+        },
+        "threshold": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "cutTimesMs": {
+          "maxItems": 2000,
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3600000
+          }
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 300
+        }
+      },
+      "required": [
+        "status",
+        "method",
+        "threshold",
+        "cutTimesMs"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "summary",
+    "shots",
+    "narrativeBeats",
+    "events",
+    "visualStyle",
+    "speech",
+    "audio",
+    "evidence",
+    "unknowns",
+    "schemaVersion",
+    "source",
+    "coverage",
+    "provenance",
+    "measurements"
+  ],
+  "additionalProperties": false
+}

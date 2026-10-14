@@ -6,6 +6,72 @@
       "properties": {
         "kind": {
           "type": "string",
+          "const": "reference_analyze"
+        },
+        "assetId": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "purpose": {
+          "default": "remake",
+          "type": "string",
+          "enum": [
+            "remake",
+            "clip",
+            "inspect"
+          ]
+        },
+        "language": {
+          "default": "zh",
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 20
+        },
+        "question": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "range": {
+          "type": "object",
+          "properties": {
+            "startMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 3600000
+            },
+            "endMs": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 3600000
+            }
+          },
+          "required": [
+            "startMs",
+            "endMs"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "kind",
+        "assetId",
+        "model",
+        "purpose",
+        "language"
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "type": "string",
           "const": "render"
         },
         "composition": {
