@@ -4,6 +4,7 @@ import {
   referenceAnalysisSchema,
   translationSchema,
   type Operation,
+  type Entity,
 } from "../../contracts/src/index.js";
 export type Model = {
   id: string;
@@ -266,6 +267,14 @@ export class FalProvider {
     return { url, kind: m.kind, costCents: null };
   }
 }
+export type PreparedMedia = {
+  name: string;
+  uri: string;
+  mime: string;
+  ready: boolean;
+  connectionId?: string;
+  connectionVersion?: string;
+};
 export type MediaProvider = Pick<
   FalProvider,
   | "models"
@@ -276,4 +285,12 @@ export type MediaProvider = Pick<
   | "poll"
   | "cancel"
   | "collect"
->;
+> & {
+  validateSource?(input: Operation, asset: Entity): void;
+  prepare?(
+    input: Operation,
+    bytes?: Uint8Array,
+    mime?: string,
+    previous?: PreparedMedia,
+  ): Promise<PreparedMedia>;
+};

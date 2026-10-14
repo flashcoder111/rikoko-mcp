@@ -33,7 +33,13 @@ import {
   recipeSchema,
   selectTranscript,
 } from "../../recipes/src/index.js";
+import {
+  referenceTools,
+  callReferenceTool,
+  adaptReference,
+} from "./reference-tools.js";
 export const tools = {
+  ...referenceTools,
   asset_waveform: {
     description:
       "Read peak-amplitude waveform for an owned audio/video source interval (milliseconds). Free local FFmpeg analysis; read scope, no render or paid model. Up to 10 minutes and 1024 bins per request. These are source times, before scene speed or volume edits.",
@@ -287,6 +293,13 @@ export async function callTool(
       "请恢复任务原有的官方套餐连接后查询；不会改用其他付费来源",
       409,
     );
+  if (Object.hasOwn(referenceTools, name))
+    return callReferenceTool(
+      service,
+      c,
+      name as keyof typeof referenceTools,
+      raw,
+    );
   switch (name) {
     case "asset_waveform":
       return assetWaveform(service, c, data);
@@ -352,6 +365,17 @@ export async function callTool(
           })
         : service.provider.describe();
       return {
+        referenceAnalysis: {
+          independentOfHostModel: true,
+          models: service.provider
+            .describe()
+            .filter((m) => m.kind === "analysis"),
+          tools: Object.keys(referenceTools),
+          schemaVersion: 2,
+          nativeVideo: "gemini",
+          officialGateway: "not_available",
+          estimatesRequireReview: true,
+        },
         generation: {
           mode: gateway ? "official" : (serviceMode(service) ?? "custom"),
           billingSource: gateway ? "credits" : service.billingSource,
@@ -459,6 +483,29 @@ export async function callTool(
         const storedAnalysis = JSON.parse(
           Buffer.from(await service.storage.read(asset.storageKey)).toString(),
         );
+        if (storedAnalysis.schemaVersion === 2) {
+          if (
+            data.recipe.referenceAssetId &&
+            storedAnalysis.source?.assetId !== data.recipe.referenceAssetId
+          )
+            throw new AppError(
+              "SOURCE_MISMATCH",
+              "Analysis belongs to another reference",
+            );
+          if (data.recipe.scenes?.length)
+            throw new AppError(
+              "USE_REFERENCE_ADAPT",
+              "Use reference_adapt replacements with sourceShotId for analyzed references",
+            );
+          return adaptReference(service, c, {
+            analysisAssetId: data.recipe.analysisAssetId,
+            projectId: data.projectId,
+            title: data.recipe.title,
+            width: data.recipe.width,
+            height: data.recipe.height,
+            language: data.recipe.language,
+          });
+        }
         if (
           storedAnalysis.assetId &&
           data.recipe.referenceAssetId &&

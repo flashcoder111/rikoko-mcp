@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { referenceOperationSchema } from "./reference-analysis.js";
+export * from "./reference-analysis.js";
 export const idSchema = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/);
 const ms = z.number().int().min(0).max(3_600_000);
 const color = z.string().regex(/^#[0-9a-fA-F]{6}$/);
@@ -163,6 +165,7 @@ export const transcriptSchema = z
     }
   });
 export const operationSchema = z.discriminatedUnion("kind", [
+  referenceOperationSchema,
   z
     .object({
       kind: z.literal("render"),
@@ -295,6 +298,7 @@ export function isPaidOperation(input: Operation) {
   return (
     input.kind === "generate" ||
     input.kind === "translate" ||
+    input.kind === "reference_analyze" ||
     (input.kind === "analyze" && !!input.model) ||
     (input.kind === "tts" && input.engine === "fal")
   );

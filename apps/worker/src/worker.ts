@@ -16,6 +16,8 @@ import { media, probeSchema } from "../../../packages/render/src/media.js";
 import { editMap } from "../../../packages/render/src/index.js";
 import { downloadPublic } from "../../../packages/storage/src/download.js";
 import { SubmissionUnknown } from "../../../packages/providers/src/index.js";
+import { referenceTiming } from "../../../packages/render/src/reference-timing.js";
+import { bindReferenceReport } from "../../../packages/core/src/reference-report.js";
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export class Worker {
   private id = randomUUID();
@@ -72,6 +74,66 @@ export class Worker {
               "Provider profile changed after reservation; request a new quote.",
             );
           let assetUrl: string | undefined;
+          if (input.kind === "reference_analyze") {
+            if (!this.service.provider.prepare)
+              throw new AppError(
+                "CAPABILITY_UNAVAILABLE",
+                "Native video analysis is not configured",
+                409,
+              );
+            const source = await this.service.db.transaction((tx) =>
+              tx.get(input.assetId, job!.accountId, "asset"),
+            );
+            if (!source)
+              throw new AppError(
+                "NOT_FOUND",
+                "Source video is unavailable",
+                404,
+              );
+            this.service.provider.validateSource?.(input, source);
+            if (!job.referenceTiming) {
+              const staged = await this.stage(job, input.assetId, work);
+              await checkpoint({
+                referenceTiming: await referenceTiming(
+                  staged.path,
+                  source.metadata.durationMs,
+                  abort.signal,
+                ),
+              });
+            }
+            if (job.cancelRequested || abort.signal.aborted)
+              throw new AppError(
+                "CANCELLED",
+                "Job cancelled before analysis submission",
+              );
+            if (!job.providerMedia?.ready) {
+              const prepared = await this.service.provider.prepare(
+                input,
+                job.providerMedia
+                  ? undefined
+                  : await this.service.storage.read(source.storageKey),
+                source.mime,
+                job.providerMedia,
+              );
+              await checkpoint({
+                providerMedia: prepared,
+                phase: "provider_preparing",
+              });
+              if (job.cancelRequested || abort.signal.aborted)
+                throw new AppError(
+                  "CANCELLED",
+                  "Job cancelled before analysis submission",
+                );
+              if (!prepared.ready) {
+                await checkpoint({
+                  status: "queued",
+                  nextRunAt: new Date(Date.now() + 2000).toISOString(),
+                });
+                return true;
+              }
+            }
+            assetUrl = job.providerMedia.uri;
+          }
           if (input.kind === "analyze") {
             const source = await this.service.db.transaction((tx) =>
               tx.get(input.assetId, job!.accountId, "asset"),
@@ -149,6 +211,24 @@ export class Worker {
                   "PROVIDER_RESULT_INVALID",
                   "Observation exceeds reference duration",
                 );
+            }
+            if (input.kind === "reference_analyze") {
+              const source = await this.service.db.transaction((tx) =>
+                tx.get(input.assetId, job!.accountId, "asset"),
+              );
+              if (!source)
+                throw new AppError(
+                  "NOT_FOUND",
+                  "Source video is unavailable",
+                  404,
+                );
+              result.data = bindReferenceReport(
+                result.data,
+                input,
+                source,
+                job,
+                this.service.provider.validate(input),
+              );
             }
             const asset = await this.service.registerAsset(
               job.accountId,

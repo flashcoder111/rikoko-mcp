@@ -528,6 +528,26 @@ export class Service {
       }
     } else if ("assetId" in input) {
       const asset = await this.owned(tx, c, "asset", input.assetId);
+      if (input.kind === "reference_analyze") {
+        ensure(
+          asset.kind === "video",
+          "INVALID_MEDIA",
+          "Reference analysis requires video",
+        );
+        ensure(
+          Number.isSafeInteger(asset.metadata?.durationMs) &&
+            asset.metadata.durationMs > 0,
+          "INVALID_MEDIA",
+          "Source duration is unknown",
+        );
+        if (input.range)
+          ensure(
+            input.range.endMs <= asset.metadata.durationMs,
+            "INVALID_INTERVAL",
+            "Analysis interval exceeds source",
+          );
+        this.provider.validateSource?.(input, asset);
+      }
       if (input.kind === "trim") {
         ensure(asset.kind === "video", "INVALID_MEDIA", "Trim requires video");
         for (const s of input.segments)

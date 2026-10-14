@@ -1,14 +1,20 @@
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { z } from "zod";
-import { AppError, type Operation } from "../../contracts/src/index.js";
+import {
+  AppError,
+  type Operation,
+  type Entity,
+} from "../../contracts/src/index.js";
 import { cloudOrigin } from "../../cloud-client/src/http.js";
 import {
   FalProvider,
   type Model,
   type MediaProvider,
   type Ticket,
+  type PreparedMedia,
 } from "./index.js";
+import { GeminiProvider } from "./gemini.js";
 import { ReplicateProvider } from "./replicate.js";
 
 const identifier = z.string().regex(/^[a-zA-Z0-9_-]{1,120}$/);
@@ -48,7 +54,7 @@ export const modelSchema = z
 const connectionSchema = z
   .object({
     id: identifier,
-    adapter: z.enum(["fal", "replicate"]),
+    adapter: z.enum(["fal", "replicate", "gemini"]),
     keyEnv: envName,
     enabled: z.boolean().default(false),
     models: z.array(modelSchema).min(1).max(100),
@@ -146,6 +152,38 @@ export class ProviderRegistry implements MediaProvider {
   validate(input: Operation) {
     return this.forInput(input).provider.validate(input);
   }
+  validateSource(input: Operation, asset: Entity) {
+    this.forInput(input).provider.validateSource?.(input, asset);
+  }
+  async prepare(
+    input: Operation,
+    bytes?: Uint8Array,
+    mime?: string,
+    previous?: PreparedMedia,
+  ) {
+    const c = this.forInput(input);
+    if (
+      previous &&
+      (previous.connectionId !== c.id ||
+        previous.connectionVersion !== c.version)
+    )
+      throw new AppError(
+        "PROVIDER_CONFIG_CHANGED",
+        "Analysis upload belongs to a different connection",
+        409,
+      );
+    if (!c.provider.prepare)
+      throw new AppError(
+        "CAPABILITY_UNAVAILABLE",
+        "This provider does not accept native reference video",
+        409,
+      );
+    return {
+      ...(await c.provider.prepare(input, bytes, mime, previous)),
+      connectionId: c.id,
+      connectionVersion: c.version,
+    };
+  }
   estimate(input: Operation) {
     const c = this.forInput(input),
       price = c.provider.estimate(input);
@@ -194,9 +232,11 @@ export function buildProviders(
             id: c.id,
             version,
             provider:
-              c.adapter === "fal"
-                ? new FalProvider(c.models, key, c.enabled, fetcher)
-                : new ReplicateProvider(c.models, key, c.enabled, fetcher),
+              c.adapter === "gemini"
+                ? new GeminiProvider(c.models, key, c.enabled, fetcher)
+                : c.adapter === "fal"
+                  ? new FalProvider(c.models, key, c.enabled, fetcher)
+                  : new ReplicateProvider(c.models, key, c.enabled, fetcher),
           };
         }),
   );
