@@ -170,6 +170,16 @@ export class Worker {
               },
             ],
           });
+          if (job.cancelRequested || abort.signal.aborted)
+            throw new AppError(
+              "CANCELLED",
+              "Job cancelled before provider submission",
+            );
+          // Resolving storage references may take time; review can change meanwhile.
+          if (input.kind === "generate" && input.storyboard)
+            await this.service.db.transaction((tx) =>
+              validateStoryboardInput(tx, job!.accountId, input),
+            );
           const ticket = await this.service.provider.submit(
             input,
             assetUrl,

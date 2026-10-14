@@ -113,7 +113,15 @@ export const tools = {
   records_list: {
     description: "List your projects, assets, revisions, jobs or feedback.",
     schema: z.object({
-      type: z.enum(["project", "asset", "revision", "job", "feedback", "plan", "storyboard"]),
+      type: z.enum([
+        "project",
+        "asset",
+        "revision",
+        "job",
+        "feedback",
+        "plan",
+        "storyboard",
+      ]),
     }),
   },
   record_get: {
@@ -296,7 +304,13 @@ export async function callTool(
       "请恢复任务原有的官方套餐连接后查询；不会改用其他付费来源",
       409,
     );
-  if (Object.hasOwn(storyboardTools, name)) return callStoryboardTool(service, c, name as keyof typeof storyboardTools, raw);
+  if (Object.hasOwn(storyboardTools, name))
+    return callStoryboardTool(
+      service,
+      c,
+      name as keyof typeof storyboardTools,
+      raw,
+    );
   if (Object.hasOwn(referenceTools, name))
     return callReferenceTool(
       service,
