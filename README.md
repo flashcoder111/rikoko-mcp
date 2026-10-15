@@ -10,6 +10,8 @@
 
 支持**官方综合 API 套餐**和**config 自有模型接入**两种方式：官方套餐统一消耗额度，自有服务直接使用自己的供应商账户。图片、视频和音频共用模型目录与素材流程；自有连接只通过配置文件管理。配置示例、计费规则、当前供应商支持范围及支付边界见 [模型服务说明](docs/architecture/model-services.md)。
 
+官方测试服务已接入 **MiniMax Speech 2.8 HD 配音 + ElevenLabs Scribe v2 转写**，支持词级字幕读取、已有画面配音及定时字幕 SRT 导出。已完成中英文真实配音与转写、中文语音字幕成片验收；本地系统声音保留为显式选择。见[语音使用说明](docs/speech.md)与[真实验收记录](docs/acceptance/speech-2026-10-15.md)。
+
 rikoko 是可自部署的视频创作 MCP，提供可选剪辑工作台。用户在 Codex、Hermes 或 Claude 原对话中提出要求、查看状态和继续修改；支持的客户端安装后可使用 `/rikoko` 入口。完成时在原对话交付视频附件或媒体链接，并可附工作台链接供用户点击精修；用户也可要求只返回链接。不自动弹出 MCP 窗口、注册卡片播放器或另开网页对话。客户端适配与安装见 [三端接入](examples/clients/README.md)，交互验收见 [原对话与工作台链接](docs/acceptance/native-conversation.md)。实现计划见 [计划书](plans/框架搭建与开源整合实施计划书.md)。
 
 本仓库新增原创实现，不复制 Hypit 的源代码、Skill 或示例。原有 `plans/`、`research/`、`outputs/` 保留。
@@ -57,7 +59,7 @@ pnpm dev
 
 ## 尚未验收的能力
 
-**这不是 G0–G6 全部通过或正式商用版本。**真实参考语义理解、模型生成、WhisperX ASR/对齐、自动人物跟踪、自动翻译/译配质量、三个真实 Agent 客户端、PostgreSQL/pg-boss/S3/容器干净部署和正式发布仍需验收。当前模板规划不声称是 LLM 创作；中心 contain/cover 不声称是人物跟踪；预置字幕不声称是 ASR。
+**这不是 G0–G6 全部通过或正式商用版本。**参考视频分析、图片/视频生成与云端语音已通过记录中的真实样例验收，见[核心功能验收](docs/acceptance/core-functional-2026-10-15.md)和[语音验收](docs/acceptance/speech-2026-10-15.md)。复杂题材的模型质量、WhisperX 本地 ASR/对齐、自动人物跟踪、自动翻译/译配质量、其他真实 Agent 客户端及公众发布流程仍需独立验收。当前模板规划不声称是 LLM 创作；中心 contain/cover 不声称是人物跟踪；预置字幕不声称是 ASR。
 
 本地系统 TTS 与真实 FFmpeg 已运行。模型/费用/托管接入缺失不会阻止本地编排，相关接口返回明确错误或 `blocked_external`，不会静默换模型或伪造结果。
 
