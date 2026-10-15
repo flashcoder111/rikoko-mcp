@@ -314,27 +314,38 @@ export class GatewayClient {
                 "asset",
                 local.input.assetId,
               );
+              // MP3 encoder delay can be reported differently across FFmpeg builds.
+              // Exact bytes and word bounds remain mandatory; only container duration is normalized.
+              const durationTolerance =
+                source.metadata?.codec === "mp3" ? 100 : 0;
               if (
                 value.source?.assetId !== local.remoteInput?.assetId ||
                 value.source?.sha256 !== source.sha256 ||
-                value.source?.durationMs !== source.metadata?.durationMs
+                !Number.isSafeInteger(value.source?.durationMs) ||
+                Math.abs(
+                  value.source.durationMs - source.metadata?.durationMs,
+                ) > durationTolerance
               )
                 throw new AppError(
                   "SOURCE_MISMATCH",
                   "Official transcript does not match the local source",
                   409,
                 );
-              const transcript = transcriptSchema.parse(value.transcript);
+              const remoteTranscript = transcriptSchema.parse(value.transcript);
               if (
-                transcript.durationMs !== source.metadata.durationMs ||
-                transcript.language !== local.input.language ||
-                transcript.evidence !== "provider-live"
+                remoteTranscript.durationMs !== value.source.durationMs ||
+                remoteTranscript.language !== local.input.language ||
+                remoteTranscript.evidence !== "provider-live"
               )
                 throw new AppError(
                   "SOURCE_MISMATCH",
                   "Transcript metadata does not match source",
                   409,
                 );
+              const transcript = transcriptSchema.parse({
+                ...remoteTranscript,
+                durationMs: source.metadata.durationMs,
+              });
               return this.service.registerAsset(
                 c.accountId,
                 Buffer.from(JSON.stringify(transcript)),
@@ -342,7 +353,10 @@ export class GatewayClient {
                   name,
                   kind: "transcript",
                   mime: "application/json",
-                  metadata: { sourceAssetId: source.id },
+                  metadata: {
+                    sourceAssetId: source.id,
+                    providerDurationMs: remoteTranscript.durationMs,
+                  },
                   provenance: {
                     source: "official-transcription",
                     evidence: "provider-live",

@@ -51,7 +51,7 @@ export function scribeTranscript(raw: unknown, language: string) {
       "PROVIDER_RESULT_INVALID",
       "Transcription language mismatch",
     );
-  const words = result.words
+  const tokens = result.words
     .filter((w) => w.type === "word")
     .map((w, i) => {
       if (w.start === undefined || w.end === undefined)
@@ -67,6 +67,24 @@ export function scribeTranscript(raw: unknown, language: string) {
         ...(w.speaker_id ? { speaker: w.speaker_id } : {}),
       };
     });
+  const words: typeof tokens = [];
+  for (const token of tokens) {
+    const previous = words.at(-1);
+    if (token.startMs === token.endMs) {
+      if (
+        !previous ||
+        previous.endMs !== token.startMs ||
+        previous.speaker !== token.speaker
+      )
+        throw new AppError(
+          "PROVIDER_RESULT_INVALID",
+          "Untimed token has no adjacent timed speech group",
+        );
+      const joiner =
+        /^(zh|ja|ko)/.test(language) || /^\p{P}+$/u.test(token.text) ? "" : " ";
+      previous.text += joiner + token.text;
+    } else words.push({ ...token, id: `w${words.length}` });
+  }
   return transcriptSchema.parse({
     schemaVersion: 1,
     language,

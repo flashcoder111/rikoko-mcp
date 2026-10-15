@@ -135,14 +135,16 @@ it("binds measured transcript duration and rejects invented or out-of-source tim
   ).toThrow();
 });
 
-it.each([
-  [{ text: "你好", type: "word", start: 0 }],
-  [{ text: "你好", type: "word", start: 1, end: 0.5 }],
+it.each(
   [
-    { text: "你", type: "word", start: 0, end: 1 },
-    { text: "好", type: "word", start: 0.5, end: 2 },
-  ],
-].map(words => ({ words })))("rejects missing, reversed and overlapping word times", ({ words }) => {
+    [{ text: "你好", type: "word", start: 0 }],
+    [{ text: "你好", type: "word", start: 1, end: 0.5 }],
+    [
+      { text: "你", type: "word", start: 0, end: 1 },
+      { text: "好", type: "word", start: 0.5, end: 2 },
+    ],
+  ].map((words) => ({ words })),
+)("rejects missing, reversed and overlapping word times", ({ words }) => {
   expect(() =>
     scribeTranscript({ language_code: "zho", words }, "zh"),
   ).toThrow();
@@ -175,6 +177,18 @@ it("validates spoken media before submission and refuses silent video", () => {
 });
 
 it("keeps zero-duration Chinese tokens by joining their adjacent timed token without inventing time", () => {
-  const t=scribeTranscript({language_code:"zho",words:[{text:"光",type:"word",start:0.1,end:0.3,speaker_id:"s"},{text:"线",type:"word",start:0.3,end:0.3,speaker_id:"s"},{text:"。",type:"word",start:0.3,end:0.3,speaker_id:"s"}]},"zh");
-  expect(t.words).toEqual([{id:"w0",text:"光线。",startMs:100,endMs:300,speaker:"s"}]);
+  const t = scribeTranscript(
+    {
+      language_code: "zho",
+      words: [
+        { text: "光", type: "word", start: 0.1, end: 0.3, speaker_id: "s" },
+        { text: "线", type: "word", start: 0.3, end: 0.3, speaker_id: "s" },
+        { text: "。", type: "word", start: 0.3, end: 0.3, speaker_id: "s" },
+      ],
+    },
+    "zh",
+  );
+  expect(t.words).toEqual([
+    { id: "w0", text: "光线。", startMs: 100, endMs: 300, speaker: "s" },
+  ]);
 });

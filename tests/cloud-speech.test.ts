@@ -47,7 +47,7 @@ it("quotes official TTS and imports a source-bound transcript, rejecting changed
         return Response.json({ id: "j", status: "queued" });
       if (path.endsWith("/result"))
         return Response.json({
-          transcript: {...transcript,durationMs:2047},
+          transcript: { ...transcript, durationMs: 2047 },
           source: {
             assetId: "remote-a",
             sha256: valid ? source.sha256 : "wrong",
