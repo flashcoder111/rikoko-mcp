@@ -243,11 +243,13 @@ def render(payload: dict[str, Any], work: Path) -> dict[str, Any]:
             filters.append(f'[{video_label}][{input_count}:v]overlay=0:0:shortest=1[v{input_count}]')
             video_label = f'v{input_count}'
             input_count += 1
-            subtitle_entries.append(f'{len(subtitle_entries)+1}\n{stamp(cursor)} --> {stamp(cursor+scene["durationMs"])}\n{scene["text"]}\n')
+            subtitle_entries.append((cursor, cursor+scene["durationMs"], scene["text"]))
         for event in (e for e in composition.get('events',[]) if e['sceneId']==scene['id']):
             word = next((w for w in scene.get('words',[]) if w['id']==event.get('wordId')),None)
             start = ((word['startMs'] if word else 0)+event['offsetMs'])/1000
             end = start+event['durationMs']/1000
+            if event['kind'] == 'text' and event.get('text'):
+                subtitle_entries.append((cursor+round(start*1000), cursor+round(end*1000), event['text']))
             if event['kind']=='broll':
                 media = assets[event['assetId']]
                 meta = probe(media)
@@ -295,7 +297,7 @@ def render(payload: dict[str, Any], work: Path) -> dict[str, Any]:
     else:
         shutil.copyfile(joined,output)
     subtitles = work / 'captions.srt'
-    subtitles.write_text('\n'.join(subtitle_entries),encoding='utf8')
+    subtitles.write_text('\n'.join(f'{index+1}\n{stamp(start)} --> {stamp(end)}\n{text}\n' for index, (start, end, text) in enumerate(sorted(subtitle_entries, key=lambda entry: (entry[0], entry[1])))),encoding='utf8')
     if payload.get('preserveAudio'):
         preserved = work / 'preserved.mp4'
         run(['ffmpeg','-v','error','-nostdin','-y','-i',str(output),'-protocol_whitelist','file,pipe','-i',payload['preserveAudio'],'-map','0:v:0','-map','1:a:0?','-c','copy','-movflags','+faststart',str(preserved)])
