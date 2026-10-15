@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { readCreativeContext } from "./creative-context.js";
 import {
   AppError,
   type Context,
@@ -28,6 +29,7 @@ export function requestView(record: Entity): CreationRequest {
     proposal,
   } = record;
   return {
+    creativeContextId: record.creativeContextId,
     requestId: id,
     requestVersion: version,
     originalMessage,
@@ -96,6 +98,10 @@ export async function workspaceRequestSave(
     if (!previous && !input.message)
       throw new AppError("INVALID_INPUT", "请先描述创作要求，再补充素材。");
     const projectId = input.projectId ?? previous?.projectId;
+    const creativeContextId =
+      input.creativeContextId ?? previous?.creativeContextId;
+    if (creativeContextId)
+      await readCreativeContext(tx, c, creativeContextId, projectId);
     const revisionId = input.revisionId ?? previous?.revisionId;
     if (
       previous?.projectId &&
@@ -151,6 +157,7 @@ export async function workspaceRequestSave(
       version: (previous?.version ?? 0) + 1,
       updatedAt: new Date().toISOString(),
       originalMessage: previous?.originalMessage ?? input.message,
+      creativeContextId,
       turns,
       assetIds,
       missingInputs,

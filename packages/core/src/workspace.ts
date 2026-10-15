@@ -1,5 +1,10 @@
 import { randomUUID } from "node:crypto";
 import {
+  readCreativeContext,
+  validateCreativeComposition,
+  checkCreativeReferences,
+} from "./creative-context.js";
+import {
   AppError,
   compositionSchema,
   type Composition,
@@ -205,6 +210,7 @@ export async function workspaceCommit(
     }
     let project: Entity,
       composition: Composition,
+      restoredContext: Entity | undefined,
       parent: Entity | null = null;
     if (input.action.type === "create") {
       if (input.projectId || input.baseRevisionId)
@@ -234,6 +240,7 @@ export async function workspaceCommit(
         if (restored.projectId !== project.id)
           fail("NOT_FOUND", "不能恢复其他作品的版本。", 404);
         composition = compositionSchema.parse(restored.composition);
+        restoredContext = restored.creativeContext;
       } else {
         // Preserve original video audio when a visual is replaced by an image.
         let current = compositionSchema.parse(parent.composition);
@@ -255,6 +262,18 @@ export async function workspaceCommit(
       }
     }
     await validateMedia(tx, c, composition);
+    const creativeContextId =
+      input.creativeContextId ?? request?.creativeContextId;
+    const creativeContext = creativeContextId
+      ? await readCreativeContext(tx, c, creativeContextId, input.projectId)
+      : input.action.type === "restore"
+        ? restoredContext
+        : parent?.creativeContext;
+    if (creativeContextId && creativeContext)
+      await checkCreativeReferences(tx, c, creativeContext);
+    const creativeRuleChecks = creativeContext
+      ? validateCreativeComposition(creativeContext, composition)
+      : undefined;
     const version =
       Number(
         project.version ??
@@ -270,6 +289,7 @@ export async function workspaceCommit(
         : {}),
       composition,
       changes: [input.action],
+      ...(creativeContext ? { creativeContext, creativeRuleChecks } : {}),
       origin: input.origin,
       version,
     });
@@ -363,6 +383,8 @@ export async function workspacePlan(
   // Keep original intent and all follow-ups even when the next turn is attachment-only.
   const input = {
     ...submitted,
+    creativeContextId:
+      submitted.creativeContextId ?? previous?.creativeContextId,
     projectId: submitted.projectId ?? previous?.projectId,
     revisionId: submitted.revisionId ?? previous?.revisionId,
     selectedSceneId: submitted.selectedSceneId ?? previous?.selectedSceneId,
@@ -442,6 +464,7 @@ export async function workspacePlan(
     c,
     {
       ...submitted,
+      creativeContextId: input.creativeContextId,
       projectId: input.projectId,
       revisionId: input.revisionId,
       selectedSceneId: input.selectedSceneId,
@@ -451,6 +474,7 @@ export async function workspacePlan(
   );
   return {
     ...safeProposal,
+    creativeContextId: saved.creativeContextId,
     requestId: saved.requestId,
     requestVersion: saved.requestVersion,
   };
@@ -462,6 +486,33 @@ async function prepareWorkspacePlan(
   input: import("./workspace-contracts.js").PlanInput,
   previous?: import("./workspace-contracts.js").CreationRequest,
 ): Promise<Proposal> {
+  const creativeContext = input.creativeContextId
+    ? await service.scoped(c, "read", (tx) =>
+        readCreativeContext(tx, c, input.creativeContextId!, input.projectId),
+      )
+    : undefined;
+  if (
+    creativeContext &&
+    (creativeContext.conflicts.length ||
+      creativeContext.missingInputs.length ||
+      creativeContext.unresolved.some(
+        (rule: Entity) => rule.strength === "required",
+      ))
+  ) {
+    return {
+      engine: "local-commands",
+      message: "请先处理创作规范中的冲突、未知条件或缺失参考，再重新解析。",
+      missingInputs: [
+        {
+          id: "creative-context",
+          kind: "text",
+          required: true,
+          prompt: "请读取 creative_context_resolve 的冲突与缺口并解决。",
+          purpose: "采用可执行的创作规范",
+        },
+      ],
+    };
+  }
   const state = input.projectId
     ? await workspaceSnapshot(service, c, input.projectId, input.revisionId)
     : undefined;
@@ -499,6 +550,7 @@ async function prepareWorkspacePlan(
     assets,
     library,
     previous,
+    creativeContext,
   );
   if (planned.missingInputs?.some((item) => item.required))
     return { ...planned, action: undefined, autoApply: false };

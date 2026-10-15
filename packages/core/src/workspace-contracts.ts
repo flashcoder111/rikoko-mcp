@@ -135,6 +135,7 @@ export const actionSchema = z.discriminatedUnion("type", [
 ]);
 export const commitSchema = z
   .object({
+    creativeContextId: idSchema.optional(),
     requestId: idSchema.optional(),
     requestVersion: z.number().int().positive().optional(),
     projectId: idSchema.optional(),
@@ -147,6 +148,7 @@ export const commitSchema = z
   .strict();
 export const planSchema = z
   .object({
+    creativeContextId: idSchema.optional(),
     requestId: idSchema.optional(),
     requestVersion: z.number().int().positive().optional(),
     projectId: idSchema.optional(),
@@ -168,6 +170,7 @@ export const missingInputSchema = z
   .strict();
 export const requestSaveSchema = z
   .object({
+    creativeContextId: idSchema.optional(),
     requestId: idSchema.optional(),
     requestVersion: z.number().int().positive().optional(),
     projectId: idSchema.optional(),
@@ -180,6 +183,7 @@ export const requestSaveSchema = z
   .strict();
 export type MissingInput = z.infer<typeof missingInputSchema>;
 export type CreationRequest = {
+  creativeContextId?: string;
   requestId: string;
   requestVersion: number;
   originalMessage: string;
@@ -198,6 +202,7 @@ export type Action = z.infer<typeof actionSchema>;
 export type Commit = z.infer<typeof commitSchema>;
 export type PlanInput = z.infer<typeof planSchema>;
 export type Proposal = {
+  creativeContextId?: string;
   requestId?: string;
   requestVersion?: number;
   status?: "waiting_input" | "ready";

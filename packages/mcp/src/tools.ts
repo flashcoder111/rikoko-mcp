@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  memoryTools,
+  callMemoryTool,
+  type MemoryToolName,
+} from "./memory-tools.js";
 import { storyboardTools, callStoryboardTool } from "./storyboard-tools.js";
 import { randomUUID } from "node:crypto";
 import {
@@ -62,6 +67,7 @@ import {
   adaptReference,
 } from "./reference-tools.js";
 export const tools = {
+  ...memoryTools,
   ...referenceTools,
   ...storyboardTools,
   asset_waveform: {
@@ -376,6 +382,8 @@ export async function callTool(
   raw: unknown,
 ): Promise<any> {
   const data: any = tools[name].schema.parse(raw);
+  if (Object.hasOwn(memoryTools, name))
+    return callMemoryTool(service, c, name as MemoryToolName, data);
   if (
     (data.jobId?.startsWith("cloud-") ||
       (data.type === "job" && data.id?.startsWith("cloud-"))) &&
@@ -516,6 +524,35 @@ export async function callTool(
           })
         : service.provider.describe();
       return {
+        creativeMemory: {
+          storage: "local-database",
+          tools: Object.keys(memoryTools),
+          schemaVersion: 1,
+          automaticCloudSync: false,
+          paidGeneration: false,
+          dataFields: {
+            brand: ["description", "referenceAssetIds"],
+            series: ["description", "brandId"],
+            character: [
+              "aliases",
+              "description",
+              "referenceAssetIds",
+              "brandId",
+              "seriesId",
+            ],
+            "character-look": [
+              "characterId",
+              "description",
+              "referenceAssetIds",
+            ],
+            "voice-profile": [
+              "provider",
+              "voiceId",
+              "characterId",
+              "description",
+            ],
+          },
+        },
         referenceAnalysis: {
           independentOfHostModel: true,
           models: providers.filter(

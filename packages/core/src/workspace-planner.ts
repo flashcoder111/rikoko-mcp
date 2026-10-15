@@ -195,6 +195,7 @@ async function modelPlan(
   assets: Entity[],
   library?: TemplateContext,
   request?: CreationRequest,
+  creativeContext?: Entity,
 ): Promise<PlannedProposal> {
   const endpoint = new URL(process.env.CREATIVE_AGENT_URL!);
   if (
@@ -243,6 +244,7 @@ async function modelPlan(
           role: "user",
           content: JSON.stringify({
             request: input.message,
+            creativeContext,
             conversation: request,
             selectedSceneId: input.selectedSceneId,
             composition: revision?.composition,
@@ -301,6 +303,7 @@ export async function planRequest(
   assets: Entity[],
   library?: TemplateContext,
   request?: CreationRequest,
+  creativeContext?: Entity,
 ): Promise<PlannedProposal> {
   const text = input.message.trim();
   if (!revision && !plannerConfigured()) {
@@ -368,7 +371,14 @@ export async function planRequest(
   }
   if (!revision && library && !avoidsTemplates(text)) {
     if (plannerConfigured())
-      return modelPlan(input, revision, assets, library, request);
+      return modelPlan(
+        input,
+        revision,
+        assets,
+        library,
+        request,
+        creativeContext,
+      );
     const automatic = localTemplatePlan(input, library);
     if (automatic) return automatic;
   }
@@ -452,7 +462,14 @@ export async function planRequest(
     }
   }
   if (plannerConfigured())
-    return modelPlan(input, revision, assets, undefined, request);
+    return modelPlan(
+      input,
+      revision,
+      assets,
+      undefined,
+      request,
+      creativeContext,
+    );
   return {
     engine: "local-commands",
     message: revision
