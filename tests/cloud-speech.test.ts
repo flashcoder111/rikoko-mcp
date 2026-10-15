@@ -18,7 +18,7 @@ it("quotes official TTS and imports a source-bound transcript, rejecting changed
       name: "voice",
       kind: "audio",
       mime: "audio/mpeg",
-      metadata: { durationMs: 2000, hasAudio: true },
+      metadata: { durationMs: 2000, hasAudio: true, codec: "mp3" },
       provenance: {},
     });
     let remote: any,
@@ -47,11 +47,11 @@ it("quotes official TTS and imports a source-bound transcript, rejecting changed
         return Response.json({ id: "j", status: "queued" });
       if (path.endsWith("/result"))
         return Response.json({
-          transcript,
+          transcript: {...transcript,durationMs:2047},
           source: {
             assetId: "remote-a",
             sha256: valid ? source.sha256 : "wrong",
-            durationMs: 2000,
+            durationMs: 2047,
           },
         });
       return Response.json({

@@ -173,3 +173,8 @@ it("validates spoken media before submission and refuses silent video", () => {
     } as any),
   ).not.toThrow();
 });
+
+it("keeps zero-duration Chinese tokens by joining their adjacent timed token without inventing time", () => {
+  const t=scribeTranscript({language_code:"zho",words:[{text:"光",type:"word",start:0.1,end:0.3,speaker_id:"s"},{text:"线",type:"word",start:0.3,end:0.3,speaker_id:"s"},{text:"。",type:"word",start:0.3,end:0.3,speaker_id:"s"}]},"zh");
+  expect(t.words).toEqual([{id:"w0",text:"光线。",startMs:100,endMs:300,speaker:"s"}]);
+});
