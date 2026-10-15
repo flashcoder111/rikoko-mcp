@@ -4,6 +4,7 @@ import {
   isPaidOperation,
 } from "../packages/contracts/src/index.js";
 import { FalVideoProvider } from "../packages/providers/src/fal-video.js";
+import { scribeTranscript } from "../packages/providers/src/speech.js";
 
 const tts = {
   id: "voice",
@@ -132,4 +133,43 @@ it("binds measured transcript duration and rejects invented or out-of-source tim
       source,
     ),
   ).toThrow();
+});
+
+it.each([
+  [{ text: "你好", type: "word", start: 0 }],
+  [{ text: "你好", type: "word", start: 1, end: 0.5 }],
+  [
+    { text: "你", type: "word", start: 0, end: 1 },
+    { text: "好", type: "word", start: 0.5, end: 2 },
+  ],
+].map(words => ({ words })))("rejects missing, reversed and overlapping word times", ({ words }) => {
+  expect(() =>
+    scribeTranscript({ language_code: "zho", words }, "zh"),
+  ).toThrow();
+});
+it("validates spoken media before submission and refuses silent video", () => {
+  const p = new FalVideoProvider([stt], "test", true);
+  const input = operationSchema.parse({
+    kind: "transcribe",
+    engine: "fal",
+    model: "scribe",
+    assetId: "a",
+    language: "zh",
+  });
+  expect(() =>
+    p.validateSource(input, {
+      kind: "video",
+      mime: "video/mp4",
+      bytes: 100,
+      metadata: { durationMs: 2000, hasAudio: false },
+    } as any),
+  ).toThrow();
+  expect(() =>
+    p.validateSource(input, {
+      kind: "audio",
+      mime: "audio/mpeg",
+      bytes: 100,
+      metadata: { durationMs: 2000, hasAudio: true },
+    } as any),
+  ).not.toThrow();
 });

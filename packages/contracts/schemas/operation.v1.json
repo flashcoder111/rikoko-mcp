@@ -577,6 +577,19 @@
           "type": "string",
           "pattern": "^[a-zA-Z0-9_-]{1,100}$"
         },
+        "engine": {
+          "default": "local",
+          "type": "string",
+          "enum": [
+            "local",
+            "fal"
+          ]
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
         "language": {
           "default": "en",
           "type": "string",
@@ -586,6 +599,7 @@
       "required": [
         "kind",
         "assetId",
+        "engine",
         "language"
       ],
       "additionalProperties": false

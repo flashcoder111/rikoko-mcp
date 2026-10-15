@@ -264,7 +264,8 @@ export const tools = {
     }),
   },
   transcript_get: {
-    description: "Read an owned completed transcript with actual word timestamps and speaker labels. Use its words for captions or explicit transcript selection; never invent timings.",
+    description:
+      "Read an owned completed transcript with actual word timestamps and speaker labels. Use its words for captions or explicit transcript selection; never invent timings.",
     schema: z.object({ assetId: idSchema }),
   },
   transcript_select: {
@@ -740,8 +741,16 @@ export async function callTool(
       return service.feedback(c, data.revisionId, data);
     case "transcript_get": {
       const asset = await service.get(c, "asset", data.assetId);
-      if (asset.kind !== "transcript" || asset.bytes > 2 * 1024 * 1024) throw new AppError("INVALID_TRANSCRIPT", "Select an owned transcript asset");
-      return transcriptSchema.parse(JSON.parse(Buffer.from(await service.storage.read(asset.storageKey)).toString()));
+      if (asset.kind !== "transcript" || asset.bytes > 2 * 1024 * 1024)
+        throw new AppError(
+          "INVALID_TRANSCRIPT",
+          "Select an owned transcript asset",
+        );
+      return transcriptSchema.parse(
+        JSON.parse(
+          Buffer.from(await service.storage.read(asset.storageKey)).toString(),
+        ),
+      );
     }
     case "transcript_select":
       return selectTranscript(data.transcript.words, data);
