@@ -11,6 +11,22 @@ import wave
 MODULE = pathlib.Path(__file__).resolve().parents[1] / 'python/media_core/cli.py'
 
 class MediaContractTest(unittest.TestCase):
+    def test_timed_speech_captions_export_srt_in_source_order(self):
+        spec = importlib.util.spec_from_file_location('media_cli', MODULE)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory(prefix='speech-captions-') as directory:
+            work = pathlib.Path(directory)
+            composition = {'schemaVersion': 1, 'title': 'Speech captions', 'width': 144, 'height': 256,
+                'fps': 24, 'language': 'zh',
+                'scenes': [{'id': 'a', 'durationMs': 2000, 'sourceStartMs': 0, 'text': '', 'color': '#173b42', 'fit': 'contain', 'volume': 1,
+                    'words': [{'id': 'w0', 'text': '你好', 'startMs': 200, 'endMs': 700}]}],
+                'events': [{'id': 'late', 'sceneId': 'a', 'offsetMs': 1000, 'durationMs': 500, 'kind': 'text', 'text': '世界'},
+                           {'id': 'early', 'sceneId': 'a', 'wordId': 'w0', 'offsetMs': 0, 'durationMs': 500, 'kind': 'text', 'text': '你好'}],
+                'captionStyle': {'fontSize': 12, 'color': '#ffffff', 'background': '#151a22'}}
+            result = module.render({'composition': composition, 'assets': {}}, work)
+            self.assertEqual(pathlib.Path(result['subtitles']).read_text(), '1\n00:00:00,200 --> 00:00:00,700\n你好\n\n2\n00:00:01,000 --> 00:00:01,500\n世界\n')
+
     def test_speed_preserves_pitch_late_source_and_volume_curve(self):
         spec = importlib.util.spec_from_file_location('media_cli', MODULE)
         module = importlib.util.module_from_spec(spec)
