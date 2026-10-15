@@ -8,6 +8,7 @@ import {
   eventBindingsSchema,
   idSchema,
   transcriptSchema,
+  isOfficialOperation,
   referenceAnalysisSchema,
   type Context,
 } from "../../contracts/src/index.js";
@@ -539,6 +540,28 @@ export async function callTool(
             : service.billingSource,
           error: providerError,
         },
+        speech: {
+          synthesis: providers.filter(
+            (m: { kind: string; category?: string }) =>
+              m.kind === "audio" && m.category === "speech",
+          ),
+          transcription: providers.filter(
+            (m: { kind: string }) => m.kind === "transcript",
+          ),
+          cloudEngine: "fal",
+          localSynthesis: {
+            engine: "local",
+            macOS: { zh: "Tingting", en: "Samantha" },
+            linux: "espeak-ng",
+            availability: "runtime-dependent",
+          },
+          localTranscription: {
+            engine: "local",
+            adapter: "WhisperX",
+            availability: "requires-local-weights",
+          },
+          automaticFallback: false,
+        },
         workspace: {
           modes: ["conversation", "studio"],
           defaultMode: "conversation",
@@ -725,14 +748,14 @@ export async function callTool(
       return importUrl(service, c, data);
     case "quote_create":
       if (
-        ["generate", "reference_analyze"].includes(data.input.kind) &&
+        isOfficialOperation(operationSchema.parse(data.input)) &&
         cloudConnection(service)?.gateway
       )
         return cloudConnection(service)!.gateway!.quote(c, data.input);
       return service.quote(c, data.input);
     case "job_submit":
       if (
-        ["generate", "reference_analyze"].includes(data.input.kind) &&
+        isOfficialOperation(operationSchema.parse(data.input)) &&
         cloudConnection(service)?.gateway
       )
         return cloudConnection(service)!.gateway!.submit(c, data);

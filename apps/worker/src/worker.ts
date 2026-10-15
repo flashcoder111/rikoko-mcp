@@ -20,6 +20,7 @@ import {
   SubmissionUnknown,
 } from "../../../packages/providers/src/index.js";
 import { referenceTiming } from "../../../packages/render/src/reference-timing.js";
+import { bindTranscript } from "../../../packages/providers/src/speech.js";
 import { bindReferenceReport } from "../../../packages/core/src/reference-report.js";
 import { validateStoryboardInput } from "../../../packages/core/src/storyboard-state.js";
 import { generationReferences } from "../../../packages/core/src/generation-references.js";
@@ -87,7 +88,10 @@ export class Worker {
             input.kind === "generate"
               ? await generationReferences(this.service, job, input)
               : undefined;
-          if (input.kind === "reference_analyze") {
+          if (
+            input.kind === "reference_analyze" ||
+            input.kind === "transcribe"
+          ) {
             if (!this.service.provider.prepare)
               throw new AppError(
                 "CAPABILITY_UNAVAILABLE",
@@ -108,7 +112,7 @@ export class Worker {
               durationMs: source.metadata.durationMs,
               hasAudio: source.metadata.hasAudio === true,
             };
-            if (!job.referenceTiming) {
+            if (input.kind === "reference_analyze" && !job.referenceTiming) {
               const staged = await this.stage(job, input.assetId, work);
               await checkpoint({
                 referenceTiming: await referenceTiming(
@@ -243,6 +247,18 @@ export class Worker {
                   "PROVIDER_RESULT_INVALID",
                   "Observation exceeds reference duration",
                 );
+            }
+            if (input.kind === "transcribe") {
+              const source = await this.service.db.transaction((tx) =>
+                tx.get(input.assetId, job!.accountId, "asset"),
+              );
+              if (!source)
+                throw new AppError(
+                  "NOT_FOUND",
+                  "Speech source is unavailable",
+                  404,
+                );
+              result.data = bindTranscript(result.data, source);
             }
             if (input.kind === "reference_analyze") {
               const source = await this.service.db.transaction((tx) =>

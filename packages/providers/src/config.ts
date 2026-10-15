@@ -43,7 +43,14 @@ export const modelSchema = z
       .string()
       .regex(/^[a-zA-Z0-9_./-]+$/)
       .refine((s) => !s.includes("..")),
-    kind: z.enum(["image", "video", "audio", "analysis", "translation"]),
+    kind: z.enum([
+      "image",
+      "video",
+      "audio",
+      "analysis",
+      "translation",
+      "transcript",
+    ]),
     category: z.enum(["speech", "music", "sound"]).optional(),
     maxCostCents: z.number().int().positive().max(1000000),
     creditPriceCents: z.number().int().positive().max(1000000).optional(),

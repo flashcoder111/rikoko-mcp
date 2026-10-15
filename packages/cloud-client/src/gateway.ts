@@ -6,6 +6,8 @@ import { referenceReportSchema } from "../../contracts/src/reference-analysis.js
 import { completeUpload, importUrl } from "../../core/src/assets.js";
 import {
   AppError,
+  isOfficialOperation,
+  transcriptSchema,
   operationSchema,
   type Context,
   type Entity,
@@ -41,7 +43,7 @@ export class GatewayClient {
   async quote(c: Context, raw: unknown) {
     await this.service.scoped(c, "write", async () => {});
     const input = operationSchema.parse(raw);
-    if (input.kind !== "generate" && input.kind !== "reference_analyze")
+    if (!isOfficialOperation(input))
       throw new AppError(
         "INVALID_CAPABILITY",
         "云端支持媒体生成与参考视频分析",
@@ -49,8 +51,9 @@ export class GatewayClient {
     const referenceAssets = await this.references(c, input);
     const remoteInput = { ...input };
     if (
-      input.kind === "reference_analyze" &&
-      remoteInput.kind === "reference_analyze"
+      (input.kind === "reference_analyze" || input.kind === "transcribe") &&
+      (remoteInput.kind === "reference_analyze" ||
+        remoteInput.kind === "transcribe")
     )
       remoteInput.assetId = await this.upload(c, referenceAssets[0]);
     if (
@@ -90,7 +93,7 @@ export class GatewayClient {
   ) {
     await this.service.scoped(c, "write", async () => {});
     const input = operationSchema.parse(p.input);
-    if (input.kind !== "generate" && input.kind !== "reference_analyze")
+    if (!isOfficialOperation(input))
       throw new AppError(
         "INVALID_CAPABILITY",
         "云端支持媒体生成与参考视频分析",
@@ -142,7 +145,7 @@ export class GatewayClient {
       await validateStoryboardInput(tx, c.accountId, input);
       const assets: Entity[] = [];
       const refs =
-        input.kind === "reference_analyze"
+        input.kind === "reference_analyze" || input.kind === "transcribe"
           ? [{ assetId: input.assetId }]
           : input.kind === "generate"
             ? (input.references ?? [])
@@ -160,6 +163,17 @@ export class GatewayClient {
           throw new AppError(
             "INVALID_MEDIA",
             "Analysis requires a probed video and valid source range",
+          );
+        if (
+          input.kind === "transcribe" &&
+          (!["audio", "video"].includes(asset.kind) ||
+            !asset.metadata?.hasAudio ||
+            !Number.isSafeInteger(asset.metadata.durationMs) ||
+            asset.metadata.durationMs <= 0)
+        )
+          throw new AppError(
+            "INVALID_MEDIA",
+            "Transcription needs probed speech media",
           );
         if (
           !asset.storageKey ||
@@ -287,6 +301,58 @@ export class GatewayClient {
                 binary: true,
               },
             );
+            if (local.input.kind === "transcribe") {
+              if (bytes.byteLength > 2 * 1024 * 1024)
+                throw new AppError(
+                  "CLOUD_RESPONSE_TOO_LARGE",
+                  "Transcript exceeds size limit",
+                  502,
+                );
+              const value = JSON.parse(Buffer.from(bytes).toString());
+              const source = await this.service.get(
+                c,
+                "asset",
+                local.input.assetId,
+              );
+              if (
+                value.source?.assetId !== local.remoteInput?.assetId ||
+                value.source?.sha256 !== source.sha256 ||
+                value.source?.durationMs !== source.metadata?.durationMs
+              )
+                throw new AppError(
+                  "SOURCE_MISMATCH",
+                  "Official transcript does not match the local source",
+                  409,
+                );
+              const transcript = transcriptSchema.parse(value.transcript);
+              if (
+                transcript.durationMs !== source.metadata.durationMs ||
+                transcript.language !== local.input.language ||
+                transcript.evidence !== "provider-live"
+              )
+                throw new AppError(
+                  "SOURCE_MISMATCH",
+                  "Transcript metadata does not match source",
+                  409,
+                );
+              return this.service.registerAsset(
+                c.accountId,
+                Buffer.from(JSON.stringify(transcript)),
+                {
+                  name,
+                  kind: "transcript",
+                  mime: "application/json",
+                  metadata: { sourceAssetId: source.id },
+                  provenance: {
+                    source: "official-transcription",
+                    evidence: "provider-live",
+                    model: local.input.model,
+                    remoteJobId: local.remoteJobId,
+                    sourceSha256: source.sha256,
+                  },
+                },
+              );
+            }
             if (local.input.kind === "reference_analyze") {
               if (bytes.byteLength > 2 * 1024 * 1024)
                 throw new AppError(

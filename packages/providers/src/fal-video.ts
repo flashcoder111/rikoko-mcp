@@ -17,6 +17,7 @@ import {
   type ReferenceSource,
 } from "./index.js";
 import type { ResolvedReference } from "./generation-input.js";
+import { speechLanguage, scribeTranscript } from "./speech.js";
 import { referenceInstructions } from "./reference-policy.js";
 
 export const falVideoProfileSchema = z
@@ -34,6 +35,13 @@ export const falVideoProfileSchema = z
   })
   .strict();
 const mimeExtensions: Record<string, string> = {
+  "audio/mpeg": "mp3",
+  "audio/mp3": "mp3",
+  "audio/wav": "wav",
+  "audio/x-wav": "wav",
+  "audio/flac": "flac",
+  "audio/mp4": "m4a",
+  "audio/ogg": "ogg",
   "video/mp4": "mp4",
   "video/mpeg": "mpeg",
   "video/quicktime": "mov",
@@ -67,6 +75,19 @@ export class FalVideoProvider extends FalProvider {
   override validate(input: Operation) {
     if (input.kind !== "reference_analyze") {
       const model = super.validate(input);
+      if (input.kind === "transcribe") {
+        if (model.endpoint !== "fal-ai/elevenlabs/speech-to-text/scribe-v2")
+          throw new AppError(
+            "INVALID_PROVIDER_CONFIG",
+            "Use the configured Scribe V2 transcription endpoint",
+          );
+        speechLanguage(input.language, "transcribe");
+      }
+      if (
+        input.kind === "tts" &&
+        model.endpoint === "fal-ai/minimax/speech-2.8-hd"
+      )
+        speechLanguage(input.language, "tts");
       if (model.kind === "analysis")
         throw new AppError(
           "INVALID_MODEL",
@@ -90,10 +111,27 @@ export class FalVideoProvider extends FalProvider {
     return model;
   }
   validateSource(input: Operation, asset: Entity) {
+    this.validate(input);
+    if (input.kind === "transcribe") {
+      if (
+        !["audio", "video"].includes(asset.kind) ||
+        !asset.metadata?.hasAudio ||
+        !Object.hasOwn(mimeExtensions, asset.mime) ||
+        !Number.isSafeInteger(asset.metadata?.durationMs) ||
+        asset.metadata.durationMs <= 0 ||
+        asset.metadata.durationMs > 3600000 ||
+        asset.bytes > 80 * 1024 * 1024
+      )
+        throw new AppError(
+          "INVALID_MEDIA",
+          "Transcription requires probed speech media, at most 80 MiB and one hour",
+        );
+      return;
+    }
+    if (input.kind !== "reference_analyze") return;
     const profile = falVideoProfileSchema.parse(
       this.validate(input).parameters,
     );
-    if (input.kind !== "reference_analyze") return;
     if (
       asset.kind !== "video" ||
       !Object.hasOwn(mimeExtensions, asset.mime) ||
@@ -200,9 +238,11 @@ export class FalVideoProvider extends FalProvider {
     mime?: string,
     previous?: PreparedMedia,
   ): Promise<PreparedMedia> {
-    const profile = falVideoProfileSchema.parse(
-      this.validate(input).parameters,
-    );
+    const model = this.validate(input);
+    const profile =
+      input.kind === "transcribe"
+        ? { maxBytes: 80 * 1024 * 1024 }
+        : falVideoProfileSchema.parse(model.parameters);
     if (previous) return { ...previous, uri: this.mediaUrl(previous.uri) };
     if (
       !bytes?.byteLength ||
@@ -274,6 +314,31 @@ export class FalVideoProvider extends FalProvider {
     references?: ResolvedReference[],
     source?: ReferenceSource,
   ) {
+    if (input.kind === "transcribe") {
+      const model = this.validate(input);
+      if (!assetUrl)
+        throw new AppError("INVALID_MEDIA", "Prepared audio is required");
+      return this.submitPayload(model, {
+        ...model.parameters,
+        audio_url: this.mediaUrl(assetUrl),
+        language_code: speechLanguage(input.language, "transcribe"),
+      });
+    }
+    if (input.kind === "tts") {
+      const model = this.validate(input);
+      if (model.endpoint === "fal-ai/minimax/speech-2.8-hd")
+        return this.submitPayload(model, {
+          ...model.parameters,
+          prompt: input.text,
+          language_boost: speechLanguage(input.language, "tts"),
+          output_format: "url",
+          voice_setting: {
+            ...((model.parameters.voice_setting as Record<string, unknown>) ??
+              {}),
+            ...(input.voice !== "default" ? { voice_id: input.voice } : {}),
+          },
+        });
+    }
     if (input.kind !== "reference_analyze")
       return super.submit(input, assetUrl, references);
     const model = this.validate(input);
@@ -295,6 +360,17 @@ export class FalVideoProvider extends FalProvider {
     ticket: Parameters<FalProvider["collect"]>[0],
     input: Operation,
   ): Promise<ProviderResult> {
+    if (input.kind === "transcribe") {
+      this.validate(input);
+      return {
+        kind: "transcript",
+        data: scribeTranscript(
+          await this.readJson(await this.request(ticket.resultUrl)),
+          input.language,
+        ),
+        costCents: null,
+      };
+    }
     if (input.kind !== "reference_analyze") return super.collect(ticket, input);
     this.validate(input);
     const result = await this.readJson(await this.request(ticket.resultUrl));

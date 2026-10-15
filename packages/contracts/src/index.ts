@@ -223,6 +223,8 @@ export const operationSchema = z.discriminatedUnion("kind", [
     .object({
       kind: z.literal("transcribe"),
       assetId: idSchema,
+      engine: z.enum(["local", "fal"]).default("local"),
+      model: z.string().min(1).max(120).optional(),
       language: z.string().max(20).default("en"),
     })
     .strict(),
@@ -309,7 +311,8 @@ export function isPaidOperation(input: Operation) {
     input.kind === "translate" ||
     input.kind === "reference_analyze" ||
     (input.kind === "analyze" && !!input.model) ||
-    (input.kind === "tts" && input.engine === "fal")
+    ((input.kind === "tts" || input.kind === "transcribe") &&
+      input.engine === "fal")
   );
 }
 
@@ -396,3 +399,12 @@ export const requireValue = (
 ): asserts value => {
   if (!value) throw new AppError(code, message, status);
 };
+
+export function isOfficialOperation(input: Operation) {
+  return (
+    input.kind === "generate" ||
+    input.kind === "reference_analyze" ||
+    ((input.kind === "tts" || input.kind === "transcribe") &&
+      input.engine === "fal")
+  );
+}

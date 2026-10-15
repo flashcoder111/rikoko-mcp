@@ -18,7 +18,7 @@ export type Model = {
   description?: string;
   category?: "speech" | "music" | "sound";
   endpoint: string;
-  kind: "image" | "video" | "audio" | "analysis" | "translation";
+  kind: "image" | "video" | "audio" | "analysis" | "translation" | "transcript";
   maxCostCents: number;
   creditPriceCents?: number;
   priceVersion: string;
@@ -52,7 +52,7 @@ export type ReferenceSettings = {
 };
 export type ProviderResult =
   | {
-      kind: "analysis" | "translation";
+      kind: "analysis" | "translation" | "transcript";
       data: unknown;
       costCents: null;
       usage?: ProviderUsage;
@@ -109,8 +109,9 @@ export class FalProvider {
   }
   validate(input: Operation) {
     const modelId =
-      ["generate", "tts", "analyze", "translate"].includes(input.kind) &&
-      "model" in input
+      ["generate", "tts", "transcribe", "analyze", "translate"].includes(
+        input.kind,
+      ) && "model" in input
         ? input.model
         : undefined;
     const m = this.models.find((m) => m.id === modelId);
@@ -136,6 +137,16 @@ export class FalProvider {
       throw new AppError(
         "INVALID_PROVIDER_CONFIG",
         "Invalid endpoint or cost bound",
+      );
+    if (input.kind === "transcribe" && m.kind !== "transcript")
+      throw new AppError(
+        "INVALID_MODEL",
+        "Transcription requires a transcript model",
+      );
+    if (m.kind === "transcript" && input.kind !== "transcribe")
+      throw new AppError(
+        "INVALID_MODEL",
+        "Use transcribe for speech recognition",
       );
     if (input.kind === "tts" && m.kind !== "audio")
       throw new AppError("INVALID_MODEL", "TTS requires an audio model");
@@ -330,6 +341,11 @@ export class FalProvider {
       j.audio_url;
     if (typeof url !== "string")
       throw new AppError("PROVIDER_RESULT_INVALID", "Missing result media URL");
+    if (m.kind === "transcript")
+      throw new AppError(
+        "INVALID_PROVIDER_CONFIG",
+        "Transcription requires a speech adapter",
+      );
     return { url, kind: m.kind, costCents: null };
   }
 }

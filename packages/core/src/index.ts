@@ -567,6 +567,8 @@ export class Service {
           );
         this.provider.validateSource?.(input, asset);
       }
+      if (input.kind === "transcribe" && input.engine === "fal")
+        this.provider.validateSource?.(input, asset);
       if (input.kind === "trim") {
         ensure(asset.kind === "video", "INVALID_MEDIA", "Trim requires video");
         for (const s of input.segments)
