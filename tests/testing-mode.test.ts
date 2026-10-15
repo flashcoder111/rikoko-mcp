@@ -93,3 +93,20 @@ it("keeps unconfirmed profiles disabled outside testing and never bypasses crede
     }).validate(input),
   ).toThrow();
 });
+
+it("resumes a failed testing collection with its known ticket, without reopening settled charges", async () => {
+  const db=await Database.open(), dir=await mkdtemp(join(tmpdir(),"speech-resume-"));
+  try {
+    const s=new Service(db,new LocalStorage(dir),new FalProvider([model],"fixture",true,fetch,{testing:true}),"testing");
+    const c=await s.authenticate((await s.createAccount("test",0)).key);
+    const q=await s.quote(c,input),j=await s.submit(c,{input,quoteId:q.id,idempotencyKey:"recover"});
+    const claim=await s.claim("test");
+    const ticket={requestId:"already-created"};
+    await s.finish(j.id,claim!.leaseToken,{status:"failed",ticket},null);
+    expect(await s.resume(c,j.id)).toMatchObject({status:"queued",ticket,settled:true,chargedCents:0,phase:"provider_wait"});
+    const claim2=await s.claim("recover");
+    await s.finish(j.id,claim2!.leaseToken,{status:"completed",outputs:["recovered"]},null);
+    expect((await s.get(c,"job",j.id)).chargedCents).toBe(0);
+    await expect(s.resume(c,j.id)).rejects.toMatchObject({code:"INVALID_STATE"});
+  } finally {await db.close();await rm(dir,{recursive:true,force:true});}
+});
