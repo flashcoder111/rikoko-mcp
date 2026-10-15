@@ -94,6 +94,7 @@ it("quotes official TTS and imports a source-bound transcript, rejecting changed
     const done = await callTool(s, c, "record_get", { type: "job", id: j.id });
     const asset = await s.get(c, "asset", done.outputs[0]);
     expect(asset.kind).toBe("transcript");
+    expect(await callTool(s,c,"transcript_get",{assetId:asset.id})).toEqual(transcript);
     expect(
       JSON.parse(
         Buffer.from(await s.storage.read(asset.storageKey)).toString(),
