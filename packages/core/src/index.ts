@@ -840,7 +840,10 @@ export class Service {
       await this.authorize(tx, c);
       const job = await this.owned(tx, c, "job", jobId);
       ensure(
-        job.status === "failed" && job.ticket && !job.settled,
+        job.status === "failed" &&
+          job.ticket &&
+          (!job.settled ||
+            (job.billingSource === "testing" && job.chargedCents === 0)),
         "INVALID_STATE",
         "Only a failed task with a known provider request and retained reservation can resume. Unknown submissions require reconciliation.",
       );
