@@ -10,6 +10,9 @@ export function referenceShotPrompts(
   overrides: { imagePrompt?: string; videoPrompt?: string } = {},
 ) {
   const d = shot.details;
+  const index = report.shots.findIndex((s) => s.id === shot.id);
+  const previous = index > 0 ? report.shots[index - 1] : undefined;
+  const next = index >= 0 ? report.shots[index + 1] : undefined;
   const imagePrompt =
     overrides.imagePrompt ??
     [
@@ -57,6 +60,17 @@ export function referenceShotPrompts(
           ]
         : []),
       `Next transition: ${shot.transition}`,
+      ...(previous?.details
+        ? [
+            `Previous shot's ending observation (continuity context only): ${previous.details.endState}`,
+          ]
+        : []),
+      ...(next?.details
+        ? [
+            `Next shot's starting observation (continuity context only): ${next.details.startState}`,
+          ]
+        : []),
+      "Do not generate adjacent shots inside this shot; use their states only to preserve the intended connection.",
       "Perform only the observed stages. End at the specified state; do not invent contact, landing or subsequent outcomes. Do not add unrelated cuts or captions. The editor handles transitions and subtitles.",
     ].join("\n");
   if (imagePrompt.length > 5000 || videoPrompt.length > 5000)
