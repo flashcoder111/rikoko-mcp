@@ -192,6 +192,12 @@ it("prepares reusable real clips without buying and refuses incomplete or foreig
   expect(report.shots[0].details.startState).toBe("Still");
   expect(new Set(report.evidence.map((e: any) => e.id)).size).toBe(2);
   expect(report.analysis.method).toBe("segmented");
+  expect(report.analysis.parts[1].boundary).toBe("cut_candidate");
+  expect(report.analysis.parts[0].summary).toBe("Scene");
+  expect(report.analysis.parts[0].audio.description).toBe("Silent");
+  expect(merged.reportUnit).toBe("reported_shots");
+  expect(merged.windowBoundaryCount).toBe(0);
+
   expect(
     (
       await callTool(service, c, "reference_analysis_merge", {
