@@ -83,6 +83,36 @@ it("defaults to official API and separate template distribution without includin
   expect(installation.port).toBeGreaterThan(0);
 });
 
+it("installs local editing without external endpoints or forwarding an inherited official key", async () => {
+  const home = await mkdtemp(join(tmpdir(), "rikoko-local-install-"));
+  dirs.push(home);
+  const localRelease = {
+    version: release.version,
+    archiveUrl: release.archiveUrl,
+    sha256: release.sha256,
+  };
+  expect(validateRelease(localRelease)).toEqual(localRelease);
+  const { installation } = await initializeInstallation({
+    home,
+    root: join(home, "app"),
+    release: localRelease,
+    node: process.execPath,
+    python: "/fixture/python",
+    path: "/fixture/bin:/usr/bin",
+  });
+  expect(
+    JSON.parse(await readFile(join(home, "config/models.json"), "utf8")),
+  ).toEqual({ schemaVersion: 1, mode: "custom", providers: [], templates: false });
+  const fetcher = vi.fn();
+  expect(
+    await bindOfficialKey(installation, localRelease, "must-not-send", fetcher),
+  ).toBe(false);
+  expect(fetcher).not.toHaveBeenCalled();
+  expect(
+    await managedEnvironment(installation, { RIKOKO_OFFICIAL_KEY: "host-key" }),
+  ).not.toHaveProperty("RIKOKO_OFFICIAL_KEY");
+});
+
 it("repeated setup preserves custom config, secrets, instance identity and port", async () => {
   const { installation, file } = await fixture();
   const custom = {

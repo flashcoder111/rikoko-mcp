@@ -94,3 +94,22 @@ it("shell-quotes download paths so the displayed one-liner cannot execute URL te
   expect(result.command).toContain("a'\\''$(false)");
   await promisify(execFile)("bash", ["-n", "-c", result.command]);
 });
+
+it("builds a GitHub release installer without requiring an official generation service", async () => {
+  const { root, output } = await fixture();
+  const result = await buildInstaller(
+    root,
+    {
+      version: "0.1.12",
+      downloadBaseUrl:
+        "https://github.com/flashcoder111/video-workbench/releases/download/v0.1.12",
+    },
+    output,
+  );
+  expect(result.release.archiveUrl).toBe(
+    "https://github.com/flashcoder111/video-workbench/releases/download/v0.1.12/video-workbench-0.1.12.tar.gz",
+  );
+  expect(result.release.apiUrl).toBeUndefined();
+  expect(result.release.templateUrl).toBeUndefined();
+  await promisify(execFile)("bash", ["-n", join(output, "install.sh")]);
+});
