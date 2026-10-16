@@ -10,7 +10,15 @@ rikoko 是可自部署的视频创作 MCP。在本地通过 Agent 对话创建�
 
 ## 一行安装
 
-正式发行通过官网的一行安装命令准备环境、配置官方 API/模板源并注册 Codex/Claude MCP。安装后的 MCP 会自动启动本地服务，无需另开终端。首次绑定使用每位用户自己的官方 Key；自有供应商通过 config 接入。发行域名仍待配置，当前源码快照不提供虚构的可用下载链接。[安装与自有配置说明](docs/architecture/installation.md)。
+在 macOS 或 Linux/WSL 的终端执行：
+
+```sh
+curl -fsSL https://github.com/flashcoder111/video-workbench/releases/latest/download/install.sh | bash
+```
+
+自动下载并校验 GitHub 版本包、准备环境、注册检测到的 Codex/Claude MCP、启动本地服务并导出免费样片。随后重载客户端 MCP，即可使用 `/rikoko`。指定客户端时，将末尾改为 `bash -s -- --client codex`、`bash -s -- --client claude-code` 或 macOS 的 `bash -s -- --client claude-desktop`。
+
+默认使用本地编辑与渲染，无需模型 Key；AI 生成通过 config 配置自己的供应商。未检测到客户端时仍可安装和使用本地工作台。自定义目录与服务管理见[安装说明](docs/architecture/installation.md)。
 
 ## 手动运行源码
 

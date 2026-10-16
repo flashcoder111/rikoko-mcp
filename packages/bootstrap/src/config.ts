@@ -8,8 +8,8 @@ export type Release = {
   version: string;
   archiveUrl: string;
   sha256: string;
-  apiUrl: string;
-  templateUrl: string;
+  apiUrl?: string;
+  templateUrl?: string;
 };
 export type Installation = {
   schemaVersion: 1;
@@ -30,7 +30,11 @@ export function validateRelease(raw: unknown): Release {
   )
     throw Error("Invalid release version or SHA-256");
   for (const key of ["archiveUrl", "apiUrl", "templateUrl"] as const) {
-    const url = new URL(r[key]);
+    const address = r[key];
+    if (key !== "archiveUrl" && address === undefined) continue;
+    if (typeof address !== "string" || !address)
+      throw Error("Release requires real HTTPS download and service addresses");
+    const url = new URL(address);
     if (
       url.protocol !== "https:" ||
       url.username ||
@@ -46,8 +50,8 @@ export function validateRelease(raw: unknown): Release {
     version: r.version,
     archiveUrl: r.archiveUrl,
     sha256: r.sha256,
-    apiUrl: new URL(r.apiUrl).origin,
-    templateUrl: new URL(r.templateUrl).origin,
+    ...(r.apiUrl ? { apiUrl: new URL(r.apiUrl).origin } : {}),
+    ...(r.templateUrl ? { templateUrl: new URL(r.templateUrl).origin } : {}),
   };
 }
 
@@ -78,7 +82,7 @@ export async function bindOfficialKey(
   fetcher: typeof fetch = fetch,
 ) {
   validateRelease(release);
-  if (!candidate?.trim()) return false;
+  if (!release.apiUrl || !candidate?.trim()) return false;
   const model = JSON.parse(
     await readFile(join(i.home, "config/models.json"), "utf8"),
   );
@@ -186,9 +190,13 @@ export async function initializeInstallation(options: {
   }
   await writeOnce(join(home, "config/models.json"), {
     schemaVersion: 1,
-    mode: "official",
-    official: { url: release.apiUrl, keyEnv: "RIKOKO_OFFICIAL_KEY" },
-    templates: { url: release.templateUrl },
+    ...(release.apiUrl
+      ? {
+          mode: "official",
+          official: { url: release.apiUrl, keyEnv: "RIKOKO_OFFICIAL_KEY" },
+        }
+      : { mode: "custom", providers: [] }),
+    templates: release.templateUrl ? { url: release.templateUrl } : false,
   });
   await writeOnce(join(home, "config/credentials.json"), {});
   // Validate existing secrets without displaying their contents.

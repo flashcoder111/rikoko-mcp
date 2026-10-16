@@ -63,6 +63,7 @@ import { join } from 'node:path';
 const r = JSON.parse(Buffer.from(process.argv[2], 'base64').toString('utf8'));
 if (!/^[a-f0-9]{64}$/.test(r.sha256)) throw Error('Invalid release hash');
 for (const name of ['archiveUrl', 'apiUrl', 'templateUrl']) {
+  if (name !== 'archiveUrl' && r[name] === undefined) continue;
   const u = new URL(r[name]);
   if (u.protocol !== 'https:' || u.username || u.password || u.search || u.hash) throw Error('Invalid release URL');
 }
@@ -128,8 +129,8 @@ JS
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 const read = name => { const p = join(process.argv[2], 'config', name); return existsSync(p) ? JSON.parse(readFileSync(p, 'utf8')) : {}; };
-const model = read('models.json'), keys = read('credentials.json');
-process.exit(model.mode === 'custom' || keys.RIKOKO_OFFICIAL_KEY ? 1 : 0);
+const model = read('models.json'), keys = read('credentials.json'), release = read('../.release.json');
+process.exit(!release.apiUrl || model.mode === 'custom' || keys.RIKOKO_OFFICIAL_KEY ? 1 : 0);
 JS
   then
     if ( : < /dev/tty ) 2>/dev/null; then

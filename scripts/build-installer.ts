@@ -13,8 +13,8 @@ export async function buildInstaller(
   config: {
     version: string;
     downloadBaseUrl: string;
-    apiUrl: string;
-    templateUrl: string;
+    apiUrl?: string;
+    templateUrl?: string;
   },
   output: string,
 ) {

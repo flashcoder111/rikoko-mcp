@@ -557,6 +557,7 @@ export async function callTool(
             ],
           },
         },
+        commands: { agentEntry: "/rikoko", items: [analysisCommand] },
         referenceAnalysis: {
           command: analysisCommand,
           settingsTool: "reference_analysis_settings",
@@ -564,7 +565,12 @@ export async function callTool(
           defaultDetail: "shots",
           remakeDefaultDetail: "recreate",
           detailProfiles: referenceDetailProfiles,
-          segmentedWorkflow: ["reference_analysis_plan", "reference_analysis_prepare", "reference_analyze", "reference_analysis_merge"],
+          segmentedWorkflow: [
+            "reference_analysis_plan",
+            "reference_analysis_prepare",
+            "reference_analyze",
+            "reference_analysis_merge",
+          ],
           localClipPreparation: true,
           samplingControl: "provider-profile-only",
           independentOfHostModel: true,

@@ -102,7 +102,12 @@ it("installs local editing without external endpoints or forwarding an inherited
   });
   expect(
     JSON.parse(await readFile(join(home, "config/models.json"), "utf8")),
-  ).toEqual({ schemaVersion: 1, mode: "custom", providers: [], templates: false });
+  ).toEqual({
+    schemaVersion: 1,
+    mode: "custom",
+    providers: [],
+    templates: false,
+  });
   const fetcher = vi.fn();
   expect(
     await bindOfficialKey(installation, localRelease, "must-not-send", fetcher),

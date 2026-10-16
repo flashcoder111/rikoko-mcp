@@ -1,12 +1,18 @@
-# rikoko 一行安装与官方 API 默认接入
+# rikoko 一行安装
 
-默认用户路径：运行官网给出的一行命令 → 下载并校验公开源码 → 准备依赖 → 预设官方 API/模板源 → 注册已安装的 Codex/Claude 客户端 → 导出一段免费样片。随后重载客户端 MCP 即可使用。无需另开终端保持 `pnpm dev` 运行。
+在 macOS 或 Linux/WSL 终端运行：
 
-当前状态：安装和发行代码已在本地实现；正式下载域名、官方 API 域名和模板域名尚未配置，因此还没有可向公众提供的真实安装链接。示例地址会被发行工具拒绝。
+```sh
+curl -fsSL https://github.com/flashcoder111/video-workbench/releases/latest/download/install.sh | bash
+```
+
+安装器下载并校验 GitHub Release 的固定版本包，准备依赖、注册检测到的 Codex/Claude 客户端、启动本地服务并导出一段免费样片。随后重载客户端 MCP 即可使用，无需另开终端保持 `pnpm dev` 运行。没有支持的客户端时仍会完成本地安装。
+
+GitHub 公开发行默认只使用本地编辑、内置模板与 FFmpeg 渲染，不要求官方 API 域名或用户 Key。AI 生成需自行配置供应商。官方 API 与模板源可在后续有实际服务地址的发行物中预设；示例域名仍会被发行工具拒绝。
 
 ## 用户操作
 
-官网的一行命令下载版本对应的 `install.sh` 并交给 Bash 执行；该脚本内置本版本源码下载地址、SHA-256、官方 API 地址与模板源。用户无需填写 URL，也不在安装流程中选择供应商。
+GitHub 的一行命令下载最新正式 Release 对应的 `install.sh` 并交给 Bash 执行；该脚本内置本版本源码下载地址和 SHA-256。用户无需填写 URL。只有发行物明确配置了官方地址时，安装器才提示绑定官方用户 Key。
 
 默认识别现有 Codex、Claude Code 配置目录；macOS 也识别 Claude Desktop。可在命令末尾使用 `bash -s -- --client codex` 或 `bash -s -- --client claude-code` 指定目标。安装器以 `rikoko` 注册 MCP，并为支持的客户端安装 `/rikoko` 技能；保留其他 MCP 配置，遇到同名但不同来源的条目时停止，不覆盖它。
 
@@ -16,11 +22,17 @@
 
 ## 本地目录与生命周期
 
+可指定客户端和安装目录：
+
+```sh
+curl -fsSL https://github.com/flashcoder111/video-workbench/releases/latest/download/install.sh | bash -s -- --client codex --dir "$HOME/.local/share/rikoko"
+```
+
 默认目录为 `${XDG_DATA_HOME:-$HOME/.local/share}/video-workbench`：
 
 - `app/`：本版本公开源码和应用依赖。
 - `runtime/`：必要时安装的 Node 与 uv；Python 由 uv 在其标准用户目录管理，应用依赖放在 `app/python/.venv`。
-- `config/models.json`：默认 `mode=official`，预设官方生成与模板地址。
+- `config/models.json`：GitHub 发行默认 `mode=custom`、空供应商列表和关闭外部模板；配置了官方地址的发行物使用 `mode=official`。
 - `config/credentials.json`：本机私有 Key 映射，权限 0600；不放进源码和宿主 MCP 配置。
 - `data/`：项目、媒体、每个 MCP 客户端独立的本地访问 Key，以及服务日志。
 - `installation.json`：本机绝对路径、专用回环端口和服务实例标识，权限 0600。
@@ -57,7 +69,15 @@ FFmpeg/ffprobe 优先复用。缺失时使用 Homebrew、apt 或 dnf；系统软
 
 ## 运营侧生成发行物
 
-复制 `config/distribution.example.json` 到 `config/distribution.local.json`，填写已准备好的真实 `downloadBaseUrl`、`apiUrl` 和 `templateUrl`，然后：
+GitHub 本地功能发行使用 `config/distribution.github.json`；发布新版本时，使其中的版本和 GitHub tag 与源码的 `package.json` 一致：
+
+```sh
+pnpm release:installer config/distribution.github.json
+```
+
+将生成的 `install.sh`、压缩包、SHA-256 文件和 `release.json` 上传到该 tag 对应的 GitHub Release，发布后上面的一行命令即可下载。
+
+带官方服务的发行物：复制 `config/distribution.example.json` 到 `config/distribution.local.json`，填写已准备好的真实 `downloadBaseUrl`、`apiUrl` 和 `templateUrl`，然后：
 
 ```sh
 pnpm release:installer config/distribution.local.json

@@ -2,7 +2,13 @@ import React, { useEffect, useRef, useState } from "react";
 import type { Entity } from "../../../packages/contracts/src/index.js";
 import type { Proposal } from "../../../packages/core/src/workspace-contracts.js";
 import {
+  analysisSettingLabels,
+  parseAnalysisSetting,
+  type AnalysisSetting,
+} from "../../../packages/core/src/analysis-commands.js";
+import {
   duration,
+  api,
   latestJob,
   seconds,
   statusLabels,
@@ -41,6 +47,10 @@ export default function Chat(props: ChatProps) {
   const { snapshot, draft, setDraft, attachments, proposal, busy } = props;
   const [creationMode, setCreationMode] = useState("edit");
   const [modelId, setModelId] = useState("");
+  const [commandNotice, setCommandNotice] = useState("");
+  const analysisCommandState = useRef({ version: 0, pending: false });
+  const currentDraft = useRef(draft);
+  currentDraft.current = draft;
   const models = (props.capabilities?.providers ?? []).filter(
     (m) => m.kind === creationMode,
   );
@@ -51,6 +61,11 @@ export default function Chat(props: ChatProps) {
   const official = props.capabilities?.generation.mode !== "custom";
   const [generation, setGeneration] = useState<GenerationRequest>();
   useEffect(() => {
+    analysisCommandState.current = {
+      version: analysisCommandState.current.version + 1,
+      pending: false,
+    };
+    setCommandNotice("");
     setCreationMode("edit");
     setGeneration(undefined);
   }, [props.snapshot?.project.id]);
@@ -60,6 +75,37 @@ export default function Chat(props: ChatProps) {
   const current = snapshot?.revision;
   const job = latestJob(snapshot?.jobs ?? [], current?.id);
   const feed = useRef<HTMLDivElement>(null);
+  async function runAnalysisCommand(
+    argument: string,
+    prefix: string,
+    original: string,
+  ) {
+    if (analysisCommandState.current.pending) return;
+    const version = analysisCommandState.current.version;
+    try {
+      const detail = parseAnalysisSetting(argument);
+      analysisCommandState.current.pending = true;
+      setCommandNotice(detail ? "正在保存分析精度…" : "正在读取分析精度…");
+      const result = await api<{ detail: AnalysisSetting }>(
+        "reference_analysis_settings",
+        detail ? { detail } : {},
+      );
+      if (version !== analysisCommandState.current.version) return;
+      if (currentDraft.current === original) setDraft(prefix);
+      setCommandNotice(
+        `${detail ? "已切换账号默认分析精度" : "当前账号默认分析精度"}：${analysisSettingLabels[result.detail]}。仅影响后续分析，尚未开始分析或产生费用。`,
+      );
+    } catch (error) {
+      if (version === analysisCommandState.current.version)
+        setCommandNotice(
+          error instanceof Error ? error.message : "分析精度设置失败，请重试。",
+        );
+    } finally {
+      if (version === analysisCommandState.current.version)
+        analysisCommandState.current.pending = false;
+    }
+  }
+
   useEffect(() => {
     if (!showHistory)
       feed.current?.scrollTo({ top: feed.current.scrollHeight });
@@ -270,6 +316,16 @@ export default function Chat(props: ChatProps) {
             (!draft.trim() && !(creationMode === "edit" && attachments.length))
           )
             return;
+          const lines = draft.split("\n");
+          const command = lines.at(-1)?.match(/^\/analysis(?:[ \t]+(.*))?$/i);
+          if (command) {
+            void runAnalysisCommand(
+              command[1] ?? "",
+              lines.slice(0, -1).join("\n"),
+              draft,
+            );
+            return;
+          }
           if (creationMode !== "edit") {
             if (!selectedModel?.available) return;
             setGeneration({
@@ -285,6 +341,11 @@ export default function Chat(props: ChatProps) {
           } else props.onSend();
         }}
       >
+        {commandNotice && (
+          <p className="composer-note" role="status">
+            {commandNotice}
+          </p>
+        )}
         {props.selectedSceneId && (
           <div className="selection-context">正在针对所选镜头修改</div>
         )}

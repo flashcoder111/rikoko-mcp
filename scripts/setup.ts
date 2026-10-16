@@ -54,10 +54,6 @@ if (requested === "auto") {
     (await present(join(clientHome, "Library/Application Support/Claude")))
   )
     clients.push("claude-desktop");
-  if (!clients.length)
-    throw Error(
-      "未检测到客户端。请在同一安装命令后加 --client codex 或 --client claude-code。",
-    );
 } else if (["codex", "claude-code", "claude-desktop"].includes(requested))
   clients = [requested];
 else throw Error("Unsupported client");
@@ -167,11 +163,13 @@ while (Date.now() < deadline) {
 }
 if (!completed) throw Error("本地样片导出超时，请检查 data/server.log。");
 console.log(
-  `\n安装完成：${clients.join(", ")}。请重载客户端 MCP 连接。\n本地工作台：${backend.url}\n自有模型配置：${join(installation.home, "config/models.json")}\n私有凭据文件：${credentialsFile}\n免费样片：导出成功；付费调用：0。`,
+  `\n安装完成：${clients.length ? clients.join(", ") + "。请重载客户端 MCP 连接。" : "本地工作台已就绪；未检测到支持的客户端。安装客户端后可用同一命令加 --client codex 或 --client claude-code 注册。"}\n本地工作台：${backend.url}\n自有模型配置：${join(installation.home, "config/models.json")}\n私有凭据文件：${credentialsFile}\n免费样片：导出成功；付费调用：0。`,
 );
 console.log(
   model.mode === "custom"
-    ? "保留现有自有供应商配置。"
+    ? model.providers?.length
+      ? "保留现有自有供应商配置。"
+      : "本地编辑与导出可用。AI 生成请在 config/models.json 配置自己的供应商；安装不购买模型调用。"
     : connected
       ? "官方 API：用户 Key 已验证并绑定。"
       : credentials[model.official?.keyEnv]
