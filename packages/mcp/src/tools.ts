@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { referenceDetailProfiles } from "./reference-instructions.js";
+import { analysisCommand } from "../../core/src/analysis-commands.js";
 import {
   memoryTools,
   callMemoryTool,
@@ -557,6 +558,9 @@ export async function callTool(
           },
         },
         referenceAnalysis: {
+          command: analysisCommand,
+          settingsTool: "reference_analysis_settings",
+          defaultsApplyWhen: "settings.detail=auto",
           defaultDetail: "shots",
           remakeDefaultDetail: "recreate",
           detailProfiles: referenceDetailProfiles,

@@ -1,5 +1,10 @@
 import { z } from "zod";
 import {
+  analysisSettings,
+  analysisSettingsSchema,
+  resolveAnalysisDetail,
+} from "./reference-settings.js";
+import {
   AppError,
   compositionSchema,
   idSchema,
@@ -76,10 +81,15 @@ export const referenceAdaptSchema = z
   .strict();
 export const referenceTools = {
   ...referenceWorkflowTools,
+  reference_analysis_settings: {
+    schema: analysisSettingsSchema,
+    description:
+      "Read or set this account's default video analysis detail. With no detail, read only. overview/shots/recreate persists an explicit default; auto restores shots for ordinary analysis and recreate for remake. Powers /rikoko analysis and the studio /analysis command. Explicit detail on an individual task wins. Applies to future inputs across this account, not existing plans, quotes or jobs. No model call, upload, quote or purchase.",
+  },
   reference_analyze: {
     schema: analyzeSchema,
     description:
-      "Quote one independent video analysis. detail is overview, shots (default), or recreate; purpose=remake automatically selects recreate when detail is omitted. focus prioritizes motion, camera, appearance, text, audio or continuity. For full-video recreate or long/dense videos, use reference_analysis_plan/prepare first, analyze every prepared clip and merge; this tool alone makes one model request. Recreate requires structured initial/final states and action stages. Returns cache or exact quote input, never purchases. Obtain price agreement before job_submit. range is prompt-only on fal; only prepared clip assets physically restrict the upload. FPS is unknown on fal.",
+      "Quote one independent video analysis. Explicit detail (overview/shots/recreate) overrides reference_analysis_settings; when omitted use the account preference, or with auto use recreate for purpose=remake and shots otherwise. focus prioritizes motion, camera, appearance, text, audio or continuity. For full-video recreate or long/dense videos, use reference_analysis_plan/prepare first, analyze every prepared clip and merge; this tool alone makes one model request. Recreate requires structured initial/final states and action stages. Returns cache or exact quote input, never purchases. Obtain price agreement before job_submit. range is prompt-only on fal; only prepared clip assets physically restrict the upload. FPS is unknown on fal.",
   },
   reference_analysis_get: {
     schema: getSchema,
@@ -259,6 +269,8 @@ export async function callReferenceTool(
   name: keyof typeof referenceTools,
   raw: unknown,
 ): Promise<any> {
+  if (name === "reference_analysis_settings")
+    return analysisSettings(service, c, raw);
   if (Object.hasOwn(referenceWorkflowTools, name))
     return callReferenceWorkflowTool(
       service,
@@ -270,7 +282,7 @@ export async function callReferenceTool(
     const { refresh, ...data } = analyzeSchema.parse(raw);
     const input = referenceOperationSchema.parse({
       ...data,
-      detail: data.detail ?? (data.purpose === "remake" ? "recreate" : "shots"),
+      detail: await resolveAnalysisDetail(service, c, data),
       kind: "reference_analyze",
     });
     const source = await service.get(c, "asset", input.assetId);

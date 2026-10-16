@@ -23,6 +23,7 @@ import { extractReferenceMedia } from "../../core/src/reference-media.js";
 import { referenceTiming } from "../../render/src/reference-timing.js";
 import { sha256 } from "../../storage/src/index.js";
 import { readReferenceReport } from "./reference-tools.js";
+import { resolveAnalysisDetail } from "./reference-settings.js";
 
 const planSchema = referenceOperationSchema.omit({ kind: true });
 const prepareSchema = z
@@ -42,7 +43,7 @@ export const referenceWorkflowTools = {
   reference_analysis_plan: {
     schema: planSchema,
     description:
-      "Plan analysis precision locally: overview, shots (default), or recreate (automatic for purpose=remake). Detect cut candidates and allocate bounded source intervals; no provider call or purchase. Recreate isolates candidate shots and splits long actions into windows. Window boundaries are not new shots. Use prepare in pages, reference_analyze for each returned exact input, then merge completed reports. Keep all segments; show the total plan and quotes before purchasing. FPS remains provider controlled, not a claimed precision setting.",
+      "Plan analysis precision locally: explicit detail wins over reference_analysis_settings; otherwise the saved account preference applies, with auto resolving to shots or recreate for purpose=remake. Detect cut candidates and allocate bounded source intervals; no provider call or purchase. Recreate isolates candidate shots and splits long actions into windows. Window boundaries are not new shots. Use prepare in pages, reference_analyze for each returned exact input, then merge completed reports. Keep all segments; show the total plan and quotes before purchasing. FPS remains provider controlled, not a claimed precision setting.",
   },
   reference_analysis_prepare: {
     schema: prepareSchema,
@@ -71,8 +72,7 @@ async function sourceFor(service: Service, c: Context, plan: Entity) {
 
 async function planAnalysis(service: Service, c: Context, raw: unknown) {
   const parsed = planSchema.parse(raw);
-  const detail =
-    parsed.detail ?? (parsed.purpose === "remake" ? "recreate" : "shots");
+  const detail = await resolveAnalysisDetail(service, c, parsed);
   const input = { ...parsed, detail };
   const source = await service.get(c, "asset", input.assetId);
   if (

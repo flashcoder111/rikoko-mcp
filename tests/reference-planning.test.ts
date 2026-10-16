@@ -64,8 +64,14 @@ it("advertises precision controls and makes plans readable through the public re
     purpose: "remake",
   });
   expect(plan.detail).toBe("recreate");
-  await callTool(service, c, "reference_analysis_settings", { detail: "overview" });
-  const preferred = await callTool(service, c, "reference_analysis_plan", { assetId: source.id, model: "vision", purpose: "remake" });
+  await callTool(service, c, "reference_analysis_settings", {
+    detail: "overview",
+  });
+  const preferred = await callTool(service, c, "reference_analysis_plan", {
+    assetId: source.id,
+    model: "vision",
+    purpose: "remake",
+  });
   expect(preferred.detail).toBe("overview");
 
   expect(
