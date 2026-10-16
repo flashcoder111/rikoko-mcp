@@ -147,6 +147,17 @@ it("uses the entire action record for image and video drafts without copying the
   expect(prompts.videoPrompt).toContain("Do not add a landing");
 });
 
+it("includes adjacent shot states as context while keeping the current shot's style", () => {
+  const report = reportFor();
+  const next = structuredClone(report.shots[0]);
+  next.id = "next"; next.details!.startState = "Healthy person airborne in warm snow";
+  report.shots.push(next);
+  report.shots[0].visualStyle = "Cold cabin";
+  const prompts = referenceShotPrompts(report, report.shots[0], "Remake", "");
+  expect(prompts.videoPrompt).toContain("Healthy person airborne in warm snow");
+  expect(prompts.videoPrompt).toContain("Cold cabin");
+});
+
 it("keeps every short candidate interval and uses bounded windows for long continuous shots", () => {
   const overview = planReferenceSegments(22000, [1000, 1100, 9000], "overview");
   const recreate = planReferenceSegments(22000, [1000, 1100, 9000], "recreate");
@@ -162,4 +173,24 @@ it("keeps every short candidate interval and uses bounded windows for long conti
   expect(
     recreate.every((s, i) => i === 0 || s.startMs === recreate[i - 1].endMs),
   ).toBe(true);
+});
+
+it("keeps sub-100ms insert shots and makes oversized drafts explicit instead of dropping stages", () => {
+  const data = content();
+  data.shots[0].endMs = 42;
+  data.evidence[0].endMs = 42;
+  expect(reportFor(data).shots[0].endMs).toBe(42);
+  const report = reportFor();
+  report.shots[0].details!.actionStages = Array.from({ length: 16 }, () => ({ description: "x".repeat(400), subjectMotion: "y".repeat(300), cameraMotion: "z".repeat(300) }));
+  expect(() => referenceShotPrompts(report, report.shots[0], "Remake", "")).toThrow(/5000/);
+  expect(referenceShotPrompts(report, report.shots[0], "Remake", "", { imagePrompt: "Authored image", videoPrompt: "Authored action" }).videoPrompt).toBe("Authored action");
+});
+
+it("allocates shot groups without inventing an FPS and refuses unbounded plans", () => {
+  const shots = planReferenceSegments(30000, [1000, 2000, 3000, 4000, 5000, 6000], "shots");
+  expect(shots[0].endMs).toBe(4000);
+  expect(shots.at(-1)?.endMs).toBe(30000);
+  expect(planReferenceSegments(61000, [], "overview")).toHaveLength(5);
+  expect(() => planReferenceSegments(0, [], "shots")).toThrow();
+  expect(() => planReferenceSegments(200000, Array.from({ length: 101 }, (_, i) => (i + 1) * 100), "recreate")).toThrow(/100/);
 });

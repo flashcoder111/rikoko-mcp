@@ -202,6 +202,7 @@ async function enqueue(extra = {}) {
     assetId: source.id,
     model: profile.id,
     purpose: "remake",
+    detail: "shots",
     language: "zh",
     ...extra,
   };
@@ -279,6 +280,7 @@ it("uploads private local video, returns evidence-linked structure and makes a s
     assetId: source.id,
     model: profile.id,
     purpose: "remake",
+    detail: "shots",
     language: "zh",
   });
   expect(cached).toMatchObject({
