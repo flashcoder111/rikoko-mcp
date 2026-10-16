@@ -192,9 +192,43 @@ it("prepares reusable real clips without buying and refuses incomplete or foreig
     );
     ids.push(asset.id);
   }
+  for (const invalidIds of [[ids[0]], [ids[0], ids[0]]]) {
+    await expect(
+      callTool(service, c, "reference_analysis_merge", {
+        planId: plan.id,
+        analysisAssetIds: invalidIds,
+      }),
+    ).rejects.toMatchObject({ code: "INCOMPLETE_ANALYSIS" });
+  }
+  const firstReport = await callTool(service, c, "reference_analysis_get", {
+    analysisAssetId: ids[0],
+    section: "all",
+  });
+  const wrongProfile = await service.registerAsset(
+    c.accountId,
+    Buffer.from(
+      JSON.stringify({
+        ...firstReport,
+        analysis: { ...firstReport.analysis, detail: "shots" },
+      }),
+    ),
+    {
+      kind: "analysis",
+      name: "wrong-profile.json",
+      mime: "application/json",
+      metadata: {},
+      provenance: {},
+    },
+  );
+  await expect(
+    callTool(service, c, "reference_analysis_merge", {
+      planId: plan.id,
+      analysisAssetIds: [wrongProfile.id, ids[1]],
+    }),
+  ).rejects.toMatchObject({ code: "ANALYSIS_PLAN_MISMATCH" });
   const merged = await callTool(service, c, "reference_analysis_merge", {
     planId: plan.id,
-    analysisAssetIds: ids,
+    analysisAssetIds: [...ids].reverse(),
   });
   const report = await callTool(service, c, "reference_analysis_get", {
     analysisAssetId: merged.analysisAssetId,
@@ -209,6 +243,13 @@ it("prepares reusable real clips without buying and refuses incomplete or foreig
   expect(report.analysis.method).toBe("segmented");
   expect(report.analysis.parts[1].boundary).toBe("cut_candidate");
   expect(report.analysis.parts[0].summary).toBe("Scene");
+  const overview = await callTool(service, c, "reference_analysis_get", { analysisAssetId: merged.analysisAssetId });
+  expect(overview.analysis.parts).toBeUndefined();
+  expect(overview.analysis.partCount).toBe(2);
+  const parts = await callTool(service, c, "reference_analysis_get", { analysisAssetId: merged.analysisAssetId, section: "parts", limit: 1 });
+  expect(parts.items[0].summary).toBe("Scene");
+  expect(parts.nextOffset).toBe(1);
+
   expect(report.analysis.parts[0].audio.description).toBe("Silent");
   expect(merged.reportUnit).toBe("reported_shots");
   expect(merged.windowBoundaryCount).toBe(0);
@@ -221,4 +262,62 @@ it("prepares reusable real clips without buying and refuses incomplete or foreig
       })
     ).analysisAssetId,
   ).toBe(merged.analysisAssetId);
+});
+
+it("honors explicit detail, reuses overview sources and physically prepares focused ranges", async () => {
+  const input = {
+    assetId: source.id,
+    model: "vision",
+    purpose: "remake",
+    detail: "overview",
+  };
+  const plan = await callTool(service, c, "reference_analysis_plan", input);
+  expect(plan.detail).toBe("overview");
+  expect(
+    (await callTool(service, c, "reference_analysis_plan", input)).id,
+  ).toBe(plan.id);
+  const whole = await callTool(service, c, "reference_analysis_prepare", {
+    planId: plan.id,
+  });
+  expect(whole.tasks[0].input.assetId).toBe(source.id);
+  expect(whole.nextOffset).toBeNull();
+  const readOnly = await service.authenticate((await service.issueKey(c, { name: "read-only", scopes: ["read"], budgetCents: 0 })).key);
+  await expect(
+    callTool(
+      service,
+      readOnly,
+      "reference_analysis_prepare",
+      { planId: plan.id },
+    ),
+  ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  await expect(
+    callTool(service, c, "reference_analysis_prepare", {
+      planId: plan.id,
+      offset: 10,
+    }),
+  ).rejects.toMatchObject({ code: "INVALID_INTERVAL" });
+  const focused = await callTool(service, c, "reference_analysis_plan", {
+    ...input,
+    range: { startMs: 500, endMs: 1500 },
+  });
+  expect(focused.sampling.strategy).toBe("local_clips");
+  const slice = await callTool(service, c, "reference_analysis_prepare", {
+    planId: focused.id,
+  });
+  expect(slice.tasks[0].input.assetId).not.toBe(source.id);
+  expect(slice.tasks[0].input.range).toBeUndefined();
+  expect(slice.tasks[0].sourceRange).toEqual({ startMs: 500, endMs: 1500 });
+  expect(Math.abs(slice.tasks[0].clipDurationMs - 1000)).toBeLessThanOrEqual(
+    100,
+  );
+  await expect(
+    callTool(service, c, "reference_analysis_plan", {
+      ...input,
+      range: { startMs: 500, endMs: 9999 },
+    }),
+  ).rejects.toMatchObject({ code: "INVALID_INTERVAL" });
+  await db.transaction((tx) => tx.put({ ...source, sha256: "0".repeat(64) }));
+  await expect(
+    callTool(service, c, "reference_analysis_prepare", { planId: focused.id }),
+  ).rejects.toMatchObject({ code: "SOURCE_MISMATCH" });
 });
