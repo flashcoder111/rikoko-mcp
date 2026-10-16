@@ -12,6 +12,10 @@ import {
 } from "../../contracts/src/reference-analysis.js";
 import { cloudConnection } from "../../cloud-client/src/index.js";
 import { Service, fingerprint } from "../../core/src/index.js";
+import {
+  referenceWorkflowTools,
+  callReferenceWorkflowTool,
+} from "./reference-workflow-tools.js";
 
 const analyzeSchema = referenceOperationSchema
   .omit({ kind: true })
@@ -70,10 +74,11 @@ export const referenceAdaptSchema = z
   })
   .strict();
 export const referenceTools = {
+  ...referenceWorkflowTools,
   reference_analyze: {
     schema: analyzeSchema,
     description:
-      "Prepare independent native-video analysis using an explicitly configured analysis model. Returns a cached report or a quote and exact job input; NEVER purchases automatically. Obtain agreement to the quote, then job_submit with a stable idempotency key. Host text-only agents can read the resulting report. Use range/question for focused reinspection. fal-video focuses by prompt on the full upload and does not expose FPS; Google direct profiles can separately configure FPS.",
+      "Quote one independent video analysis. detail is overview, shots (default), or recreate; purpose=remake automatically selects recreate when detail is omitted. focus prioritizes motion, camera, appearance, text, audio or continuity. For full-video recreate or long/dense videos, use reference_analysis_plan/prepare first, analyze every prepared clip and merge; this tool alone makes one model request. Recreate requires structured initial/final states and action stages. Returns cache or exact quote input, never purchases. Obtain price agreement before job_submit. range is prompt-only on fal; only prepared clip assets physically restrict the upload. FPS is unknown on fal.",
   },
   reference_analysis_get: {
     schema: getSchema,
@@ -133,6 +138,11 @@ export async function adaptReference(
 ) {
   const input = referenceAdaptSchema.parse(raw);
   const report = await readReferenceReport(service, c, input.analysisAssetId);
+  if (report.analysis?.detail === "overview")
+    throw new AppError(
+      "ANALYSIS_DETAIL_REQUIRED",
+      "Overview sections are not individual shots. Analyze at shots or recreate detail before adaptation.",
+    );
   const replacements = new Map(
     input.replacements.map((r) => [r.sourceShotId, r]),
   );
@@ -211,6 +221,8 @@ export async function adaptReference(
         cameraMotion: shot.cameraMotion,
         action: shot.action,
         transition: shot.transition,
+        details: shot.details,
+        visualStyle: shot.visualStyle ?? report.visualStyle.description,
       },
     });
   }
@@ -246,10 +258,18 @@ export async function callReferenceTool(
   name: keyof typeof referenceTools,
   raw: unknown,
 ): Promise<any> {
+  if (Object.hasOwn(referenceWorkflowTools, name))
+    return callReferenceWorkflowTool(
+      service,
+      c,
+      name as keyof typeof referenceWorkflowTools,
+      raw,
+    );
   if (name === "reference_analyze") {
     const { refresh, ...data } = analyzeSchema.parse(raw);
     const input = referenceOperationSchema.parse({
       ...data,
+      detail: data.detail ?? (data.purpose === "remake" ? "recreate" : "shots"),
       kind: "reference_analyze",
     });
     const source = await service.get(c, "asset", input.assetId);
@@ -311,6 +331,7 @@ export async function callReferenceTool(
       schemaVersion: report.schemaVersion,
       source: report.source,
       summary: report.summary,
+      analysis: report.analysis,
       coverage: report.coverage,
       provenance: report.provenance,
       measurements: report.measurements,
@@ -357,6 +378,8 @@ export async function callReferenceTool(
       assetId: report.source.assetId,
       model: report.provenance.model,
       purpose: "inspect",
+      detail: report.analysis?.detail ?? "shots",
+      focus: report.analysis?.focus,
       range: { startMs: input.startMs, endMs: input.endMs },
       question:
         input.question ??

@@ -19,7 +19,10 @@ import {
   type ReferenceSettings,
 } from "./index.js";
 
-import { referenceInstructions } from "./reference-policy.js";
+import {
+  referenceInstructions,
+  referenceOutputSchema,
+} from "./reference-policy.js";
 const origin = "https://generativelanguage.googleapis.com";
 export const geminiProfileSchema = z
   .object({
@@ -339,7 +342,7 @@ export class GeminiProvider implements MediaProvider {
           response_format: {
             type: "text",
             mime_type: "application/json",
-            schema: z.toJSONSchema(referenceContentSchema),
+            schema: z.toJSONSchema(referenceOutputSchema(input)),
           },
         }),
       });

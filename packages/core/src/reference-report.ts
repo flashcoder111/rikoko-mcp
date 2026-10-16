@@ -30,6 +30,11 @@ export function bindReferenceReport(
     return referenceReportSchema.parse({
       ...content,
       schemaVersion: 2,
+      analysis: {
+        detail: input.detail ?? "shots",
+        focus: input.focus ?? [],
+        method: input.range ? "focused_range" : "whole_video",
+      },
       source: {
         assetId: source.id,
         sha256: source.sha256,

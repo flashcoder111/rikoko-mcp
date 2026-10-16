@@ -1,46 +1,118 @@
 import { expect, it } from "vitest";
-import { referenceOperationSchema, referenceReportSchema } from "../packages/contracts/src/reference-analysis.js";
+import {
+  referenceOperationSchema,
+  referenceReportSchema,
+} from "../packages/contracts/src/reference-analysis.js";
 import { referenceInstructions } from "../packages/providers/src/reference-policy.js";
 import { bindReferenceReport } from "../packages/core/src/reference-report.js";
 import { referenceShotPrompts } from "../packages/core/src/reference-prompts.js";
 import { planReferenceSegments } from "../packages/core/src/reference-planning.js";
 
 export const detailedShot = () => ({
-  id: "shot", startMs: 0, endMs: 2000,
-  description: "A person in a doorway", framing: "full body", cameraMotion: "slight tilt up",
-  action: "Jump", transition: "cut before contact", evidenceIds: ["ev"],
+  id: "shot",
+  startMs: 0,
+  endMs: 2000,
+  description: "A person in a doorway",
+  framing: "full body",
+  cameraMotion: "slight tilt up",
+  action: "Jump",
+  transition: "cut before contact",
+  evidenceIds: ["ev"],
   details: {
     startState: "Arms down; a lit flashlight already lies on the floor.",
     endState: "Airborne, arms above head, before contact.",
     spatialRelations: "Subject behind foreground flashlight, facing camera.",
     lighting: "Cold window light.",
     actionStages: [
-      { description: "Bend knees", subjectMotion: "Down and slightly forward", cameraMotion: "Still" },
-      { description: "Leap and raise arms", subjectMotion: "Up and toward camera", cameraMotion: "Tilt up" },
+      {
+        description: "Bend knees",
+        subjectMotion: "Down and slightly forward",
+        cameraMotion: "Still",
+      },
+      {
+        description: "Leap and raise arms",
+        subjectMotion: "Up and toward camera",
+        cameraMotion: "Tilt up",
+      },
     ],
-    continuity: { fromPrevious: "Flashlight now on floor", toNext: "Match airborne pose", constraints: ["Do not add a landing"] },
+    continuity: {
+      fromPrevious: "Flashlight now on floor",
+      toNext: "Match airborne pose",
+      constraints: ["Do not add a landing"],
+    },
   },
 });
 export const content = () => ({
-  summary: "Jump", shots: [detailedShot()], narrativeBeats: [], events: [],
-  visualStyle: { description: "Cold", evidenceIds: ["ev"] }, speech: [],
+  summary: "Jump",
+  shots: [detailedShot()],
+  narrativeBeats: [],
+  events: [],
+  visualStyle: { description: "Cold", evidenceIds: ["ev"] },
+  speech: [],
   audio: { description: "Silent", evidenceIds: [] },
-  evidence: [{ id: "ev", startMs: 0, endMs: 2000, modality: "visual", observation: "Leap", confidence: "high" }], unknowns: [],
+  evidence: [
+    {
+      id: "ev",
+      startMs: 0,
+      endMs: 2000,
+      modality: "visual",
+      observation: "Leap",
+      confidence: "high",
+    },
+  ],
+  unknowns: [],
 });
 export function reportFor(data: unknown = content(), detail = "recreate") {
-  return bindReferenceReport(data, referenceOperationSchema.parse({ kind: "reference_analyze", assetId: "source", model: "vision", detail }),
-    { id: "source", sha256: "a".repeat(64), metadata: { durationMs: 2000, hasAudio: false } } as any,
-    { id: "job", ticket: { requestId: "request" }, priceVersion: "test", referenceTiming: { status: "measured", method: "ffmpeg-scene-difference", threshold: 0.3, cutTimesMs: [] } } as any,
+  return bindReferenceReport(
+    data,
+    referenceOperationSchema.parse({
+      kind: "reference_analyze",
+      assetId: "source",
+      model: "vision",
+      detail,
+    }),
+    {
+      id: "source",
+      sha256: "a".repeat(64),
+      metadata: { durationMs: 2000, hasAudio: false },
+    } as any,
+    {
+      id: "job",
+      ticket: { requestId: "request" },
+      priceVersion: "test",
+      referenceTiming: {
+        status: "measured",
+        method: "ffmpeg-scene-difference",
+        threshold: 0.3,
+        cutTimesMs: [],
+      },
+    } as any,
     { id: "vision", endpoint: "openrouter/router/video" } as any,
-    { fps: null, mode: "provider_controlled", rangeControl: "prompt", upstreamModel: "gemini" });
+    {
+      fps: null,
+      mode: "provider_controlled",
+      rangeControl: "prompt",
+      upstreamModel: "gemini",
+    },
+  );
 }
 
 it("accepts independent analysis detail and focus controls without inventing FPS", () => {
-  const input = referenceOperationSchema.parse({ kind: "reference_analyze", assetId: "source", model: "vision", detail: "recreate", focus: ["motion", "continuity"] });
+  const input = referenceOperationSchema.parse({
+    kind: "reference_analyze",
+    assetId: "source",
+    model: "vision",
+    detail: "recreate",
+    focus: ["motion", "continuity"],
+  });
   expect(input.detail).toBe("recreate");
   expect(input.focus).toEqual(["motion", "continuity"]);
-  expect(referenceOperationSchema.safeParse({ ...input, fps: 8 }).success).toBe(false);
-  expect(referenceOperationSchema.safeParse({ ...input, detail: "precise" }).success).toBe(false);
+  expect(referenceOperationSchema.safeParse({ ...input, fps: 8 }).success).toBe(
+    false,
+  );
+  expect(
+    referenceOperationSchema.safeParse({ ...input, detail: "precise" }).success,
+  ).toBe(false);
   const instructions = referenceInstructions(input);
   expect(instructions).toContain("actionStages");
   expect(instructions).toContain("startState");
@@ -61,7 +133,12 @@ it("persists full staged actions, rejects shallow recreate output, and reads leg
 
 it("uses the entire action record for image and video drafts without copying the overview", () => {
   const report = reportFor();
-  const prompts = referenceShotPrompts(report, report.shots[0], "Same story with our character", "");
+  const prompts = referenceShotPrompts(
+    report,
+    report.shots[0],
+    "Same story with our character",
+    "",
+  );
   expect(prompts.imagePrompt).toContain("already lies on the floor");
   expect(prompts.videoPrompt).toContain("Bend knees");
   expect(prompts.videoPrompt).toContain("Up and toward camera");
@@ -74,9 +151,15 @@ it("keeps every short candidate interval and uses bounded windows for long conti
   const overview = planReferenceSegments(22000, [1000, 1100, 9000], "overview");
   const recreate = planReferenceSegments(22000, [1000, 1100, 9000], "recreate");
   expect(overview).toHaveLength(1);
-  expect(recreate.slice(0, 3).map(s => [s.startMs, s.endMs])).toEqual([[0, 1000], [1000, 1100], [1100, 9000]]);
+  expect(recreate.slice(0, 3).map((s) => [s.startMs, s.endMs])).toEqual([
+    [0, 1000],
+    [1000, 1100],
+    [1100, 9000],
+  ]);
   expect(recreate.at(-1)?.endMs).toBe(22000);
-  expect(recreate.every(s => s.endMs - s.startMs <= 8000)).toBe(true);
-  expect(recreate.some(s => s.boundary === "window")).toBe(true);
-  expect(recreate.every((s, i) => i === 0 || s.startMs === recreate[i - 1].endMs)).toBe(true);
+  expect(recreate.every((s) => s.endMs - s.startMs <= 8000)).toBe(true);
+  expect(recreate.some((s) => s.boundary === "window")).toBe(true);
+  expect(
+    recreate.every((s, i) => i === 0 || s.startMs === recreate[i - 1].endMs),
+  ).toBe(true);
 });

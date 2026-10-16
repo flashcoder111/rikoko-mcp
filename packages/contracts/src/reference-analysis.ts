@@ -5,12 +5,61 @@ const ms = z.number().int().min(0).max(3_600_000);
 const text = z.string().min(1).max(2000);
 const interval = { startMs: ms, endMs: ms };
 const references = { evidenceIds: z.array(id).max(30) };
+export const analysisDetailSchema = z.enum(["overview", "shots", "recreate"]);
+export type AnalysisDetail = z.infer<typeof analysisDetailSchema>;
+export const analysisFocusSchema = z
+  .array(
+    z.enum(["motion", "camera", "appearance", "text", "audio", "continuity"]),
+  )
+  .max(6);
+export const shotDetailsSchema = z
+  .object({
+    startState: z.string().min(1).max(800),
+    endState: z.string().min(1).max(800),
+    spatialRelations: z.string().min(1).max(600),
+    lighting: z.string().min(1).max(400),
+    actionStages: z
+      .array(
+        z
+          .object({
+            description: z.string().min(1).max(400),
+            subjectMotion: z.string().min(1).max(300),
+            cameraMotion: z.string().min(1).max(300),
+          })
+          .strict(),
+      )
+      .max(16),
+    continuity: z
+      .object({
+        fromPrevious: z.string().min(1).max(400),
+        toNext: z.string().min(1).max(400),
+        constraints: z.array(z.string().min(1).max(300)).max(10),
+      })
+      .strict(),
+  })
+  .strict();
+export const referenceShotSchema = z
+  .object({
+    id,
+    ...interval,
+    description: text,
+    framing: text,
+    cameraMotion: text,
+    action: text,
+    transition: text,
+    ...references,
+    visualStyle: text.optional(),
+    details: shotDetailsSchema.optional(),
+  })
+  .strict();
 export const referenceOperationSchema = z
   .object({
     kind: z.literal("reference_analyze"),
     assetId: id,
     model: z.string().min(1).max(120),
-    purpose: z.enum(["remake", "clip", "inspect"]).default("remake"),
+    purpose: z.enum(["remake", "clip", "inspect"]).default("inspect"),
+    detail: analysisDetailSchema.optional(),
+    focus: analysisFocusSchema.optional(),
     language: z.string().min(2).max(20).default("zh"),
     question: z.string().min(1).max(2000).optional(),
     range: z
@@ -22,27 +71,11 @@ export const referenceOperationSchema = z
   .strict();
 export type ReferenceOperation = z.infer<typeof referenceOperationSchema>;
 // This version is part of quotes and cache keys. Prompt/schema changes invalidate old results.
-export const REFERENCE_ANALYSIS_VERSION = "reference-v2.1";
+export const REFERENCE_ANALYSIS_VERSION = "reference-v2.2-detail";
 export const referenceContentSchema = z
   .object({
     summary: z.string().min(1).max(5000),
-    shots: z
-      .array(
-        z
-          .object({
-            id,
-            ...interval,
-            description: text,
-            framing: text,
-            cameraMotion: text,
-            action: text,
-            transition: text,
-            ...references,
-          })
-          .strict(),
-      )
-      .min(1)
-      .max(100),
+    shots: z.array(referenceShotSchema).min(1).max(100),
     narrativeBeats: z
       .array(
         z
@@ -117,6 +150,29 @@ export const timingSchema = z
 export const referenceReportSchema = referenceContentSchema
   .extend({
     schemaVersion: z.literal(2),
+    analysis: z
+      .object({
+        detail: analysisDetailSchema,
+        focus: analysisFocusSchema,
+        method: z.enum(["whole_video", "focused_range", "segmented"]),
+        parts: z
+          .array(
+            z
+              .object({
+                analysisAssetId: id,
+                clipAssetId: id,
+                sourceStartMs: ms,
+                sourceEndMs: ms,
+                clipDurationMs: ms.positive(),
+                timeMapping: z.literal("offset-trim-codec-padding"),
+              })
+              .strict(),
+          )
+          .max(100)
+          .optional(),
+      })
+      .strict()
+      .optional(),
     source: z
       .object({
         assetId: id,
@@ -148,7 +204,7 @@ export const referenceReportSchema = referenceContentSchema
         analysisVersion: text,
         priceVersion: text,
         analyzedAt: z.string().datetime(),
-        evidence: z.literal("provider-live"),
+        evidence: z.enum(["provider-live", "provider-live-assembled"]),
       })
       .strict(),
     measurements: timingSchema,
@@ -203,8 +259,10 @@ export const referenceReportSchema = referenceContentSchema
     }
     let end = startMs;
     for (const shot of r.shots) {
-      if (shot.startMs < end || shot.endMs - shot.startMs < 100)
-        fail("Shots overlap or are shorter than 100ms");
+      if (shot.startMs < end || shot.endMs <= shot.startMs)
+        fail("Shots overlap or have no duration");
+      if (r.analysis?.detail === "recreate" && !shot.details)
+        fail("Recreate analysis requires complete shot details");
       if (!shot.evidenceIds.length) fail("Shot requires evidence");
       end = shot.endMs;
     }

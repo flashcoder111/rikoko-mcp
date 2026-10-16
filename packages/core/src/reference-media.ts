@@ -18,9 +18,20 @@ export async function extractReferenceMedia(
     frameTimeMs: number;
     motionRange?: { startMs: number; endMs: number };
   }[],
+  options: { maxMotionMs?: number } = {},
 ) {
   await service.scoped(c, "write", async () => {});
   const source = await service.get(c, "asset", assetId);
+  const maxMotionMs = options.maxMotionMs ?? 15000;
+  if (
+    !Number.isSafeInteger(maxMotionMs) ||
+    maxMotionMs < 1 ||
+    maxMotionMs > 60000
+  )
+    throw new AppError(
+      "INVALID_INTERVAL",
+      "Invalid local extraction duration limit",
+    );
   if (
     source.kind !== "video" ||
     !Number.isSafeInteger(source.metadata?.durationMs) ||
@@ -42,11 +53,11 @@ export async function extractReferenceMedia(
         (s.motionRange.startMs < 0 ||
           s.motionRange.endMs > source.metadata.durationMs ||
           s.motionRange.endMs <= s.motionRange.startMs ||
-          s.motionRange.endMs - s.motionRange.startMs > 15000))
+          s.motionRange.endMs - s.motionRange.startMs > maxMotionMs))
     )
       throw new AppError(
         "INVALID_INTERVAL",
-        "Frame or motion reference exceeds its source interval (motion maximum 15 seconds)",
+        `Frame or motion reference exceeds its source interval (motion maximum ${maxMotionMs / 1000} seconds)`,
       );
   }
   const dir = await mkdtemp(join(tmpdir(), "rikoko-reference-"));
