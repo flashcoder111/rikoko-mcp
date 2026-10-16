@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { referenceDetailProfiles } from "./reference-instructions.js";
 import {
   memoryTools,
   callMemoryTool,
@@ -204,6 +205,7 @@ export const tools = {
         "feedback",
         "plan",
         "storyboard",
+        "analysis-plan",
       ]),
     }),
   },
@@ -219,6 +221,7 @@ export const tools = {
         "plan",
         "quote",
         "storyboard",
+        "analysis-plan",
       ]),
       id: idSchema,
     }),
@@ -554,6 +557,12 @@ export async function callTool(
           },
         },
         referenceAnalysis: {
+          defaultDetail: "shots",
+          remakeDefaultDetail: "recreate",
+          detailProfiles: referenceDetailProfiles,
+          segmentedWorkflow: ["reference_analysis_plan", "reference_analysis_prepare", "reference_analyze", "reference_analysis_merge"],
+          localClipPreparation: true,
+          samplingControl: "provider-profile-only",
           independentOfHostModel: true,
           models: providers.filter(
             (m: { kind: string }) => m.kind === "analysis",
