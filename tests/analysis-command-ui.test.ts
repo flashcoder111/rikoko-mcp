@@ -74,11 +74,13 @@ it("switches or reads analysis defaults without submitting a draft or dropping a
     await submit();
     expect(api).not.toHaveBeenCalled();
     expect(container.textContent).toContain("overview");
+    expect(input.onSend).not.toHaveBeenCalled();
     vi.mocked(api).mockRejectedValueOnce(new Error("连接失败"));
     input.draft = "/analysis shots";
     await submit();
     expect(container.textContent).toContain("连接失败");
     expect(input.setDraft).not.toHaveBeenLastCalledWith("/analysis shots");
+    expect(input.removeAttachment).not.toHaveBeenCalled();
   } finally {
     await act(async () => root.unmount());
     container.remove();

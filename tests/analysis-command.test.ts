@@ -93,5 +93,6 @@ it("persists account defaults without jobs, supports reset and keeps explicit re
   expect(await service.list(c, "job")).toHaveLength(0);
   expect(await service.list(c, "quote")).toHaveLength(0);
   const caps = await callTool(service, c, "capabilities", {});
+  expect(caps.commands.agentEntry).toBe("/rikoko");
   expect(caps.commands.items).toContainEqual(analysisCommand);
 });
