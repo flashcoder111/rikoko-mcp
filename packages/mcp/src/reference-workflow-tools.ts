@@ -137,7 +137,10 @@ async function planAnalysis(service: Service, c: Context, raw: unknown) {
         fps: null,
         mode: "provider_controlled",
         strategy:
-          detail === "overview" && segments.length === 1
+          detail === "overview" &&
+          segments.length === 1 &&
+          range.startMs === 0 &&
+          range.endMs === source.metadata.durationMs
             ? "whole_video"
             : "local_clips",
       },
@@ -391,13 +394,21 @@ async function mergeAnalysis(service: Service, c: Context, raw: unknown) {
         detail: plan.detail,
         focus: plan.input.focus ?? [],
         method: "segmented",
-        parts: ordered.map((p) => ({
+        parts: ordered.map((p, i) => ({
           analysisAssetId: p.id,
           clipAssetId: p.task.input.assetId,
           sourceStartMs: p.segment.startMs,
           sourceEndMs: p.segment.endMs,
           clipDurationMs: p.task.clipDurationMs,
           timeMapping: "offset-trim-codec-padding",
+          boundary: p.segment.boundary,
+          summary: p.report.summary,
+          audio: {
+            ...p.report.audio,
+            evidenceIds: p.report.audio.evidenceIds
+              .map((id) => `p${i + 1}-${fingerprint(id).slice(0, 24)}`)
+              .filter((id) => evidence.some((e) => e.id === id)),
+          },
         })),
       },
       coverage: {
@@ -446,6 +457,14 @@ async function mergeAnalysis(service: Service, c: Context, raw: unknown) {
     inputHash: mergeHash,
     analysisAssetId: asset.id,
     shotCount: report.shots.length,
+    reportUnit: plan.segments.some(
+      (s: AnalysisSegment) => s.boundary === "window",
+    )
+      ? "shot_fragments"
+      : "reported_shots",
+    windowBoundaryCount: plan.segments.filter(
+      (s: AnalysisSegment) => s.boundary === "window",
+    ).length,
   };
   await service.scoped(c, "write", async (tx) => {
     const latest = await tx.get(plan.id, c.accountId, "analysis-plan");

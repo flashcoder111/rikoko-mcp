@@ -393,6 +393,18 @@ export class GatewayClient {
                   "Official analysis does not match the local source",
                   409,
                 );
+              if (
+                (local.input.detail && report.analysis?.detail !== local.input.detail) ||
+                fingerprint(report.analysis?.focus ?? []) !== fingerprint(local.input.focus ?? []) ||
+                report.provenance.model !== local.input.model ||
+                report.coverage.startMs !== (local.input.range?.startMs ?? 0) ||
+                report.coverage.endMs !== (local.input.range?.endMs ?? source.metadata.durationMs)
+              )
+                throw new AppError(
+                  "ANALYSIS_PROFILE_MISMATCH",
+                  "Official analysis does not match the requested detail, focus, model or range",
+                  409,
+                );
               const mapped = referenceReportSchema.parse({
                 ...report,
                 source: { ...report.source, assetId: source.id },

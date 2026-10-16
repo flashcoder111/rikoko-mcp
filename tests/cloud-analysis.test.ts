@@ -167,16 +167,21 @@ it("routes official analysis, remaps a source-bound report, caches it and reject
     ]);
     claim.mockRestore();
     const detailed = await callTool(service, c, "reference_analyze", {
-      ...input, detail: "recreate", focus: ["motion"],
+      ...input,
+      detail: "recreate",
+      focus: ["motion"],
     });
     const detailedJob = await callTool(service, c, "job_submit", {
       input: detailed.input,
       quoteId: detailed.quote.id,
       idempotencyKey: "detailed-analysis",
     });
-    await expect(callTool(service, c, "record_get", {
-      type: "job", id: detailedJob.id,
-    })).rejects.toMatchObject({ code: "ANALYSIS_PROFILE_MISMATCH" });
+    await expect(
+      callTool(service, c, "record_get", {
+        type: "job",
+        id: detailedJob.id,
+      }),
+    ).rejects.toMatchObject({ code: "ANALYSIS_PROFILE_MISMATCH" });
     const another = await callTool(service, c, "reference_analyze", {
       ...input,
       refresh: true,

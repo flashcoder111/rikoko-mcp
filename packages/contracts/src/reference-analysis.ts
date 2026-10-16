@@ -165,6 +165,11 @@ export const referenceReportSchema = referenceContentSchema
                 sourceEndMs: ms,
                 clipDurationMs: ms.positive(),
                 timeMapping: z.literal("offset-trim-codec-padding"),
+                boundary: z
+                  .enum(["start", "cut_candidate", "window"])
+                  .optional(),
+                summary: referenceContentSchema.shape.summary.optional(),
+                audio: referenceContentSchema.shape.audio.optional(),
               })
               .strict(),
           )

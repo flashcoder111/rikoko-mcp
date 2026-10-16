@@ -53,10 +53,25 @@ afterEach(async () => {
 it("advertises precision controls and makes plans readable through the public record API", async () => {
   const caps = await callTool(service, c, "capabilities", {});
   expect(caps.referenceAnalysis.defaultDetail).toBe("shots");
-  expect(caps.referenceAnalysis.detailProfiles.map((p: any) => p.id)).toEqual(["overview", "shots", "recreate"]);
-  const plan = await callTool(service, c, "reference_analysis_plan", { assetId: source.id, model: "vision", purpose: "remake" });
+  expect(caps.referenceAnalysis.detailProfiles.map((p: any) => p.id)).toEqual([
+    "overview",
+    "shots",
+    "recreate",
+  ]);
+  const plan = await callTool(service, c, "reference_analysis_plan", {
+    assetId: source.id,
+    model: "vision",
+    purpose: "remake",
+  });
   expect(plan.detail).toBe("recreate");
-  expect((await callTool(service, c, "record_get", { type: "analysis-plan", id: plan.id })).id).toBe(plan.id);
+  expect(
+    (
+      await callTool(service, c, "record_get", {
+        type: "analysis-plan",
+        id: plan.id,
+      })
+    ).id,
+  ).toBe(plan.id);
 });
 
 it("prepares reusable real clips without buying and refuses incomplete or foreign merges", async () => {
