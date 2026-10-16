@@ -79,9 +79,11 @@ it("routes official analysis, remaps a source-bound report, caches it and reject
     expect(caps.referenceAnalysis.officialGateway).toBe("available");
     expect(caps.generation.officialReferences).toBe("available");
     expect(caps.generation.billingSource).toBe("testing");
+    await callTool(service, c, "reference_analysis_settings", { detail: "overview" });
     const input = { assetId: source.id, model: "vision" };
     const prepared = await callTool(service, c, "reference_analyze", input);
     expect(remoteInput.assetId).toBe("remote-source");
+    expect(remoteInput.detail).toBe("overview");
     const job = await callTool(service, c, "job_submit", {
       input: prepared.input,
       quoteId: prepared.quote.id,
