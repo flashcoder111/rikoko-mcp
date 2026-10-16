@@ -18,13 +18,36 @@
           "maxLength": 120
         },
         "purpose": {
-          "default": "remake",
+          "default": "inspect",
           "type": "string",
           "enum": [
             "remake",
             "clip",
             "inspect"
           ]
+        },
+        "detail": {
+          "type": "string",
+          "enum": [
+            "overview",
+            "shots",
+            "recreate"
+          ]
+        },
+        "focus": {
+          "maxItems": 6,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "motion",
+              "camera",
+              "appearance",
+              "text",
+              "audio",
+              "continuity"
+            ]
+          }
         },
         "language": {
           "default": "zh",

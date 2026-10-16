@@ -60,6 +60,105 @@
               "type": "string",
               "pattern": "^[a-zA-Z0-9_-]{1,100}$"
             }
+          },
+          "visualStyle": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "details": {
+            "type": "object",
+            "properties": {
+              "startState": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 800
+              },
+              "endState": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 800
+              },
+              "spatialRelations": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 600
+              },
+              "lighting": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 400
+              },
+              "actionStages": {
+                "maxItems": 16,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "description": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 400
+                    },
+                    "subjectMotion": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 300
+                    },
+                    "cameraMotion": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 300
+                    }
+                  },
+                  "required": [
+                    "description",
+                    "subjectMotion",
+                    "cameraMotion"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "continuity": {
+                "type": "object",
+                "properties": {
+                  "fromPrevious": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 400
+                  },
+                  "toNext": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 400
+                  },
+                  "constraints": {
+                    "maxItems": 10,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 300
+                    }
+                  }
+                },
+                "required": [
+                  "fromPrevious",
+                  "toNext",
+                  "constraints"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "startState",
+              "endState",
+              "spatialRelations",
+              "lighting",
+              "actionStages",
+              "continuity"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
@@ -372,6 +471,129 @@
       "type": "number",
       "const": 2
     },
+    "analysis": {
+      "type": "object",
+      "properties": {
+        "detail": {
+          "type": "string",
+          "enum": [
+            "overview",
+            "shots",
+            "recreate"
+          ]
+        },
+        "focus": {
+          "maxItems": 6,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "motion",
+              "camera",
+              "appearance",
+              "text",
+              "audio",
+              "continuity"
+            ]
+          }
+        },
+        "method": {
+          "type": "string",
+          "enum": [
+            "whole_video",
+            "focused_range",
+            "segmented"
+          ]
+        },
+        "parts": {
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "analysisAssetId": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+              },
+              "clipAssetId": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+              },
+              "sourceStartMs": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 3600000
+              },
+              "sourceEndMs": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 3600000
+              },
+              "clipDurationMs": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "maximum": 3600000
+              },
+              "timeMapping": {
+                "type": "string",
+                "const": "offset-trim-codec-padding"
+              },
+              "boundary": {
+                "type": "string",
+                "enum": [
+                  "start",
+                  "cut_candidate",
+                  "window"
+                ]
+              },
+              "summary": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 5000
+              },
+              "audio": {
+                "type": "object",
+                "properties": {
+                  "description": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  },
+                  "evidenceIds": {
+                    "maxItems": 30,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+                    }
+                  }
+                },
+                "required": [
+                  "description",
+                  "evidenceIds"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "analysisAssetId",
+              "clipAssetId",
+              "sourceStartMs",
+              "sourceEndMs",
+              "clipDurationMs",
+              "timeMapping"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "detail",
+        "focus",
+        "method"
+      ],
+      "additionalProperties": false
+    },
     "source": {
       "type": "object",
       "properties": {
@@ -552,7 +774,10 @@
         },
         "evidence": {
           "type": "string",
-          "const": "provider-live"
+          "enum": [
+            "provider-live",
+            "provider-live-assembled"
+          ]
         }
       },
       "required": [

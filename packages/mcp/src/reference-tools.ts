@@ -33,6 +33,7 @@ const getSchema = z
         "narrativeBeats",
         "speech",
         "unknowns",
+        "parts",
       ])
       .default("overview"),
     offset: z.number().int().min(0).default(0),
@@ -83,7 +84,7 @@ export const referenceTools = {
   reference_analysis_get: {
     schema: getSchema,
     description:
-      "Read a source-bound reference analysis. Choose overview for compact context, or paginated shots/events/evidence/unknowns. Times use original-source milliseconds; model times are estimates, FFmpeg cut candidates are separate measurements. all returns the bounded full report.",
+      "Read a source-bound reference analysis. Choose overview for compact context, or paginated shots/events/evidence/unknowns/parts. parts retains per-segment summaries, audio and source boundaries without repeating them on every page. Times use original-source milliseconds; model times are estimates, FFmpeg cut candidates are separate measurements. all returns the bounded full report.",
   },
   reference_analysis_query: {
     schema: querySchema,
@@ -327,11 +328,14 @@ export async function callReferenceTool(
     const input = getSchema.parse(raw),
       report = await readReferenceReport(service, c, input.analysisAssetId);
     if (input.section === "all") return report;
+    const { parts, ...profile } = report.analysis ?? {};
     const overview = {
       schemaVersion: report.schemaVersion,
       source: report.source,
       summary: report.summary,
-      analysis: report.analysis,
+      analysis: report.analysis
+        ? { ...profile, partCount: parts?.length ?? 0 }
+        : undefined,
       coverage: report.coverage,
       provenance: report.provenance,
       measurements: report.measurements,
@@ -347,7 +351,8 @@ export async function callReferenceTool(
       ),
     };
     if (input.section === "overview") return overview;
-    const items = report[input.section];
+    const items =
+      input.section === "parts" ? (parts ?? []) : report[input.section];
     return {
       ...overview,
       section: input.section,

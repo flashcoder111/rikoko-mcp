@@ -243,10 +243,16 @@ it("prepares reusable real clips without buying and refuses incomplete or foreig
   expect(report.analysis.method).toBe("segmented");
   expect(report.analysis.parts[1].boundary).toBe("cut_candidate");
   expect(report.analysis.parts[0].summary).toBe("Scene");
-  const overview = await callTool(service, c, "reference_analysis_get", { analysisAssetId: merged.analysisAssetId });
+  const overview = await callTool(service, c, "reference_analysis_get", {
+    analysisAssetId: merged.analysisAssetId,
+  });
   expect(overview.analysis.parts).toBeUndefined();
   expect(overview.analysis.partCount).toBe(2);
-  const parts = await callTool(service, c, "reference_analysis_get", { analysisAssetId: merged.analysisAssetId, section: "parts", limit: 1 });
+  const parts = await callTool(service, c, "reference_analysis_get", {
+    analysisAssetId: merged.analysisAssetId,
+    section: "parts",
+    limit: 1,
+  });
   expect(parts.items[0].summary).toBe("Scene");
   expect(parts.nextOffset).toBe(1);
 
@@ -281,14 +287,19 @@ it("honors explicit detail, reuses overview sources and physically prepares focu
   });
   expect(whole.tasks[0].input.assetId).toBe(source.id);
   expect(whole.nextOffset).toBeNull();
-  const readOnly = await service.authenticate((await service.issueKey(c, { name: "read-only", scopes: ["read"], budgetCents: 0 })).key);
+  const readOnly = await service.authenticate(
+    (
+      await service.issueKey(c, {
+        name: "read-only",
+        scopes: ["read"],
+        budgetCents: 0,
+      })
+    ).key,
+  );
   await expect(
-    callTool(
-      service,
-      readOnly,
-      "reference_analysis_prepare",
-      { planId: plan.id },
-    ),
+    callTool(service, readOnly, "reference_analysis_prepare", {
+      planId: plan.id,
+    }),
   ).rejects.toMatchObject({ code: "FORBIDDEN" });
   await expect(
     callTool(service, c, "reference_analysis_prepare", {
