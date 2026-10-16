@@ -26,17 +26,6 @@ Read full `shots` records before generating: starting and ending state, spatial 
 
 Local cut detection produces candidates. Long continuous shots can be divided into processing windows, which are not verified new shots; report that distinction. On the fal video route, actual FPS remains provider controlled. A detailed prompt or a local clip does not prove higher FPS or frame accuracy.
 
-## Native audio and post-production sound
-
-Preserve the video model’s actual native dialogue, ambience and effects by default. Independent speech is for requested later changes or replacement; default to available **ElevenLabs Eleven v3** (`elevenlabs-voice`). Read capabilities first. Local system TTS is removed. Never silently select MiniMax speech or a system voice when Eleven v3 is unavailable.
-
-- **Narration replacement:** quote `tts` with `engine=fal`, explicit model, text, language and voice; retain visuals and change only the intended audio.
-- **Music:** use a configured audio/category=music profile such as `elevenlabs-music-30s`; describe mood and instruments and inspect fixed `music_length_ms` and `force_instrumental`. Generate with `parameters={}`; use a `music` edit to mix the returned asset.
-- **Sound effects:** use audio/category=sound, e.g. `elevenlabs-sound-5s`; inspect fixed `duration_seconds`. Use a `sound` edit with sceneId, eventId, assetId, offsetMs, durationMs, gain and optional audioSourceStartMs/wordId. Setting assetId=null removes that effect. Effects mix with native audio, narration and music instead of replacing them.
-- **Voice cloning:** use `minimax-voice-clone` with `mode=voice_clone`, an owned audio reference with role=voice and preview text as prompt. Check the profile’s measured duration/size limits. Review the preview and retain its output asset: `provenance.voiceClone` contains the provider-specific voiceId and reuseModel. For later synthesis, submit `tts` with that reuseModel, voice=voiceId and voiceAssetId=the clone output. MiniMax clone IDs are incompatible with Eleven v3 and cannot move between provider accounts. A new MiniMax clone must be used with TTS within 7 days to retain it; this requires its own quote, not an automatic purchase. Do not clone again for each line.
-
-Music, effects, cloning and later cloned-voice synthesis each use their own quote and user agreement. Configuration and mock tests do not establish live voice or music quality.
-
 ## Missing material and follow-up replies
 
 Before asking for genuinely missing media or facts, call `workspace_request_save` with the original message, existing asset IDs and specific `missingInputs` (kind, prompt, purpose and required). Keep optional inputs non-blocking. On a follow-up, read `workspace_request_get`, import accessible user-selected attachments and save only the remaining gaps using the current `requestVersion`. Do not claim an attachment was imported if the host did not expose its bytes. Preserve the original intent and accepted assets. Pass `requestId` and `requestVersion` to `workspace_commit` once ready. `workspace_plan` persists and resumes requests too, including attachment-only turns. Paid generation still requires agreement to its quote.
