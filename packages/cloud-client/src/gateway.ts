@@ -13,6 +13,10 @@ import {
   type Entity,
 } from "../../contracts/src/index.js";
 import { cloudOrigin, cloudRequest } from "./http.js";
+import {
+  compatibleAnalysisProtocol,
+  analysisProtocolMessage,
+} from "./analysis-protocol.js";
 export class GatewayClient {
   private uploads = new Map<string, Promise<string>>();
   private imports = new Map<string, Promise<Entity>>();
@@ -34,7 +38,24 @@ export class GatewayClient {
   }
   async models(c: Context) {
     await this.service.scoped(c, "read", async () => {});
-    return this.request("/v1/generation-models");
+    const models = await this.request("/v1/generation-models");
+    if (!Array.isArray(models))
+      throw new AppError(
+        "CLOUD_RESPONSE_INVALID",
+        "Cloud model catalog must be an array",
+        502,
+      );
+    return models.map((model) =>
+      model.kind === "analysis" &&
+      !compatibleAnalysisProtocol(model.referenceAnalysis)
+        ? {
+            ...model,
+            available: false,
+            unavailableReason: "ANALYSIS_PROTOCOL_MISMATCH",
+            unavailableMessage: analysisProtocolMessage,
+          }
+        : model,
+    );
   }
   async usage(c: Context) {
     await this.service.scoped(c, "read", async () => {});
@@ -49,6 +70,24 @@ export class GatewayClient {
         "云端支持媒体生成与参考视频分析",
       );
     const referenceAssets = await this.references(c, input);
+    if (input.kind === "reference_analyze") {
+      const model = (await this.models(c)).find(
+        (candidate) =>
+          candidate.id === input.model && candidate.kind === "analysis",
+      );
+      if (model?.unavailableReason === "ANALYSIS_PROTOCOL_MISMATCH")
+        throw new AppError(
+          "ANALYSIS_PROTOCOL_MISMATCH",
+          analysisProtocolMessage,
+          409,
+        );
+      if (!model?.available)
+        throw new AppError(
+          "CAPABILITY_UNAVAILABLE",
+          "The selected cloud analysis model is unavailable",
+          409,
+        );
+    }
     const remoteInput = { ...input };
     if (
       (input.kind === "reference_analyze" || input.kind === "transcribe") &&

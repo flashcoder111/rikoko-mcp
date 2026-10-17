@@ -9,6 +9,7 @@ import { connectCloud } from "../packages/cloud-client/src/index.js";
 import { callTool } from "../packages/mcp/src/tools.js";
 import { bindReferenceReport } from "../packages/core/src/reference-report.js";
 import { Worker } from "../apps/worker/src/worker.js";
+import { referenceAnalysisProtocol } from "../packages/contracts/src/reference-analysis.js";
 
 it("routes official analysis, remaps a source-bound report, caches it and rejects source drift", async () => {
   const dir = await mkdtemp(join(tmpdir(), "official-analysis-")),
@@ -41,6 +42,7 @@ it("routes official analysis, remaps a source-bound report, caches it and reject
             kind: "analysis",
             available: true,
             billingSource: "testing",
+            referenceAnalysis: referenceAnalysisProtocol,
           },
         ]);
       if (path === "/v1/reference-uploads")
