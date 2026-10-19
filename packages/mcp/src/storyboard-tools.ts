@@ -101,7 +101,7 @@ export const storyboardTools = {
   reference_storyboard_review: {
     schema: reviewSchema,
     description:
-      "Record an actual visual review of an owned target image for one storyboard shot. Accept only after the user or a vision-capable reviewer has checked identity, product and composition; mark irrelevant checks true and explain in notes. This tool does not see or evaluate images. It increments the storyboard version and invalidates previous quotes; rejected images cannot drive video. It does not buy or render anything.",
+      "Record one quick visual check of a critical target image for one storyboard shot: identity/product correctness, major defects and starting state (composition). Reuse the result for unchanged image and use; do not pursue aesthetic perfection or start a paid review. Accept only after the user or a vision-capable host has actually checked it; mark irrelevant checks true and explain in notes. This tool does not see or evaluate images. An identical retry reuses the review/version; a changed review increments the storyboard version and invalidates previous quotes; rejected images cannot drive video. It does not buy or render anything and rejection never authorizes automatic regeneration.",
   },
   reference_storyboard_quote: {
     schema: quoteSchema,
@@ -289,11 +289,29 @@ export async function callStoryboardTool(
     return service.scoped(c, "write", async (tx) => {
       const board = await tx.get(input.storyboardId, c.accountId, "storyboard");
       if (!board) throw new AppError("NOT_FOUND", "Storyboard not found", 404);
-      getShot(board, input.expectedVersion, input.sourceShotId);
       const image = await tx.get(input.imageAssetId, c.accountId, "asset");
       if (!image || image.kind !== "image")
         throw new AppError("INVALID_MEDIA", "Review requires an owned image");
+      const previous = board.shots.find(
+        (s: any) => s.sourceShotId === input.sourceShotId,
+      )?.review;
+      // Repeating the same quick check must not invalidate prepared work.
+      if (
+        previous?.sha256 === image.sha256 &&
+        previous.imageAssetId === image.id &&
+        previous.decision === input.decision &&
+        previous.notes === input.notes &&
+        Object.entries(input.checks).every(
+          ([key, value]) => previous.checks?.[key] === value,
+        ) &&
+        (input.expectedVersion === board.version ||
+          (previous.baseVersion === input.expectedVersion &&
+            board.version === input.expectedVersion + 1))
+      )
+        return board;
+      getShot(board, input.expectedVersion, input.sourceShotId);
       const review = {
+        baseVersion: board.version,
         imageAssetId: image.id,
         sha256: image.sha256,
         decision: input.decision,

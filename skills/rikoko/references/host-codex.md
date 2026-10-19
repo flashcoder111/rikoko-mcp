@@ -13,10 +13,12 @@ Read linked references with the available file reader, or `rikoko_guide` when fi
 
 ## Delivery and recovery
 
-For accepted final media, the stdio bridge can return a real `localPath`. Codex app can display supported local media using `![video](</absolute/returned/path.mp4>)`; use the exact returned path, including angle brackets for spaces. CLI or remote clients may need returned media links instead. Do not assume an absolute path returned by a remote service exists on the viewing machine.
+For technically ready final media, the stdio bridge can return a real `localPath`. Codex app can display supported local media using `![video](</absolute/returned/path.mp4>)`; use the exact returned path, including angle brackets for spaces. CLI or remote clients may need returned media links instead. Do not assume an absolute path returned by a remote service exists on the viewing machine.
 
 `delivery="links"` skips automatic local export. Include the exact returned clickable workspace URL with attachments and links. Export failure calls for retrying `workspace_export` or delivering returned links, not generation. Preview files remain previews.
 
 After MCP reconnection or context compaction, read `workspace_request_get`, `workspace_snapshot` and relevant saved records. Continue the same project and already submitted jobs. No new chat, filesystem scan, model switch or host-setting change is needed for routine recovery.
 
 The installer currently uses `~/.codex/skills/rikoko/`; the active catalog is authoritative for custom Codex homes. Host permissions and rendering support still apply independently of successful MCP initialization.
+
+Default policy: quickly check critical input images once using actual pixels or user judgment. Do not invoke paid vision review by default. Final videos need no AI review or listening pass for delivery, and quality findings never authorize automatic regeneration. Preserve unknown review status and return technically ready output immediately.

@@ -18,8 +18,10 @@ An attachment visible to Claude is not necessarily accessible to a local MCP pro
 
 Inspect the actual image blocks from `media_inspect`. Native vision capability does not prove a particular connector forwarded them. If only text/metadata is received, obtain user or supported vision-capable review and preserve `unreviewed`; do not label an analysis description as your visual observation.
 
-For both Claude surfaces, prefer the exact returned downloadable media links plus the clickable workspace URL. A `resource_link` may be presented as a link rather than an inline player. A Codex local Markdown embed or Hermes `MEDIA:` line is not a portable Claude attachment. Use native attachments only when this session supports them; `workspace_export` can save a requested local file without making Desktop display it automatically. Keep previews labeled and require the common final gate.
+For both Claude surfaces, prefer the exact returned downloadable media links plus the clickable workspace URL. A `resource_link` may be presented as a link rather than an inline player. A Codex local Markdown embed or Hermes `MEDIA:` line is not a portable Claude attachment. Use native attachments only when this session supports them; `workspace_export` can save a requested local file without making Desktop display it automatically. Keep explicit previews labeled; deliver technically ready completed output without a final AI review gate.
 
 For a new revision, refresh `workspace_snapshot` and use its current base revision. On reconnect, resume existing jobs and quote records. The host's tool-permission dialog and the user's price agreement are distinct; one does not establish the other.
 
 Reference: [Claude Code skills](https://code.claude.com/docs/en/skills), [Claude Desktop local MCP](https://support.claude.com/en/articles/10949351-getting-started-with-local-mcp-servers-on-claude-desktop).
+
+Default policy: quickly check critical input images once using actual pixels or user judgment. Do not invoke paid vision review by default. Final videos need no AI review or listening pass for delivery, and quality findings never authorize automatic regeneration. Preserve unknown review status and return technically ready output immediately.

@@ -1,4 +1,12 @@
 import {
+  assertEditingAssets,
+  assertProductionQualityRetained,
+  editingTimeline,
+  validateEditingComposition,
+} from "../../core/src/production-editing.js";
+import { productionReviewObligations } from "../../core/src/production-quality-review.js";
+import { compositionSchema, type Entity } from "../../contracts/src/index.js";
+import {
   validateRemakeEvidence,
   referenceEvidence,
   referenceHandoff,
@@ -45,6 +53,17 @@ import {
   prepareGeneration,
 } from "../../core/src/generation-preparation.js";
 export const productionTools = {
+  production_editing_preview: {
+    schema: z
+      .object({
+        planId: idSchema,
+        expectedVersion: z.number().int().positive(),
+        revisionId: idSchema.optional(),
+      })
+      .strict(),
+    description:
+      "Preview a saved plan's timeline, source-bound music cues and review obligations without rendering or generation. Optionally validate the actual scoped revision: cut/event alignment, audio identity/gain/native mixing, ending duration and product media. Cue provenance is declared evidence, not automatic beat detection or listening. Shared audio starts at source zero; prepare a distinct trimmed asset before binding different excerpts.",
+  },
   production_scope_save: {
     schema: productionScopeSaveSchema,
     description:
@@ -53,7 +72,7 @@ export const productionTools = {
   production_asset_assign: {
     schema: productionAssetAssignSchema,
     description:
-      "Assign a visually accepted asset to a formal project/scope/shot. prepared_generation requires completed output from that exact preparation; external use must be explicitly permitted by scope. Draft/experimental assets do not become formal automatically. Composition scenes must carry productionShotId.",
+      "Assign an owned asset to a formal project/scope/shot without requiring video or decorative-image AI review. prepared_generation requires completed output from that exact preparation; external use must be explicitly permitted by scope. Draft/experimental assets do not become formal automatically. Composition scenes must carry productionShotId.",
   },
   generation_prompt_preview: {
     schema: promptInputSchema.extend({
@@ -70,7 +89,7 @@ export const productionTools = {
   production_plan_validate: {
     schema: productionPlanSchema,
     description:
-      "Validate a host-authored target shot plan independent of source shot count/timing. Source IDs require a remake contract binding a verified Gemini recreate report/hash, preserve/adapt/free requirements and source evidence. Every remake shot needs purpose, camera, actionStages, acceptanceCriteria and mapped requirementUses. Checks requirement coverage, evidence ownership/provenance, unresolved unknowns and persistent object states across cuts; unknown states and explained time jumps are supported. Returns issues, never invokes an AI director.",
+      "Validate a host-authored target shot plan independent of source shot count/timing. Optional process declares object identities, support, per-shot initial/end state, operation preconditions/effects, ordered approach/contact/completion/hold and real state anchors. Optional editing declares source-hashed audio cues/mix intent and final product/brand hold. See rikoko_guide topic=production-quality. Source IDs require a remake contract binding verified analysis and preserve/adapt/free requirements. Checks declared consistency, evidence ownership, coverage and duration; cannot judge pixels or sound. No model call.",
   },
   production_shot_prompts: {
     schema: z
@@ -87,7 +106,7 @@ export const productionTools = {
       })
       .strict(),
     description:
-      "Compile image and video prompt drafts directly from a saved target plan's initial/action/end states and reference responsibilities. Version and source evidence checked; no generation. For remakes also returns the relevant Gemini handoff, requirements and target neighbors. Returns first-frame and end-state image descriptions plus the mode-specific video prompt. Host supplies actual first/last frame references in the plan when using those modes.",
+      "Compile image and video prompt drafts directly from a saved target plan's initial/action/end states and reference responsibilities. Carries process operations, supports, phase budgets and editing intent into prompts; returns plan-derived qualityReview obligations. Version and source evidence checked; no generation. For remakes also returns relevant handoff, requirements and target neighbors. Boundary image prompts describe static states. Host supplies actual first/last frame references in the plan when using those modes.",
   },
   production_plan_save: {
     schema: z
@@ -98,22 +117,22 @@ export const productionTools = {
       })
       .strict(),
     description:
-      "Save a validated target production plan, with independent shot IDs, desired states and explicit reference responsibilities. Updating requires planId and expectedVersion; changing remake source/requirements/product facts/unknown decisions also needs remake.changeReason. Existing remake contracts cannot be removed. Creates a default scoped project returned as productionProjectId; plan preparations inherit its scope and dimensions. Validation does not certify semantic fidelity. No model call.",
+      "Save a validated target production plan, including optional process and editing quality contracts. Updating requires planId and expectedVersion; changing remake source/requirements/product facts/unknown decisions also needs remake.changeReason. Existing remake, process, audio and ending contracts cannot be removed. Shared audio requires an owned audible asset and its exact hash. Creates a default scoped project returned as productionProjectId; plan preparations inherit its scope and dimensions. Validation does not certify semantic fidelity. No model call.",
   },
   media_inspect: {
     schema: inspectSchema,
     description:
-      "Extract native MCP images/grid and persist hash-bound inspection evidence from an owned image/video. Use count (default 3, max 12) for uniform samples OR ordered timesMs (max 12) for key action events within startMs/endMs. Times are requested seeks, not verified frame PTS; unsampled intervals remain unknown. For action review inspect critical intervals with gaps <=250 ms, using multiple bounded calls as needed. claimedStatic checks differences, never proves no motion. Local FFmpeg, no model call. Inspect pixels before media_review.",
+      "Extract native MCP images/grid and persist hash-bound inspection evidence from an owned image/video. Use count (default 3, max 12) for uniform samples OR ordered timesMs (max 12) for key action events within startMs/endMs. Times are requested seeks, not verified frame PTS; unsampled intervals remain unknown. Default: inspect critical images once for subject, major defects and starting state; reuse checks for unchanged bytes and use. Video review is optional only on user request. For an explicitly requested action review inspect critical intervals with gaps <=250 ms, using multiple bounded calls as needed. claimedStatic checks differences, never proves no motion. Local FFmpeg, no model call. Inspect pixels before media_review.",
   },
   media_review: {
     schema: mediaReviewSchema,
     description:
-      "Record visual judgment with checks={actionComplete,framing,continuity,noArtifacts}; each check is {status:pass|fail|unknown|not_applicable,reason?}, with reason required except pass. Legacy booleans remain inputs, never exempt from evidence checks. Use decision=unreviewed with unknown checks and no inspections when unable to see. Acceptance requires matching inspectionIds, applicable passes and notes. Video actionComplete=pass requires declared actionRanges [{startMs,endMs,reason}] with samples <=250 ms apart; three overall frames alone do not establish a completed action. Optional range reviews an excerpt, never the whole asset. revisionId requires full rendered-output review. Historical accepted records need v2 re-review before final delivery. Formal remake revision acceptance also requires requirementChecks=[{requirementId,status:pass|fail|unknown,reason}] with every preserve/adapt requirement passing. Unknown/failed requirements block final acceptance. This tool validates evidence coverage, not visual correctness.",
+      "Optional evidence recording, not a final-delivery gate. Use one quick check for critical images; video/final review only on user request, never auto-regenerate. Record host/user judgment with checks={actionComplete,framing,continuity,noArtifacts}, inspectionIds and notes. Each check has status:pass|fail|unknown|not_applicable and reason (required except pass). Use decision=unreviewed with unknown checks when unable to inspect. For process sources bind production={projectId,scopeVersion,shotId}; for final renders bind revisionId and current workspace_validate.productionScopeHash as expectedProductionScopeHash. Copy every returned qualityReview obligation into qualityChecks with obligationId,status,reason,method,range and operation holdMs. Passing operation ranges independently need start/middle/end samples with gaps <=250 ms; hold samples cannot substitute. Audio passes require actual host_listening or user_listening over the whole rendered mix. Generic visual checks cannot waive plan obligations. Video actionComplete=pass also needs actionRanges. Excerpt reviews never accept the whole asset. Formal remake final reviews additionally need passing requirementChecks. Validates evidence coverage and current binding, never judges pixels or hears sound itself.",
   },
   workspace_validate: {
     schema: z.object({ revisionId: idSchema }).strict(),
     description:
-      "Read deterministic delivery checks: source ranges, discarded tails, cover crop fractions, unresolved placeholders, and revision-bound review state. Returns media_inspect requests for each scene. A completed render is unreviewed until the host inspects and accepts it. Explicit visualKind=graphic marks intentional title/brand cards.",
+      "Read deterministic delivery checks: source ranges, discarded operation/hold frames, crop, placeholders, shot order, source-bound music cues/mix and ending duration. Returns inspection requests, plan-derived qualityReview obligations and productionScopeHash for final media_review.expectedProductionScopeHash. finalReady means technical delivery readiness; reviewAccepted separately describes optional review. Unreviewed output can be delivered. Do not run final AI review or auto-regenerate. Explicit visualKind=graphic marks intentional title/brand cards.",
   },
 };
 export async function callProductionTool(
@@ -155,11 +174,116 @@ export async function callProductionTool(
   }
   if (name === "production_plan_validate") {
     const result = validateProductionPlan(data);
+    if (result.valid)
+      await service.scoped(c, "read", (tx) =>
+        assertEditingAssets(tx, c.accountId, result.plan),
+      );
     if (result.valid && result.plan.remake)
       await service.scoped(c, "read", (tx) =>
         validateRemakeEvidence(service, tx, c.accountId, result.plan),
       );
     return result;
+  }
+  if (name === "production_editing_preview") {
+    const saved = await service.get(c, "production-plan", data.planId);
+    if (saved.version !== data.expectedVersion)
+      throw new AppError("PLAN_CONFLICT", "Use the current plan version", 409);
+    const plan = productionPlanSchema.parse(saved.plan);
+    await service.scoped(c, "read", (tx) =>
+      assertEditingAssets(tx, c.accountId, plan),
+    );
+    const revision = data.revisionId
+      ? await service.get(c, "revision", data.revisionId)
+      : undefined;
+    if (revision) {
+      const project = await service.get(c, "project", revision.projectId);
+      if (
+        project.productionScope?.planId !== saved.id ||
+        project.productionScope?.planVersion !== saved.version
+      )
+        throw new AppError(
+          "PRODUCTION_SCOPE_CHANGED",
+          "Choose a revision scoped to this exact plan version",
+          409,
+        );
+    }
+    if (!revision && plan.shots.some((s) => s.durationMs === undefined))
+      throw new AppError(
+        "TIMING_REQUIRED",
+        "Supply shot durations before previewing the planned edit",
+      );
+    const composition = revision
+      ? compositionSchema.parse(revision.composition)
+      : compositionSchema.parse({
+          schemaVersion: 1,
+          title: plan.title,
+          width: plan.width,
+          height: plan.height,
+          scenes: plan.shots.map((s) => ({
+            id: s.id,
+            productionShotId: s.id,
+            durationMs: s.durationMs,
+            visualKind: s.visualKind === "graphic" ? "graphic" : "placeholder",
+          })),
+        });
+    const timeline = editingTimeline(composition);
+    const syncPoints = (plan.editing?.audio?.syncPoints ?? []).map((point) => {
+      const start = timeline.find((t) => t.shotId === point.shotId)?.startMs;
+      const beatMs = plan.editing!.audio!.beatPoints.find(
+        (b) => b.id === point.beatId,
+      )?.timeMs;
+      const targetMs = start === undefined ? undefined : start + point.offsetMs;
+      return {
+        ...point,
+        targetMs,
+        beatMs,
+        deltaMs:
+          targetMs === undefined || beatMs === undefined
+            ? undefined
+            : targetMs - beatMs,
+      };
+    });
+    const assets = new Map<string, Entity>();
+    if (revision)
+      await service.scoped(c, "read", async (tx) => {
+        const ids = new Set(
+          [
+            composition.audio?.assetId,
+            plan.editing?.audio?.assetId,
+            ...composition.scenes.flatMap((s) => [s.assetId, s.audioAssetId]),
+            ...composition.events.map((e) => e.assetId),
+          ].filter((id): id is string => !!id),
+        );
+        for (const id of ids) {
+          const asset = await tx.get(id, c.accountId, "asset");
+          if (asset) assets.set(id, asset);
+        }
+      });
+    const issues = revision
+      ? validateEditingComposition(plan, composition, assets)
+      : syncPoints
+          .filter(
+            (p) =>
+              p.deltaMs === undefined || Math.abs(p.deltaMs) > p.toleranceMs,
+          )
+          .map((p) => ({
+            code: "MUSIC_SYNC_MISMATCH",
+            severity: "error",
+            message: `${p.description}: target ${p.targetMs} ms versus source ${p.beatMs} ms`,
+          }));
+    return {
+      planId: saved.id,
+      version: saved.version,
+      revisionId: revision?.id,
+      timeline,
+      syncPoints,
+      issues,
+      valid: issues.length === 0,
+      reviewObligations: productionReviewObligations(plan),
+      generated: false,
+      evidenceBoundary:
+        "Checks declared cues and actual edit timing, never hears music or judges pixels. Changing audio bytes invalidates the cue map.",
+    };
   }
   if (name === "production_shot_prompts") {
     const record = await service.get(c, "production-plan", data.planId);
@@ -195,6 +319,8 @@ export async function callProductionTool(
       planId: record.id,
       version: record.version,
       shotId: shot.id,
+      qualityReviewRequired: false,
+      qualityReview: productionReviewObligations(record.plan, shot.id),
       ...(record.plan.remake
         ? {
             handoff: await service.scoped(c, "read", async (tx) => {
@@ -285,6 +411,8 @@ export async function callProductionTool(
           "A remake plan cannot silently become an unbound plan",
           409,
         );
+      assertProductionQualityRetained(previous?.plan, result.plan);
+      await assertEditingAssets(tx, c.accountId, result.plan);
       if (previous?.plan.remake && result.plan.remake) {
         const { changeReason: oldReason, ...before } = previous.plan.remake;
         const { changeReason: newReason, ...after } = result.plan.remake;

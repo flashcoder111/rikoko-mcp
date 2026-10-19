@@ -5,6 +5,10 @@ import {
   referenceToken,
   type PromptReferenceSyntax,
 } from "../../providers/src/prompt-reference.js";
+import {
+  processDirectionSchema,
+  renderProcessDirection,
+} from "./production-process.js";
 export const productionStateSchema = z
   .record(z.string().min(1).max(100), z.string().min(1).max(300))
   .refine((v) => Object.keys(v).length <= 50);
@@ -69,6 +73,8 @@ export const promptInputSchema = z
     setting: z.string().max(1500).optional(),
     camera: z.string().max(1000).optional(),
     constraints: z.string().max(1500).optional(),
+    process: processDirectionSchema.optional(),
+    editing: z.string().trim().min(1).max(3000).optional(),
     actionType: z.string().max(100).optional(),
     references: z.array(promptReferenceSchema).max(12).default([]),
   })
@@ -153,6 +159,8 @@ export function compilePrompt(
     `Required final state: ${renderState(input.endState)}`,
     input.camera && `Camera: ${input.camera}`,
     input.constraints && `Keep these constraints: ${input.constraints}`,
+    input.process && renderProcessDirection(input.process),
+    input.editing && `Editing direction: ${input.editing}`,
     ...bindings.map(
       (r) =>
         `${r.token} supplies ${r.transfer ?? r.role}: ${r.instruction}${r.exclude ? `. Do not transfer: ${r.exclude}` : ""}.`,
@@ -163,11 +171,17 @@ export function compilePrompt(
   if (prompt.length > 5000)
     throw new AppError(
       "PROMPT_TOO_LONG",
-      "Shorten the shot description to fit 5000 characters",
+      "Split the shot or shorten its declared direction to fit 5000 characters; process and editing constraints are never truncated",
     );
   return {
-    templateVersion: "rikoko-direction-v2",
-    compilerVersion: "rikoko-prompt-compiler-v2",
+    templateVersion:
+      input.process || input.editing
+        ? "rikoko-direction-v3"
+        : "rikoko-direction-v2",
+    compilerVersion:
+      input.process || input.editing
+        ? "rikoko-prompt-compiler-v3"
+        : "rikoko-prompt-compiler-v2",
     referenceSyntax: syntax,
     direction: input,
     readyForSubmission: false,

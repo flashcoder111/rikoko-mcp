@@ -414,6 +414,16 @@ export class AppError extends Error {
     public code: string,
     message: string,
     public status = 400,
+    public details?: {
+      stage?: string;
+      reason?: string;
+      systemCode?: string;
+      exitCode?: number;
+      signal?: string;
+      currentVersion?: number;
+      recordId?: string;
+      issues?: { path: string; code: string; message: string }[];
+    },
   ) {
     super(message);
   }

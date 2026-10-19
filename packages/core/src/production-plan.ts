@@ -8,6 +8,17 @@ import {
   remakeSchema,
   requirementUseSchema,
 } from "../../contracts/src/remake.js";
+import {
+  productionProcessSchema,
+  processShotSchema,
+  processShotDirection,
+  validateProductionProcess,
+} from "./production-process.js";
+import {
+  productionEditingSchema,
+  validateProductionEditing,
+  editingShotDirection,
+} from "./production-editing.js";
 const state = productionStateSchema;
 export const productionPlanSchema = z
   .object({
@@ -15,6 +26,8 @@ export const productionPlanSchema = z
     width: z.number().int().min(144).max(1920),
     height: z.number().int().min(144).max(1920),
     remake: remakeSchema.optional(),
+    process: productionProcessSchema.optional(),
+    editing: productionEditingSchema.optional(),
     shots: z
       .array(
         z
@@ -32,7 +45,12 @@ export const productionPlanSchema = z
               .array(z.string().trim().min(1).max(500))
               .max(20)
               .optional(),
+            productFactIndices: z
+              .array(z.number().int().nonnegative())
+              .max(30)
+              .optional(),
             requirementUses: z.array(requirementUseSchema).max(50).optional(),
+            process: processShotSchema.optional(),
             initialState: state,
             action: z.string().min(1).max(1500),
             endState: state,
@@ -52,12 +70,13 @@ export const productionPlanSchema = z
 export type ProductionPlan = z.infer<typeof productionPlanSchema>;
 export function validateProductionPlan(raw: unknown) {
   const plan = productionPlanSchema.parse(raw);
+  const processValidation = validateProductionProcess(plan);
   const issues: {
     code: string;
     shotId: string;
     object?: string;
     message: string;
-  }[] = [];
+  }[] = [...processValidation.issues, ...validateProductionEditing(plan)];
   const ids = new Set<string>();
   const known: Record<string, string> = Object.create(null);
   for (const shot of plan.shots) {
@@ -106,6 +125,16 @@ export function validateProductionPlan(raw: unknown) {
     const covered = new Set<string>();
     const mappedSources = new Map<string, Set<string>>();
     for (const shot of plan.shots) {
+      const factIndices = shot.productFactIndices ?? [];
+      if (
+        new Set(factIndices).size !== factIndices.length ||
+        factIndices.some((index) => index >= plan.remake!.productFacts.length)
+      )
+        issues.push({
+          code: "REMAKE_PRODUCT_FACT_INVALID",
+          shotId: shot.id,
+          message: "Select each existing product fact index at most once",
+        });
       if (
         !shot.purpose ||
         !shot.camera ||
@@ -174,21 +203,27 @@ export function validateProductionPlan(raw: unknown) {
         });
     }
   } else if (
-    plan.shots.some((s) => s.requirementUses?.length || s.sourceShotIds.length)
+    plan.shots.some(
+      (s) =>
+        s.requirementUses?.length ||
+        s.sourceShotIds.length ||
+        s.productFactIndices?.length,
+    )
   ) {
     issues.push({
       code: "REMAKE_REQUIREMENTS_REQUIRED",
       shotId: "",
       message:
-        "Source-shot claims and requirement uses need a source-bound remake plan",
+        "Source-shot claims, product fact selections and requirement uses need a source-bound remake plan",
     });
   }
   return {
     plan,
     issues,
+    recommendations: processValidation.recommendations,
     valid: issues.length === 0,
     evidenceBoundary:
-      "Checks declared continuity and requirement coverage, not semantic fidelity or visual quality. The host must inspect actual frames and judge physical plausibility.",
+      "Checks declared continuity, process preconditions/effects, action budgets, editing intent and requirement coverage. The host must inspect actual frames and listen to audio to judge physical plausibility, timing and quality.",
   };
 }
 
@@ -201,6 +236,13 @@ export function productionShotDirection(
   const authored =
     shot.purpose || shot.actionStages || shot.acceptanceCriteria || plan.remake;
   const uses = shot.requirementUses ?? [];
+  const productFacts = plan.remake?.productFacts ?? [];
+  const selectedProductFacts =
+    shot.productFactIndices?.map((index) => productFacts[index]) ??
+    productFacts;
+  const process = processShotDirection(plan, shot, stage);
+  const editing =
+    stage === "video" ? editingShotDirection(plan, shot.id) : undefined;
   const constraints = authored
     ? [
         ...(stage === "video"
@@ -220,9 +262,10 @@ export function productionShotDirection(
               }),
             ]
           : []),
-        ...(plan.remake?.productFacts ?? []).map(
-          (x) => `Target product fact: ${x}`,
-        ),
+        // Omission preserves existing plans. An explicit selection projects
+        // only relevant facts; [] leaves their application to shot-local states
+        // and requirements while retaining every fact in the canonical plan.
+        ...selectedProductFacts.map((x) => `Target product fact: ${x}`),
       ]
         .filter(Boolean)
         .join("\n")
@@ -252,5 +295,7 @@ export function productionShotDirection(
     ...(authored
       ? { camera: shot.camera, constraints: constraints || undefined }
       : {}),
+    ...(process ? { process } : {}),
+    ...(editing ? { editing } : {}),
   };
 }

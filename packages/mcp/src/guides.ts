@@ -15,6 +15,7 @@ export const guideTopics = [
   "directing-examples",
   "image-direction",
   "process-broll",
+  "production-quality",
   "visual-review",
   "commands",
   "media-operations",
@@ -45,7 +46,7 @@ export function registerGuideTool(
     "rikoko_guide",
     {
       description:
-        "Read rikoko's bundled instructions without local file access. Start with overview and the current host adapter; use directing-examples/video-direction before generation and visual-review before acceptance. Other topics cover images, physical processes, commands and media edits. Read-only; no backend calls, settings changes or paid work.",
+        "Read rikoko's bundled instructions without local file access. Start with overview and the current host adapter; use directing-examples/video-direction before generation and visual-review for one quick critical-image check and direct delivery. Other topics cover images, physical processes, commands and media edits. Read-only; no backend calls, settings changes or paid work.",
       inputSchema: guideSchema,
       annotations: {
         readOnlyHint: true,
@@ -77,7 +78,7 @@ export function registerGuideTool(
           content: [
             {
               type: "text" as const,
-              text: "GUIDE_UNAVAILABLE: The bundled guide is missing or unreadable. Repair/update this rikoko runtime and reconnect, or read the matching installed skill reference. Do not infer unsupported capabilities or bypass preparation/review gates.",
+              text: "GUIDE_UNAVAILABLE: The bundled guide is missing or unreadable. Repair/update this rikoko runtime and reconnect, or read the matching installed skill reference. Do not infer unsupported capabilities or bypass preparation and critical-image checks.",
             },
           ],
           isError: true,

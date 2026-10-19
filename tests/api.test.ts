@@ -141,7 +141,7 @@ it("discovers and calls tools through the real MCP v2 client", async () => {
   });
   const delivered = await client.callTool({
     name: "workspace_result",
-    arguments: { jobId: command.jobId },
+    arguments: { jobId: command.jobId, purpose: "preview" },
   });
   expect(delivered.content).toHaveLength(1);
   expect(delivered.content[0].type).toBe("text");
@@ -152,7 +152,7 @@ it("discovers and calls tools through the real MCP v2 client", async () => {
   expect(output.outputs).toEqual([
     { assetId: asset.id, name: "MCP output.mp4", mimeType: "video/mp4" },
   ]);
-  expect(JSON.stringify(delivered.content)).toContain("Unreviewed preview");
+  expect(JSON.stringify(delivered.content)).toContain("Preview —");
   expect(JSON.stringify(delivered)).toContain("/delivery/");
   const snapshot = await client.callTool({
     name: "workspace_snapshot",

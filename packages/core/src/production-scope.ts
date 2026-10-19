@@ -10,7 +10,10 @@ import {
 } from "../../contracts/src/index.js";
 import type { Transaction } from "../../db/src/index.js";
 import { fingerprint, type Service } from "./index.js";
-import { selectReview, reviewStatus } from "./production-review.js";
+import {
+  assertEditingAssets,
+  assertProductionQualityRetained,
+} from "./production-editing.js";
 
 export const productionRequirementsSchema = z
   .object({
@@ -135,7 +138,7 @@ export async function validateProductionLink(
   if (requirePrepared && !input.preparedRequestId)
     throw new AppError(
       "PRODUCTION_PREPARATION_REQUIRED",
-      "Formal generation requires a prepared request; experiments must be assigned and reviewed before formal use",
+      "Formal generation requires a prepared request; experiments must be explicitly assigned before formal use",
       409,
     );
   return state;
@@ -210,6 +213,8 @@ export async function saveProductionScope(
       plan.plan,
       plan.hostRemakeEvidence,
     );
+    assertProductionQualityRetained(state.plan?.plan, plan.plan);
+    await assertEditingAssets(tx, c.accountId, plan.plan);
     const scope = {
       version: input.expectedScopeVersion + 1,
       planId: plan.id,
@@ -221,27 +226,6 @@ export async function saveProductionScope(
     await tx.put(project);
     return { projectId: project.id, productionScope: scope };
   });
-}
-function acceptedAssetReview(
-  reviews: Entity[],
-  asset: Entity,
-  checks: string[],
-) {
-  const review = selectReview(
-    reviews.filter(
-      (r) =>
-        !r.revisionId &&
-        r.assetId === asset.id &&
-        r.sourceSha256 === asset.sha256,
-    ),
-    asset,
-  );
-  return reviewStatus(review) === "accepted" &&
-    checks.every((k) =>
-      ["pass", "not_applicable"].includes(review!.checks?.[k]?.status),
-    )
-    ? review
-    : undefined;
 }
 export async function assignProductionAsset(
   service: Service,
@@ -284,17 +268,6 @@ export async function assignProductionAsset(
         "INVALID_MEDIA",
         "Use an owned image/video with verified bytes",
       );
-    const review = acceptedAssetReview(
-      await tx.list(c.accountId, "media-review"),
-      asset,
-      scope.requirements.requiredChecks,
-    );
-    if (!review)
-      throw new AppError(
-        "PRODUCTION_ASSET_REVIEW_REQUIRED",
-        "Inspect and accept the actual asset under the scope's required checks first",
-        409,
-      );
     let preparedRequestId: string | undefined;
     if (input.use === "prepared_generation") {
       const job = (await tx.list(c.accountId, "job")).find(
@@ -329,7 +302,6 @@ export async function assignProductionAsset(
       ...input,
       scopeHash: state.hash,
       sourceSha256: asset.sha256,
-      reviewId: review.id,
       preparedRequestId,
     };
     await tx.put(record);
@@ -352,14 +324,7 @@ export async function inspectProductionScope(
   if (!state.scope)
     return {
       scopeHash: undefined,
-      issues: [
-        {
-          code: "PRODUCTION_SCOPE_REQUIRED",
-          severity: "error" as const,
-          message:
-            "Formal delivery requires a target plan and production scope; bind this project before final review",
-        },
-      ],
+      issues: [],
       remakeRequirements: undefined,
     };
   const { scope, plan } = state;
@@ -394,7 +359,6 @@ export async function inspectProductionScope(
     }
   }
   const assignments = await tx.list(accountId, "production-asset-assignment");
-  const reviews = await tx.list(accountId, "media-review");
   const seen = new Set<string>();
   for (const scene of revision.composition.scenes) {
     const shotId = scene.productionShotId;
@@ -436,16 +400,7 @@ export async function inspectProductionScope(
     if (!assignment)
       add(
         "PRODUCTION_ASSET_UNASSIGNED",
-        "Assign inspected media to this scope and shot; draft media cannot certify formal production",
-        scene.id,
-      );
-    if (
-      asset &&
-      !acceptedAssetReview(reviews, asset, scope.requirements.requiredChecks)
-    )
-      add(
-        "PRODUCTION_ASSET_REVIEW_REQUIRED",
-        "The source asset needs current visual acceptance",
+        "Assign the selected media to this scope and shot; preserve its preparation provenance",
         scene.id,
       );
   }
@@ -455,6 +410,18 @@ export async function inspectProductionScope(
         "PRODUCTION_SHOT_MISSING",
         `Target shot ${shot.id} is absent from the composition`,
       );
+  if (plan?.plan.process || plan?.plan.editing) {
+    const order = revision.composition.scenes
+      .map((s: any) => s.productionShotId)
+      .filter(
+        (id: string, i: number, ids: string[]) => i === 0 || id !== ids[i - 1],
+      );
+    if (order.join("|") !== plan.plan.shots.map((s: any) => s.id).join("|"))
+      add(
+        "PRODUCTION_SHOT_ORDER_MISMATCH",
+        "Preserve the declared process/editing order; revise the plan before reordering or repeating target shots",
+      );
+  }
   return {
     scopeHash: state.hash,
     issues,

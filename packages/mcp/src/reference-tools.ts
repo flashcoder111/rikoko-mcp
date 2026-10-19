@@ -135,7 +135,7 @@ export const referenceTools = {
   reference_adapt: {
     schema: referenceAdaptSchema,
     description:
-      "With plan={planId,expectedVersion}, assemble in target-plan order and dimensions using replacements.productionShotId, including split/merged source mapping. Returns the default scoped projectId for workspace_commit. Without plan, creates a draft using source timing and optional direct productionShotId mapping. Source footage is reused only with explicit reuseReference. No paid generation/render; pass composition to workspace_commit after review. Optional projectId saves an editable revision. Set matchCaptionStyle to suggest subtitle styling from visualStyle even when the reference has no subtitles; captionDescription and explicit captionStyle override the suggestion. This does not recognize an exact source font.",
+      "With plan={planId,expectedVersion}, assemble in target-plan order and dimensions using replacements.productionShotId, including split/merged source mapping. Returns the default scoped projectId for workspace_commit. Without plan, creates a draft using source timing and optional direct productionShotId mapping. Source footage is reused only with explicit reuseReference. No paid generation/render; pass composition to workspace_commit directly; no source-video or final AI review gate. Optional projectId saves an editable revision. Set matchCaptionStyle to suggest subtitle styling from visualStyle even when the reference has no subtitles; captionDescription and explicit captionStyle override the suggestion. This does not recognize an exact source font.",
   },
 };
 export async function readReferenceReport(

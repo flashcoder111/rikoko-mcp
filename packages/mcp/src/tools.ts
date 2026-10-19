@@ -156,7 +156,7 @@ export const tools = {
     schema: z.object({
       jobId: idSchema,
       delivery: z.enum(["auto", "links"]).default("auto"),
-      purpose: z.enum(["preview", "final"]).default("preview"),
+      purpose: z.enum(["preview", "final"]).default("final"),
     }),
   },
   workspace_request_save: {
@@ -186,7 +186,7 @@ export const tools = {
   },
   workspace_commit: {
     description:
-      "Create a video, apply structured edits, or restore a version, then queue a real local render. Chat and studio share this endpoint. Always pass a stable idempotencyKey; editing requires projectId and the current baseRevisionId. Initial create may use the empty scoped productionProjectId returned by production_plan_save. On REVISION_CONFLICT read workspace_snapshot and re-plan. Existing media is reused; this tool does not buy new generated footage. Returns project/revision/job IDs and a workspace link. Call workspace_result for progress. Keep the user in the original Agent conversation. Deliver video and content only after workspace_result purpose=final confirms finalReady=true, always including its returned workspace URL as a clickable Markdown link for the user to open and edit; do not open a window automatically.",
+      "Create a video, apply structured edits, or restore a version, then queue a real local render. Chat and studio share this endpoint. Always pass a stable idempotencyKey; editing requires projectId and the current baseRevisionId. Initial create may use the empty scoped productionProjectId returned by production_plan_save. On REVISION_CONFLICT read workspace_snapshot and re-plan. Existing media is reused; this tool does not buy new generated footage. Returns project/revision/job IDs and a workspace link. Call workspace_result for progress. Keep the user in the original Agent conversation. Deliver completed video and content directly after workspace_result purpose=final passes technical validation, without final AI review, always including its returned workspace URL as a clickable Markdown link for the user to open and edit; do not open a window automatically.",
     schema: commitSchema,
   },
   capabilities: {
@@ -558,6 +558,22 @@ export async function callTool(
           })
         : service.provider.describe();
       return {
+        productionQuality: {
+          version: 1,
+          planFields: ["process", "editing"],
+          legacyPlansSupported: true,
+          removalOfActiveContracts: false,
+          editingPreviewTool: "production_editing_preview",
+          semanticReviewer: "host_or_user",
+          automaticBeatDetection: false,
+          audioCueSourceBinding: "assetId+sha256",
+          audioSourceStartMs: 0,
+          sourceReviewBinding: "project+scopeVersion+shotId",
+          finalReviewBinding: "revisionId+expectedProductionScopeHash",
+          finalReviewObligations: "optional_only_when_review_requested",
+          finalReviewRequired: false,
+          guideTopic: "production-quality",
+        },
         generationPreparation: {
           protocol: "rikoko-prepared-generation-v1",
           persistent: true,
@@ -573,13 +589,34 @@ export async function callTool(
           prepareTool: "generation_prepare",
           recordType: "generation-preparation",
           templateVersion: "rikoko-direction-v2",
+          supportedTemplateVersions: [
+            "rikoko-direction-v2",
+            "rikoko-direction-v3",
+          ],
           recheckAt: ["quote", "submit", "worker_before_provider"],
           legacyUnpreparedOperations: service.allowLegacyGeneration
             ? "explicitly_enabled"
             : "reference_video_blocked",
           videoTargetRequired: !service.allowLegacyGeneration,
           defaultScopedProject: true,
-          formalDeliveryRequiresScope: true,
+          formalDeliveryRequiresScope: false,
+          boundScopeIntegrityRequired: true,
+        },
+        reviewPolicy: {
+          version: 1,
+          keyImages: "one_quick_check_per_unchanged_image_and_use",
+          keyImageChecks: [
+            "subject_identity",
+            "major_defects",
+            "initial_state",
+          ],
+          keyImageReviewTool: "reference_storyboard_review",
+          otherKeyImageReviewTool: "media_review",
+          finalAiReview: "off_by_default",
+          automaticQualityRegeneration: false,
+          extraPaidReview: "only_when_user_requested",
+          delivery: "completed_and_technically_valid",
+          optionalReviewDoesNotBlockDelivery: true,
         },
         visualReview: {
           schemaVersion: 2,
@@ -598,7 +635,10 @@ export async function callTool(
             defaultHoldMs: 200,
             cutValidation: "error",
           },
-          legacyAcceptanceRequiresReview: true,
+          legacyAcceptanceRequiresReview: false,
+          finalReviewRequired: false,
+          finalReadyMeaning:
+            "technical_delivery_readiness_not_visual_acceptance",
           semanticReviewer: "host_or_user",
           hostVisionVerified: false,
         },

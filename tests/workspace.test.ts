@@ -538,7 +538,10 @@ describe("browser sessions", () => {
 
 it("delivers only a completed job's media through expiring, revocable links with byte ranges", async () => {
   const first = await create();
-  const pending = await call("workspace_result", { jobId: first.jobId });
+  const pending = await call("workspace_result", {
+    jobId: first.jobId,
+    purpose: "preview",
+  });
   expect(pending.status).toBe(200);
   expect(pending.result.status).toBe("queued");
   const principal = await service.authenticate(key);
@@ -557,8 +560,9 @@ it("delivers only a completed job's media through expiring, revocable links with
     const job = await tx.get(first.jobId);
     await tx.put({ ...job!, status: "completed", outputs: [asset.id] });
   });
-  const result = (await call("workspace_result", { jobId: first.jobId }))
-    .result;
+  const result = (
+    await call("workspace_result", { jobId: first.jobId, purpose: "preview" })
+  ).result;
   expect(result.media[0].mimeType).toBe("video/mp4");
   const path = new URL(result.media[0].url).pathname;
   const media = await app.request(`http://localhost${path}`, {

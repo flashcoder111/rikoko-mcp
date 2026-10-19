@@ -111,7 +111,7 @@ it.each(["codex", "hermes", "claude", "generic"])(
       });
       const delivered = await client.callTool({
         name: "workspace_result",
-        arguments: { jobId: command.jobId },
+        arguments: { jobId: command.jobId, purpose: "preview" },
       });
       expect(delivered.isError).not.toBe(true);
       expect(delivered.content).toHaveLength(1);

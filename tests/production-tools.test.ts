@@ -187,7 +187,7 @@ it("rejects unordered, duplicate and out-of-range event timestamps", async () =>
     }),
   ).rejects.toThrow();
 });
-it("requires actual inspection for final delivery and invalidates acceptance across revisions", async () => {
+it("delivers without inspection and keeps optional acceptance bound to its revision", async () => {
   const project = await service.createProject(c, {
     title: "Review",
     brief: "fixture",
@@ -222,9 +222,9 @@ it("requires actual inspection for final delivery and invalidates acceptance acr
   });
   expect(validation.scenes[0].croppedFraction).toBeCloseTo(0.6836, 3);
   expect(validation.scenes[0].discardedTailMs).toBe(1500);
-  await expect(workspaceResult(service, c, job.id, "final")).rejects.toThrow(
-    "Final delivery",
-  );
+  expect(
+    (await workspaceResult(service, c, job.id, "final")).quality,
+  ).toMatchObject({ finalReady: true, reviewAccepted: false });
   const review = {
     assetId: source.id,
     revisionId: revision.id,
@@ -439,7 +439,9 @@ it("tracks standalone visual acceptance and a later rejection without confusing 
   ).toBe("unreviewed");
   await expect(
     workspaceResult(service, c, job.id, "final"),
-  ).rejects.toMatchObject({ code: "FINAL_REVIEW_REQUIRED" });
+  ).resolves.toMatchObject({
+    mediaAcceptance: { finalReady: true, reviewAccepted: false },
+  });
   const review = {
     assetId: source.id,
     inspectionIds: [inspection.id],

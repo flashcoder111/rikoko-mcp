@@ -285,8 +285,9 @@ it("exposes content only after completion and refreshed media links do not creat
       idempotencyKey: "delivery",
     })
   ).result;
-  const pending = (await call("workspace_result", { jobId: created.jobId }))
-    .result;
+  const pending = (
+    await call("workspace_result", { jobId: created.jobId, purpose: "preview" })
+  ).result;
   expect(pending.media).toEqual([]);
   expect(pending.textContent).toBeUndefined();
   const image = await asset();
@@ -294,15 +295,17 @@ it("exposes content only after completion and refreshed media links do not creat
     const job = await tx.get(created.jobId);
     await tx.put({ ...job!, status: "completed", outputs: [image.id] });
   });
-  const result = (await call("workspace_result", { jobId: created.jobId }))
-    .result;
+  const result = (
+    await call("workspace_result", { jobId: created.jobId, purpose: "preview" })
+  ).result;
   expect(result.textContent).toMatchObject({
     title: "产品短片",
     screenText: ["已确认的文案"],
     source: "composition-screen-text",
   });
-  const renewed = (await call("workspace_result", { jobId: created.jobId }))
-    .result;
+  const renewed = (
+    await call("workspace_result", { jobId: created.jobId, purpose: "preview" })
+  ).result;
   expect(renewed.media[0].url).not.toBe(result.media[0].url);
   expect((await call("records_list", { type: "job" })).result).toHaveLength(1);
 });

@@ -487,9 +487,7 @@ it("requires a reviewed image, binds video quotes to it, and invalidates stale a
   ]);
   expect(q.targetDurationMs).toBe(2500);
   expect(q.generationDurationMs).toBe(5000);
-  await expect(review(plan)).rejects.toMatchObject({
-    code: "STORYBOARD_CONFLICT",
-  });
+  await expect(review(plan)).resolves.toEqual(accepted);
   await review(accepted, {
     decision: "rejected",
     notes: "Product needs correction",

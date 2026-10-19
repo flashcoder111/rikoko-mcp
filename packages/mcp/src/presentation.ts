@@ -14,7 +14,12 @@ export type ConversationResult = {
   media?: DeliveredMedia[];
   expiresAt?: string;
   textContent?: { title: string; screenText: string[]; source: string };
-  quality?: { status: string; finalReady: boolean; issues: unknown[] };
+  quality?: {
+    status: string;
+    finalReady: boolean;
+    reviewAccepted?: boolean;
+    issues: unknown[];
+  };
   mediaAcceptance?: {
     status: string;
     finalReady: boolean;
@@ -28,7 +33,7 @@ export function canDeliverResult(result: ConversationResult) {
   if (result.quality) return result.quality.finalReady === true;
   if (result.mediaAcceptance?.media.length)
     return result.mediaAcceptance.finalReady === true;
-  // Audio/text have no visual acceptance contract. Unknown visual results fail closed.
+  // Audio/text have no visual contract. Older visual responses without readiness stay previews.
   return !(result.media ?? []).some((f) => /^(video|image)\//.test(f.mimeType));
 }
 export function resultText(
@@ -37,25 +42,17 @@ export function resultText(
   includeAttachments = true,
 ) {
   const deliverable = canDeliverResult(result);
-  const reviewed =
-    result.quality?.finalReady || result.mediaAcceptance?.finalReady;
-  const visual =
-    !!result.quality ||
-    !!result.mediaAcceptance?.media.length ||
-    result.media?.some((f) => /^(video|image)\//.test(f.mimeType));
   const lines = [
     `${result.title ?? "rikoko media"} — ${result.status ?? "queued"}`,
     `jobId: ${result.jobId}`,
     ...(!deliverable && result.status === "completed"
       ? [
-          visual && !reviewed
-            ? "Unreviewed preview — for inspection only. Inspect the actual media, record acceptance, then request workspace_result purpose=final."
-            : "Preview — for inspection only. Request workspace_result purpose=final for delivery.",
+          "Preview — request workspace_result purpose=final for delivery. No final AI review is required; do not start a review or regeneration loop.",
         ]
       : []),
     ...(result.quality
       ? [
-          `Visual acceptance: ${result.quality.status}; finalReady=${result.quality.finalReady}. Delivery purpose: ${result.purpose ?? "preview"}.`,
+          `Optional visual review: ${result.quality.status}; technical delivery ready=${result.quality.finalReady}. Delivery purpose: ${result.purpose ?? "preview"}.`,
           `Validation: ${JSON.stringify(result.quality)}`,
         ]
       : []),
@@ -100,7 +97,7 @@ export function resultText(
     );
   if (deliverable)
     lines.push(
-      "Keep all requests and follow-up edits in this host's original conversation. When completed, deliver the video using the host's native attachment support or the returned media links, include relevant text/subtitle content and always include the returned workspace URL as a clickable Markdown link so the user can open the browser workspace and edit the video. Keep this link alongside native attachments and in links-only replies. Use the exact returned URL; never invent a localhost address or append credentials. Draft publishing copy only from known user facts and actual content. Never claim to have watched the result without inspecting it. Do not open a browser, MCP App, popup or separate chat automatically. If attachment display is unavailable, provide the returned download/workspace link. workspace_export saves files without rerendering.",
+      "Keep all requests and follow-up edits in this host's original conversation. When completed, deliver directly without a final AI review or automatic quality regeneration. Unreviewed does not mean accepted. Deliver the video using the host's native attachment support or the returned media links, include relevant text/subtitle content and always include the returned workspace URL as a clickable Markdown link so the user can open the browser workspace and edit the video. Keep this link alongside native attachments and in links-only replies. Use the exact returned URL; never invent a localhost address or append credentials. Draft publishing copy only from known user facts and actual content. Never claim to have watched the result without inspecting it. Do not open a browser, MCP App, popup or separate chat automatically. If attachment display is unavailable, provide the returned download/workspace link. workspace_export saves files without rerendering.",
     );
   if (result.projectId)
     lines.push(

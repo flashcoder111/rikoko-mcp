@@ -196,7 +196,8 @@ it.each(["hermes", "codex"] as const)(
       },
       client,
     );
-    expect(text).toContain("Unreviewed preview");
+    expect(text).toContain("Preview —");
+    expect(text).toContain("No final AI review is required");
     expect(text).not.toContain("MEDIA:");
     expect(text).not.toContain("Display in this conversation:");
     expect(text).not.toContain("deliver the video");
@@ -376,13 +377,13 @@ it("checks source time after speed changes and retains a declared settled-result
     expect.objectContaining({ code: "ACTION_RANGE_CUT" }),
   );
 });
-it("requires a production scope for formal final readiness", async () => {
+it("allows unscoped compositions to deliver without inventing a production scope", async () => {
   const { svc } = workspaceFixture(5000);
   const result = await validateWorkspace(svc, c, "revision");
-  expect(result.issues).toContainEqual(
+  expect(result.issues).not.toContainEqual(
     expect.objectContaining({ code: "PRODUCTION_SCOPE_REQUIRED" }),
   );
-  expect(result.finalReady).toBe(false);
+  expect(result.finalReady).toBe(true);
 });
 it("allows contiguous split scenes but rejects gaps or omission of the action start", async () => {
   const { svc, records } = workspaceFixture(4400);

@@ -176,11 +176,11 @@ it("requires the current scope and plan for formal generation while allowing exp
     code: "PRODUCTION_SCOPE_CHANGED",
   });
 });
-it("does not promote experimental or unreviewed media into formal production", async () => {
+it("retains preparation provenance and external-use authorization without a review gate", async () => {
   const { project } = await setup(),
     { a, evidence } = await asset();
   await expect(assign(project, a)).rejects.toMatchObject({
-    code: "PRODUCTION_ASSET_REVIEW_REQUIRED",
+    code: "PRODUCTION_ORIGIN_REQUIRED",
   });
   await accept(a, evidence);
   await expect(assign(project, a)).rejects.toMatchObject({

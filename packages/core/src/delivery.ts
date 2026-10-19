@@ -9,7 +9,7 @@ export async function workspaceResult(
   service: Service,
   c: Context,
   jobId: string,
-  purpose: "preview" | "final" = "preview",
+  purpose: "preview" | "final" = "final",
 ) {
   const job = await service.get(c, "job", jobId);
   const revision = job.revisionId
@@ -41,25 +41,65 @@ export async function workspaceResult(
     }[],
   };
   if (job.status !== "completed" || !job.outputs.length) return result;
-  if (
-    purpose === "final" &&
-    revision &&
-    (!result.quality?.finalReady ||
-      !job.outputs.includes(result.quality.reviewAssetId))
-  )
+  if (purpose === "final" && revision && !result.quality?.finalReady)
     throw new AppError(
-      "FINAL_REVIEW_REQUIRED",
-      "Final delivery requires resolving placeholder errors and a visual review of this exact rendered revision. Use purpose=preview to inspect it first.",
+      "DELIVERY_VALIDATION_REQUIRED",
+      "Resolve technical composition errors before delivery. AI review is not required; do not regenerate media automatically.",
+      409,
+      {
+        issues: (result.quality?.issues ?? [])
+          .filter((issue) => issue.severity === "error")
+          .map((issue) => ({
+            path: issue.sceneId ?? "composition",
+            code: issue.code,
+            message: issue.message,
+          })),
+      },
     );
-  if (
-    purpose === "final" &&
-    result.mediaAcceptance?.media.length &&
-    !result.mediaAcceptance.finalReady
-  )
-    throw new AppError(
-      "FINAL_REVIEW_REQUIRED",
-      "Inspect and accept generated visual media before final delivery. Use purpose=preview first.",
-    );
+  if (purpose === "final") {
+    // The worker probes output on collection. Check storage integrity without
+    // another decoder, vision model, review pass or generation attempt.
+    for (const id of job.outputs) {
+      const asset = await service.get(c, "asset", id);
+      let bytes: Uint8Array;
+      try {
+        bytes = await service.storage.read(asset.storageKey);
+      } catch {
+        throw new AppError(
+          "DELIVERY_MEDIA_UNAVAILABLE",
+          "Completed output bytes are unavailable. Restore the existing file; do not regenerate automatically.",
+          409,
+        );
+      }
+      if (
+        (["image", "video", "audio"].includes(asset.kind) && !bytes.length) ||
+        sha256(bytes) !== asset.sha256
+      )
+        throw new AppError(
+          "DELIVERY_MEDIA_UNAVAILABLE",
+          "Completed output is empty or its bytes changed. Restore the existing file; do not regenerate automatically.",
+          409,
+        );
+      if (
+        (asset.kind === "video" ||
+          (asset.kind === "image" &&
+            (asset.metadata?.width !== undefined ||
+              asset.metadata?.height !== undefined))) &&
+        (!Number.isFinite(asset.metadata?.width) ||
+          asset.metadata.width <= 0 ||
+          !Number.isFinite(asset.metadata?.height) ||
+          asset.metadata.height <= 0 ||
+          (asset.kind === "video" &&
+            (!Number.isFinite(asset.metadata?.durationMs) ||
+              asset.metadata.durationMs <= 0)))
+      )
+        throw new AppError(
+          "DELIVERY_VALIDATION_REQUIRED",
+          "Output has invalid measured dimensions or duration. Repair the existing output; no AI review is required.",
+          409,
+        );
+    }
+  }
   const textContent = revision
     ? {
         title: revision.composition.title as string,

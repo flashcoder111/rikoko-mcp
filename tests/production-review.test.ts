@@ -113,9 +113,9 @@ it("records unknown without requiring invented visual evidence", async () => {
   });
   expect(result.schemaVersion).toBe(2);
   expect(result.checks.actionComplete.status).toBe("unknown");
-  expect((await validateMediaResult(service, c, [asset.id])).finalReady).toBe(
-    false,
-  );
+  expect(
+    (await validateMediaResult(service, c, [asset.id])).reviewAccepted,
+  ).toBe(false);
 });
 it("rejects accepting an unknown check", async () => {
   const { asset, evidence } = await fixture();
@@ -185,9 +185,9 @@ it("accepts an evidenced action while recording that sampled coverage is not sem
   expect(result.coverage.continuous).toBe(false);
   expect(result.coverage.maxSampleGapMs).toBe(250);
   expect(result.range).toEqual({ startMs: 0, endMs: 2000 });
-  expect((await validateMediaResult(service, c, [asset.id])).finalReady).toBe(
-    true,
-  );
+  expect(
+    (await validateMediaResult(service, c, [asset.id])).reviewAccepted,
+  ).toBe(true);
 });
 it("allows a visually checked static shot to explain why action completion is not applicable", async () => {
   const { asset, evidence } = await fixture([0, 950, 1900]);
@@ -219,9 +219,9 @@ it("never promotes acceptance of a selected interval into acceptance of the whol
       },
     ],
   });
-  expect((await validateMediaResult(service, c, [asset.id])).finalReady).toBe(
-    false,
-  );
+  expect(
+    (await validateMediaResult(service, c, [asset.id])).reviewAccepted,
+  ).toBe(false);
 });
 it("rejects evidence from another asset or an invalid review interval", async () => {
   const first = await fixture(),
@@ -261,7 +261,8 @@ it("does not let an accepted interval hide a previously rejected full asset", as
   });
   const result = await validateMediaResult(service, c, [asset.id]);
   expect(result.status).toBe("needs_changes");
-  expect(result.finalReady).toBe(false);
+  expect(result.reviewAccepted).toBe(false);
+  expect(result.finalReady).toBe(true);
 });
 it("requires reinspection rather than silently upgrading legacy accepted records", async () => {
   const { asset } = await fixture();
@@ -282,9 +283,9 @@ it("requires reinspection rather than silently upgrading legacy accepted records
       },
     }),
   );
-  expect((await validateMediaResult(service, c, [asset.id])).finalReady).toBe(
-    false,
-  );
+  expect(
+    (await validateMediaResult(service, c, [asset.id])).reviewAccepted,
+  ).toBe(false);
 });
 
 it("revokes whole-asset acceptance when a later excerpt review finds a defect", async () => {
@@ -306,7 +307,8 @@ it("revokes whole-asset acceptance when a later excerpt review finds a defect", 
   });
   const result = await validateMediaResult(service, c, [asset.id]);
   expect(result.status).toBe("needs_changes");
-  expect(result.finalReady).toBe(false);
+  expect(result.reviewAccepted).toBe(false);
+  expect(result.finalReady).toBe(true);
 });
 it("requires a genuine middle sample rather than three timestamps near the endpoints", async () => {
   const { asset, evidence } = await fixture([0, 1, 1900]);
@@ -328,9 +330,9 @@ it("invalidates accepted media after its bytes change", async () => {
   await service.scoped(c, "write", (tx) =>
     tx.put({ ...asset, sha256: "changed-fixture-hash" }),
   );
-  expect((await validateMediaResult(service, c, [asset.id])).finalReady).toBe(
-    false,
-  );
+  expect(
+    (await validateMediaResult(service, c, [asset.id])).reviewAccepted,
+  ).toBe(false);
   await expect(
     callTool(service, c, "media_review", review(asset.id, evidence.id)),
   ).rejects.toMatchObject({ code: "STALE_EVIDENCE" });
@@ -384,9 +386,9 @@ it("revokes final-cut acceptance after a defect is found in an excerpt of its re
     ...input,
     revisionId: revision.id,
   });
-  expect((await validateWorkspace(service, c, revision.id)).finalReady).toBe(
-    true,
-  );
+  expect(
+    (await validateWorkspace(service, c, revision.id)).reviewAccepted,
+  ).toBe(true);
   await expect(
     callTool(service, c, "media_review", {
       ...input,
@@ -408,7 +410,8 @@ it("revokes final-cut acceptance after a defect is found in an excerpt of its re
   });
   const result = await validateWorkspace(service, c, revision.id);
   expect(result.status).toBe("needs_changes");
-  expect(result.finalReady).toBe(false);
+  expect(result.reviewAccepted).toBe(false);
+  expect(result.finalReady).toBe(true);
 });
 
 it("advertises the review contract without claiming to verify the host's vision", async () => {

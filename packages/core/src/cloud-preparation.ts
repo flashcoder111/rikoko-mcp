@@ -24,6 +24,7 @@ import {
 import { productionRequirementsSchema } from "./production-scope.js";
 import { validateGenerationAssets } from "../../providers/src/generation-input.js";
 import { checkGenerationTarget } from "../../providers/src/generation-target.js";
+import { assertProductionQualityRetained } from "./production-editing.js";
 
 export const cloudPreparationProtocol = "rikoko-cloud-preparation-v1";
 const digest = z.string().regex(/^[a-f0-9]{64}$/);
@@ -291,6 +292,7 @@ export async function syncCloudProductionContext(
           : data.plan
         : data.scope;
     if (data.kind === "plan") {
+      assertProductionQualityRetained(old?.plan, data.plan);
       if (!!data.plan.remake !== !!data.remakeEvidence)
         throw new AppError(
           "REMAKE_EVIDENCE_REQUIRED",
@@ -351,6 +353,20 @@ export async function syncCloudProductionContext(
           "Synchronize the current plan before the scope",
           409,
         );
+      if (old?.productionScope) {
+        const previousPlan = await tx.get(
+          old.productionScope.planId,
+          c.accountId,
+          "production-plan",
+        );
+        if (!previousPlan)
+          throw new AppError(
+            "PRODUCTION_CONTEXT_CONFLICT",
+            "Restore the previously bound cloud plan before changing scope",
+            409,
+          );
+        assertProductionQualityRetained(previousPlan.plan, plan.plan);
+      }
     }
     if (old?.version === data.version)
       return { id, version: old.version, contentHash, ...acknowledgement };

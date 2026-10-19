@@ -13,6 +13,15 @@ import {
 import { fingerprint, type Service } from "./index.js";
 import { validateRemakeEvidence } from "./reference-handoff.js";
 import type { ProductionPlan } from "./production-plan.js";
+import { validateEditingComposition } from "./production-editing.js";
+import {
+  productionQualityAccepted,
+  productionQualityCheckSchema,
+  productionReviewBindingSchema,
+  productionReviewInstructions,
+  productionReviewObligations,
+  validateProductionQualityReview,
+} from "./production-quality-review.js";
 const requirementCheckSchema = z
   .object({
     requirementId: idSchema,
@@ -121,6 +130,11 @@ export const mediaReviewSchema = z
   .object({
     assetId: idSchema,
     revisionId: idSchema.optional(),
+    production: productionReviewBindingSchema.optional(),
+    expectedProductionScopeHash: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .optional(),
     inspectionIds: z.array(idSchema).max(30),
     decision: z.enum(["accepted", "needs_changes", "unreviewed"]),
     reviewer: z.enum(["host_agent", "user"]),
@@ -146,6 +160,7 @@ export const mediaReviewSchema = z
       .strict(),
     notes: z.string().trim().min(1).max(4000),
     requirementChecks: z.array(requirementCheckSchema).max(50).optional(),
+    qualityChecks: z.array(productionQualityCheckSchema).max(2000).optional(),
   })
   .strict();
 export async function reviewMedia(service: Service, c: Context, raw: unknown) {
@@ -262,10 +277,70 @@ export async function reviewMedia(service: Service, c: Context, raw: unknown) {
       : undefined;
     if (input.revisionId && !revision)
       throw new AppError("NOT_FOUND", "Revision not found", 404);
-    const production = revision
-      ? await productionScopeState(tx, c.accountId, revision.projectId)
-      : undefined;
-    if (production?.plan?.plan.remake) {
+    if (revision && input.production)
+      throw new AppError(
+        "REVIEW_PRODUCTION_MISMATCH",
+        "Use revisionId for a final cut or production for a source shot, not both",
+      );
+    const production =
+      revision || input.production
+        ? await productionScopeState(
+            tx,
+            c.accountId,
+            revision?.projectId ?? input.production!.projectId,
+          )
+        : undefined;
+    if (
+      input.production &&
+      (!production?.scope ||
+        !production.plan ||
+        production.scope.version !== input.production.scopeVersion ||
+        production.plan.version !== production.scope.planVersion ||
+        !production.plan.plan.shots.some(
+          (shot: { id: string }) => shot.id === input.production!.shotId,
+        ))
+    )
+      throw new AppError(
+        "PRODUCTION_SCOPE_CHANGED",
+        "Review the current scope and a known target shot",
+        409,
+      );
+    if (production?.plan) {
+      if (
+        revision &&
+        input.decision === "accepted" &&
+        productionReviewObligations(production.plan.plan).length > 0 &&
+        input.expectedProductionScopeHash !== production.hash
+      )
+        throw new AppError(
+          "PRODUCTION_SCOPE_CHANGED",
+          "Read workspace_validate and pass its current productionScopeHash as expectedProductionScopeHash before accepting this enhanced final cut",
+          409,
+        );
+      const fps = Number(asset.metadata?.fps);
+      validateProductionQualityReview({
+        plan: production.plan.plan,
+        shotId: input.production?.shotId,
+        composition: revision?.composition,
+        qualityChecks: input.qualityChecks,
+        decision: input.decision,
+        samples: sortedSamples,
+        range,
+        frameMs:
+          asset.kind === "image"
+            ? 1
+            : Number.isFinite(fps) && fps > 0
+              ? 1000 / fps
+              : 40,
+      });
+    } else if (input.qualityChecks?.length) {
+      throw new AppError(
+        "PRODUCTION_QUALITY_REVIEW_REQUIRED",
+        "Quality checks require an exact production shot or rendered revision binding",
+        409,
+      );
+    }
+    if (revision && production?.plan?.plan.remake) {
       await validateRemakeEvidence(
         service,
         tx,
@@ -315,8 +390,23 @@ export async function reviewMedia(service: Service, c: Context, raw: unknown) {
     const previous = (await tx.list(c.accountId, "media-review")).filter(
       (r) => r.assetId === asset.id,
     );
+    const requestHash = fingerprint({
+      input,
+      sourceSha256: asset.sha256,
+      scopeHash: production?.hash,
+      revisionHash: revision ? fingerprint(revision.composition) : undefined,
+    });
+    if (asset.kind === "image") {
+      const latest = [...previous].sort(
+        (a, b) =>
+          b.createdAt.localeCompare(a.createdAt) ||
+          (b.sequence ?? 0) - (a.sequence ?? 0),
+      )[0];
+      if (latest?.requestHash === requestHash) return latest;
+    }
     const record = {
       ...input,
+      requestHash,
       schemaVersion: 2,
       checks,
       range,
@@ -363,20 +453,23 @@ export async function validateMediaResult(
     media.push({
       assetId: id,
       status: reviewStatus(review),
-      reviewRefreshRequired:
+      reviewRefreshRequired: false,
+      optionalReviewRefreshNeeded:
         review?.decision === "accepted" && review.schemaVersion !== 2,
       generationCheck: asset.provenance?.generationCheck,
     });
   }
-  const finalReady =
+  const reviewAccepted =
     media.length > 0 && media.every((m) => m.status === "accepted");
   return {
-    status: finalReady
+    status: reviewAccepted
       ? "accepted"
       : media.some((m) => m.status === "needs_changes")
         ? "needs_changes"
         : "unreviewed",
-    finalReady,
+    finalReady: true,
+    reviewAccepted,
+    reviewRequired: false,
     media,
     issues: media.flatMap((m) => m.generationCheck?.warnings ?? []),
   };
@@ -388,10 +481,25 @@ export async function validateWorkspace(
 ) {
   const revision = await service.get(c, "revision", revisionId);
   const composition = revision.composition;
+  const production = await service.scoped(c, "read", async (tx) => {
+    const result = await inspectProductionScope(
+      service,
+      tx,
+      c.accountId,
+      revision,
+    );
+    const state = await productionScopeState(
+      tx,
+      c.accountId,
+      revision.projectId,
+    );
+    return { ...result, qualityPlan: state.plan?.plan };
+  });
   const reviews = await service.scoped(c, "read", (tx) =>
     tx.list(c.accountId, "media-review"),
   );
   const scenes = [];
+  const assets = new Map<string, Entity>();
   const issues: {
     code: string;
     sceneId?: string;
@@ -402,6 +510,7 @@ export async function validateWorkspace(
     const asset = scene.assetId
       ? await service.get(c, "asset", scene.assetId)
       : undefined;
+    if (asset) assets.set(asset.id, asset);
     const speed = scene.speed ?? 1;
     const sourceStartMs = scene.sourceStartMs ?? 0;
     const sourceEndMs = sourceStartMs + scene.durationMs * speed;
@@ -411,7 +520,15 @@ export async function validateWorkspace(
           (r) =>
             !r.revisionId &&
             r.assetId === asset.id &&
-            r.sourceSha256 === asset.sha256,
+            r.sourceSha256 === asset.sha256 &&
+            (!production.qualityPlan ||
+              r.decision !== "accepted" ||
+              productionQualityAccepted(
+                r,
+                production.qualityPlan,
+                production.scopeHash,
+                scene.productionShotId,
+              )),
         ),
         asset,
       );
@@ -432,7 +549,24 @@ export async function validateWorkspace(
           100,
           Math.max(1, Math.ceil(1000 / (asset.metadata.fps || 25))),
         );
-        for (const action of sourceReview?.actionRanges ?? []) {
+        const protectedActions = [
+          ...(sourceReview?.actionRanges ?? []),
+          ...(sourceReview?.qualityChecks ?? []).flatMap(
+            (check: {
+              obligationId: string;
+              status: string;
+              range?: { startMs: number; endMs: number };
+              holdMs?: number;
+            }) =>
+              check.status === "pass" &&
+              check.obligationId.startsWith("process:") &&
+              check.obligationId.includes(":operation:") &&
+              check.range
+                ? [{ ...check.range, holdMs: check.holdMs ?? 0 }]
+                : [],
+          ),
+        ];
+        for (const action of protectedActions) {
           let covered = action.startMs;
           for (const interval of used) {
             if (interval.start > covered + tolerance) break;
@@ -472,7 +606,8 @@ export async function validateWorkspace(
         code: "DISCARDED_TAIL",
         sceneId: scene.id,
         severity: "warning",
-        message: "Inspect the omitted tail for unfinished action",
+        message:
+          "The edit omits more than one second of source footage; no automatic review or regeneration is required",
       });
     if (croppedFraction > 0.1)
       issues.push({
@@ -480,7 +615,7 @@ export async function validateWorkspace(
         sceneId: scene.id,
         severity: "warning",
         message:
-          "Inspect the rendered framing; more than 10% of source image area is cropped",
+          "More than 10% of source image area is cropped; this is advisory, not an AI review requirement",
       });
     if (asset?.kind === "video" && sourceEndMs > asset.metadata.durationMs + 1)
       issues.push({
@@ -515,10 +650,35 @@ export async function validateWorkspace(
         : undefined,
     });
   }
-  const production = await service.scoped(c, "read", (tx) =>
-    inspectProductionScope(service, tx, c.accountId, revision),
-  );
   issues.push(...production.issues);
+  if (production.qualityPlan?.editing) {
+    const audioIds = new Set<string>(
+      [
+        composition.audio?.assetId,
+        production.qualityPlan.editing.audio?.assetId,
+        ...composition.scenes.map(
+          (scene: { audioAssetId?: string }) => scene.audioAssetId,
+        ),
+        ...composition.events.map(
+          (event: { assetId?: string }) => event.assetId,
+        ),
+      ].filter((id): id is string => !!id),
+    );
+    await service.scoped(c, "read", async (tx) => {
+      for (const id of audioIds) {
+        if (assets.has(id)) continue;
+        const asset = await tx.get(id, c.accountId, "asset");
+        if (asset) assets.set(id, asset);
+      }
+    });
+    issues.push(
+      ...validateEditingComposition(
+        production.qualityPlan,
+        composition,
+        assets,
+      ),
+    );
+  }
   const revisionHash = fingerprint(composition);
   const matching = reviews.filter(
     (r) =>
@@ -555,6 +715,7 @@ export async function validateWorkspace(
     }
   }
   if (
+    review?.decision === "accepted" &&
     !remakeReviewComplete(
       production.remakeRequirements,
       review?.requirementChecks,
@@ -562,9 +723,26 @@ export async function validateWorkspace(
   ) {
     issues.push({
       code: "REMAKE_REVIEW_REQUIRED",
-      severity: "error",
+      severity: "warning",
       message:
-        "The rendered cut needs explicit acceptance for every preserve/adapt requirement",
+        "Optional review has not accepted every preserve/adapt requirement; this does not block delivery",
+    });
+    review = undefined;
+  }
+  if (
+    review?.decision === "accepted" &&
+    production.qualityPlan &&
+    !productionQualityAccepted(
+      review,
+      production.qualityPlan,
+      production.scopeHash,
+    )
+  ) {
+    issues.push({
+      code: "PRODUCTION_QUALITY_REVIEW_REQUIRED",
+      severity: "warning",
+      message:
+        "Optional production quality review is incomplete; deliver without starting review or regeneration",
     });
     review = undefined;
   }
@@ -573,16 +751,21 @@ export async function validateWorkspace(
     productionScopeHash: production.scopeHash,
     revisionHash,
     status: reviewStatus(review),
-    reviewRefreshRequired:
+    reviewRefreshRequired: false,
+    optionalReviewRefreshNeeded:
       review?.decision === "accepted" && review.schemaVersion !== 2,
     reviewId: review?.id,
     reviewAssetId: review?.assetId,
-    finalReady:
-      !issues.some((i) => i.severity === "error") &&
-      reviewStatus(review) === "accepted",
+    finalReady: !issues.some((i) => i.severity === "error"),
+    reviewAccepted: reviewStatus(review) === "accepted",
+    reviewRequired: false,
     scenes,
     issues,
+    qualityReviewRequired: false,
+    qualityReview: production.qualityPlan
+      ? productionReviewInstructions(production.qualityPlan, composition)
+      : [],
     instruction:
-      "Inspect source endpoints and the rendered result with media_inspect, then record actual host/user judgment with media_review bound to this revision. Rendering success is not visual acceptance.",
+      "Deliver completed output once technical validation passes. Final AI review is optional and never a delivery prerequisite. Do not inspect or regenerate videos by default. Preserve unreviewed/rejected feedback honestly; render completion does not establish visual acceptance.",
   };
 }

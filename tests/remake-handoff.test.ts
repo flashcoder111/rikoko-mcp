@@ -332,7 +332,7 @@ it("assembles independent target shots with direct production mapping and an ini
       ].includes(i.code),
     ),
   ).toBe(false);
-  expect(validation.finalReady).toBe(false); // Mapping alone cannot approve unreviewed media.
+  expect(validation.finalReady).toBe(false); // Mapping alone does not establish required asset assignments.
   await service.cancel(c, committed.jobId);
   await expect(
     callTool(service, c, "reference_adapt", {
@@ -378,7 +378,9 @@ it("returns Gemini evidence and stable source binding without another model call
 });
 it("validates host requirements and freezes purpose, stages, framing and acceptance in prompts", async () => {
   const { plan } = await fixture();
-  const { p, prompts } = await prepared(plan);
+  plan.remake.productFacts.push("Add a presentation ribbon in a later shot");
+  plan.shots[0].productFactIndices = [0];
+  const { saved, p, prompts } = await prepared(plan);
   for (const text of [
     plan.shots[0].purpose,
     ...plan.shots[0].actionStages,
@@ -388,6 +390,12 @@ it("validates host requirements and freezes purpose, stages, framing and accepta
     plan.remake.productFacts[0],
   ])
     expect(prompts.video.prompt).toContain(text);
+  expect(saved.plan.remake.productFacts).toEqual(plan.remake.productFacts);
+  expect(saved.plan.shots[0].productFactIndices).toEqual([0]);
+  expect(prompts.video.prompt).not.toContain(plan.remake.productFacts[1]);
+  expect(prompts.video.prompt).toContain(
+    plan.shots[0].requirementUses[0].application,
+  );
   expect(p.remakeEvidence.analysisSha256).toBe(plan.remake.analysisSha256);
   await expect(service.quote(c, p.input)).resolves.toHaveProperty("id");
 });
@@ -979,7 +987,10 @@ it("requires explicit requirement acceptance on the rendered remake revision", a
   expect(validation.finalReady).toBe(false);
   expect(validation.issues).toEqual(
     expect.arrayContaining([
-      expect.objectContaining({ code: "REMAKE_REVIEW_REQUIRED" }),
+      expect.objectContaining({
+        code: "REMAKE_REVIEW_REQUIRED",
+        severity: "warning",
+      }),
     ]),
   );
 });
