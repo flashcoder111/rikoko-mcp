@@ -21,6 +21,34 @@ const ticket = {
   resultUrl: "https://queue.fal.run/fal-ai/test/requests/123",
   cancelUrl: "https://queue.fal.run/fal-ai/test/requests/123/cancel",
 };
+it("exposes only public fixed generation specifications without allowing parameter overrides", () => {
+  const provider = new FalProvider(
+    [
+      {
+        ...model,
+        parameters: {
+          duration: 5,
+          aspect_ratio: "9:16",
+          resolution: "720P",
+          private_token: "must-not-leak",
+          callback_url: "https://private.invalid",
+          voice_setting: { private: true },
+        },
+      },
+    ],
+    "fake",
+    true,
+  );
+  expect(provider.describe()[0].fixedParameters).toEqual({
+    duration: 5,
+    aspect_ratio: "9:16",
+    resolution: "720P",
+  });
+  expect(JSON.stringify(provider.describe())).not.toContain("must-not-leak");
+  expect(() =>
+    provider.validate({ ...input, parameters: { duration: 15 } }),
+  ).toThrow("fixed");
+});
 it("treats COMPLETED with an upstream error as failed", async () => {
   const p = new FalProvider([model], "fake", true, async () =>
     Response.json({ status: "COMPLETED", error: "generation failed" }),

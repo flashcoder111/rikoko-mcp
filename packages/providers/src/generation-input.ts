@@ -25,9 +25,12 @@ export function validateGenerationInput(model: Model, input: Operation) {
   }
   const p = generationInputSchema.parse(model.generationInput);
   if (
-    (p.mode === "image_edit"
-      ? model.kind !== "image"
-      : model.kind !== "video") ||
+    model.kind !==
+      (p.mode === "image_edit"
+        ? "image"
+        : p.mode === "voice_clone"
+          ? "audio"
+          : "video") ||
     input.mode !== p.mode
   )
     throw new AppError(
@@ -88,11 +91,26 @@ export function validateGenerationAssets(
       a.kind !== b.kind ||
       !Number.isSafeInteger(a.bytes) ||
       a.bytes <= 0 ||
-      !referenceMimeTypes[b.kind].includes(a.mime)
+      !referenceMimeTypes[b.kind].includes(a.mime) ||
+      (b.mimeTypes && !b.mimeTypes.includes(a.mime)) ||
+      (b.containers && !b.containers.includes(a.metadata?.container))
     )
       throw new AppError(
         "INVALID_MEDIA",
         "Reference must be an owned, probed image, video or audio of the declared kind",
+      );
+    if (
+      (b.minDimension || b.maxDimension) &&
+      [a.metadata?.width, a.metadata?.height].some(
+        (dimension) =>
+          !Number.isSafeInteger(dimension) ||
+          dimension < (b.minDimension ?? 1) ||
+          dimension > (b.maxDimension ?? 4096),
+      )
+    )
+      throw new AppError(
+        "REFERENCE_LIMIT",
+        "Reference dimensions exceed the configured limits or are unknown",
       );
     bytes += a.bytes;
     if (a.bytes > b.maxBytes || bytes > p.maxTotalBytes)
@@ -159,6 +177,7 @@ export function generationPayload(
           const body = r.url.slice(data[0].length);
           if (
             referenceMimeTypes[b.kind].includes(data[1]) &&
+            (!b.mimeTypes || b.mimeTypes.includes(data[1])) &&
             body.length > 0 &&
             body.length <= Math.ceil(b.maxBytes / 3) * 4 &&
             body.length % 4 === 0 &&

@@ -5,6 +5,16 @@ import {
   type Entity,
 } from "../../contracts/src/index.js";
 
+export function speechLanguageCode(language: string) {
+  const code = language.split("-")[0].toLowerCase();
+  if (!/^[a-z]{2}$/.test(code))
+    throw new AppError(
+      "UNSUPPORTED_LANGUAGE",
+      "Speech language must use an ISO 639-1 code",
+    );
+  return code;
+}
+
 export const speechLanguage = (
   language: string,
   task: "tts" | "transcribe",

@@ -111,17 +111,17 @@ JS
       fi
       HOMEBREW_NO_AUTO_UPDATE=1 brew install ffmpeg
     elif command -v apt-get >/dev/null; then
-      if [ "$(id -u)" -eq 0 ]; then apt-get update && apt-get install -y ffmpeg fonts-noto-cjk espeak-ng;
-      else sudo apt-get update && sudo apt-get install -y ffmpeg fonts-noto-cjk espeak-ng; fi
+      if [ "$(id -u)" -eq 0 ]; then apt-get update && apt-get install -y ffmpeg fonts-noto-cjk;
+      else sudo apt-get update && sudo apt-get install -y ffmpeg fonts-noto-cjk; fi
     elif command -v dnf >/dev/null; then
-      sudo dnf install -y ffmpeg-free google-noto-sans-cjk-fonts espeak-ng
+      sudo dnf install -y ffmpeg-free google-noto-sans-cjk-fonts
     else
       echo "No supported package manager. Install FFmpeg/ffprobe, then rerun this command." >&2; return 1
     fi
   fi
   command -v ffmpeg >/dev/null && command -v ffprobe >/dev/null
   cd "$vwb_home/app"
-  echo "Preparing locked application dependencies…"
+  echo "Preparing rikoko and TikTok download tools…"
   npm exec --yes --package=pnpm@10.28.2 -- pnpm install --frozen-lockfile
   uv sync --project python --frozen --managed-python --python 3.12
   npm exec --yes --package=pnpm@10.28.2 -- pnpm build

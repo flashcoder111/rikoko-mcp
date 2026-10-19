@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 import { FalProvider } from "../packages/providers/src/index.js";
 import { h3Models } from "../packages/providers/src/h3.js";
-it("locks H3 generation to a reviewed five-second price profile and the official endpoint", async () => {
+it("keeps the five-second default while declaring bounded shot parameters on the official endpoint", async () => {
   const calls: { url: string; body: unknown }[] = [];
   const provider = new FalProvider(
     h3Models,
@@ -27,7 +27,7 @@ it("locks H3 generation to a reviewed five-second price profile and the official
       prompt: "An original cinematic basketball shot",
       parameters: {},
     };
-    expect(provider.estimate(input).maxCents).toBe(30);
+    expect(provider.estimate(input).maxCents).toBe(90);
     await provider.submit(input);
     expect(calls.at(-1)).toMatchObject({
       url: "https://queue.fal.run/minimax/h3/text-to-video",
@@ -39,7 +39,7 @@ it("locks H3 generation to a reviewed five-second price profile and the official
       },
     });
     expect(() =>
-      provider.validate({ ...input, parameters: { duration: 15 } }),
+      provider.validate({ ...input, parameters: { duration: 16 } }),
     ).toThrow();
   }
   expect(new FalProvider(h3Models).describe().every((m) => !m.available)).toBe(

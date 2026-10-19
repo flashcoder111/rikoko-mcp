@@ -1,8 +1,10 @@
 import { createHash } from "node:crypto";
+import { promptReferenceSyntax } from "./prompt-reference.js";
 import {
   AppError,
   referenceAnalysisSchema,
   translationSchema,
+  voiceCloneSchema,
   type Operation,
   type Entity,
 } from "../../contracts/src/index.js";
@@ -12,6 +14,11 @@ import {
   validateGenerationInput,
   type ResolvedReference,
 } from "./generation-input.js";
+import { speechLanguage, speechLanguageCode } from "./speech.js";
+import {
+  resolveGenerationParameters,
+  type AllowedParameters,
+} from "./generation-parameters.js";
 export type Model = {
   id: string;
   name?: string;
@@ -24,11 +31,46 @@ export type Model = {
   priceVersion: string;
   hardBoundConfirmed: boolean;
   parameters: Record<string, unknown>;
+  allowedParameters?: AllowedParameters;
   promptField?: string;
   assetField?: string;
   responseField?: string;
+  requiresVoiceProfile?: boolean;
   generationInput?: GenerationInput;
 };
+/** Public generation specifications only; never publish arbitrary provider parameters. */
+export function fixedGenerationParameters(model: Model) {
+  const result: Record<string, string | number | boolean> = {};
+  if (typeof model.parameters.keep_audio === "boolean")
+    result.keep_audio = model.parameters.keep_audio;
+  for (const key of ["generate_audio", "force_instrumental"])
+    if (typeof model.parameters[key] === "boolean")
+      result[key] = model.parameters[key];
+  for (const key of ["music_length_ms", "duration_seconds"])
+    if (typeof model.parameters[key] === "number")
+      result[key] = model.parameters[key];
+  for (const key of ["duration", "width", "height"]) {
+    const value = model.parameters[key];
+    if (typeof value === "number" && Number.isFinite(value) && value > 0)
+      result[key] = value;
+    else if (
+      key === "duration" &&
+      typeof value === "string" &&
+      /^\d+(?:\.\d+)?$/.test(value)
+    )
+      result[key] = value;
+  }
+  const aspect = model.parameters.aspect_ratio;
+  if (typeof aspect === "string" && /^(?:\d{1,4}:\d{1,4}|auto)$/.test(aspect))
+    result.aspect_ratio = aspect;
+  const resolution = model.parameters.resolution;
+  if (
+    typeof resolution === "string" &&
+    /^\d{1,4}(?:\.\d+)?[kKpP]$/.test(resolution)
+  )
+    result.resolution = resolution;
+  return result;
+}
 export type Ticket = {
   connectionId?: string;
   connectionVersion?: string;
@@ -61,6 +103,7 @@ export type ProviderResult =
       url: string;
       kind: "image" | "video" | "audio";
       costCents: number | null;
+      voiceClone?: import("zod").z.infer<typeof voiceCloneSchema>;
     };
 export class SubmissionUnknown extends AppError {
   constructor() {
@@ -86,14 +129,23 @@ export class FalProvider {
       description: m.description ?? "",
       kind: m.kind,
       category: m.category,
+      ...(m.requiresVoiceProfile ? { requiresVoiceProfile: true } : {}),
       maxCostCents: m.maxCostCents,
       creditPriceCents: m.creditPriceCents,
       priceVersion: m.priceVersion,
+      ...(m.allowedParameters
+        ? { allowedParameters: m.allowedParameters }
+        : {}),
+      ...(["image", "video", "audio"].includes(m.kind)
+        ? { fixedParameters: fixedGenerationParameters(m) }
+        : {}),
       ...(m.generationInput
         ? {
             generationInput: {
               mode: m.generationInput.mode,
+              referenceSyntax: promptReferenceSyntax(m),
               outputDurationMs: m.generationInput.outputDurationMs,
+              outputDurationSource: m.generationInput.outputDurationSource,
               maxTotalBytes: m.generationInput.maxTotalBytes,
               references: m.generationInput.bindings.map(
                 ({ field: _field, ...binding }) => binding,
@@ -150,11 +202,30 @@ export class FalProvider {
       );
     if (input.kind === "tts" && m.kind !== "audio")
       throw new AppError("INVALID_MODEL", "TTS requires an audio model");
-    if (input.kind === "generate" && Object.keys(input.parameters).length)
+    if (
+      input.kind === "tts" &&
+      (m.category === "music" || m.category === "sound" || m.generationInput)
+    )
+      throw new AppError(
+        "INVALID_MODEL",
+        "TTS requires a speech synthesis profile",
+      );
+    if (
+      input.kind === "tts" &&
+      m.requiresVoiceProfile &&
+      (!input.voiceAssetId || input.voice === "default")
+    )
       throw new AppError(
         "INVALID_MODEL_INPUT",
-        "Model parameters are fixed by the server cost profile",
+        "Cloned speech requires its owned voice asset and voice ID",
       );
+    if (m.requiresVoiceProfile && input.kind !== "tts")
+      throw new AppError(
+        "INVALID_MODEL_INPUT",
+        "Use tts with the owned cloned voice profile",
+      );
+    if (input.kind === "generate")
+      resolveGenerationParameters(m, input.parameters);
     if (
       (input.kind === "analyze" && m.kind !== "analysis") ||
       (input.kind === "translate" && m.kind !== "translation") ||
@@ -218,6 +289,23 @@ export class FalProvider {
     _source?: ReferenceSource,
   ): Promise<Ticket> {
     const m = this.validate(input);
+    if (
+      input.kind === "tts" &&
+      ["fal-ai/minimax/speech-2.8-hd", "fal-ai/minimax/speech-02-hd"].includes(
+        m.endpoint,
+      )
+    )
+      return this.submitPayload(m, {
+        ...m.parameters,
+        [m.endpoint === "fal-ai/minimax/speech-02-hd" ? "text" : "prompt"]:
+          input.text,
+        language_boost: speechLanguage(input.language, "tts"),
+        output_format: "url",
+        voice_setting: {
+          ...((m.parameters.voice_setting as Record<string, unknown>) ?? {}),
+          ...(input.voice !== "default" ? { voice_id: input.voice } : {}),
+        },
+      });
     const prompt =
       input.kind === "tts"
         ? input.text
@@ -237,8 +325,18 @@ export class FalProvider {
           ? `Translate to ${input.language}. Preserve product names, numbers and claims. Return only JSON with schemaVersion:1, language:"${input.language}", text. Input: ${input.text}`
           : prompt;
     return this.submitPayload(m, {
-      ...m.parameters,
+      ...resolveGenerationParameters(
+        m,
+        input.kind === "generate" ? input.parameters : {},
+      ),
       ...generationPayload(m, input, references),
+      ...(input.kind === "tts" &&
+      m.endpoint === "fal-ai/elevenlabs/tts/eleven-v3"
+        ? {
+            language_code: speechLanguageCode(input.language),
+            ...(input.voice !== "default" ? { voice: input.voice } : {}),
+          }
+        : {}),
       [m.promptField ?? (input.kind === "tts" ? "text" : "prompt")]:
         requestPrompt,
       ...(assetUrl ? { [m.assetField ?? "video_url"]: assetUrl } : {}),
@@ -346,7 +444,21 @@ export class FalProvider {
         "INVALID_PROVIDER_CONFIG",
         "Transcription requires a speech adapter",
       );
-    return { url, kind: m.kind, costCents: null };
+    const voiceClone =
+      m.endpoint === "fal-ai/minimax/voice-clone"
+        ? voiceCloneSchema.parse({
+            voiceId: j.custom_voice_id,
+            provider: "minimax",
+            reuseModel: "minimax-cloned-speech",
+            activationRequiredWithinDays: 7,
+          })
+        : undefined;
+    return {
+      url,
+      kind: m.kind,
+      costCents: null,
+      ...(voiceClone ? { voiceClone } : {}),
+    };
   }
 }
 export type PreparedMedia = {

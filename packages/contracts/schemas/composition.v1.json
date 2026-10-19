@@ -64,6 +64,14 @@
             "type": "string",
             "pattern": "^[a-zA-Z0-9_-]{1,100}$"
           },
+          "visualKind": {
+            "type": "string",
+            "enum": ["graphic", "placeholder"]
+          },
+          "productionShotId": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+          },
           "audioAssetId": {
             "type": "string",
             "pattern": "^[a-zA-Z0-9_-]{1,100}$"
@@ -119,22 +127,29 @@
                   "maxLength": 80
                 }
               },
-              "required": [
-                "id",
-                "text",
-                "startMs",
-                "endMs"
-              ],
+              "required": ["id", "text", "startMs", "endMs"],
               "additionalProperties": false
             }
+          },
+          "speechAlignment": {
+            "type": "object",
+            "properties": {
+              "sourceAssetId": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+              },
+              "transcriptAssetId": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+              }
+            },
+            "required": ["sourceAssetId", "transcriptAssetId"],
+            "additionalProperties": false
           },
           "fit": {
             "default": "contain",
             "type": "string",
-            "enum": [
-              "contain",
-              "cover"
-            ]
+            "enum": ["contain", "cover"]
           },
           "volume": {
             "default": 1,
@@ -164,10 +179,7 @@
                   "maximum": 1
                 }
               },
-              "required": [
-                "timeMs",
-                "gain"
-              ],
+              "required": ["timeMs", "gain"],
               "additionalProperties": false
             }
           }
@@ -216,11 +228,7 @@
           },
           "kind": {
             "type": "string",
-            "enum": [
-              "card",
-              "text",
-              "broll"
-            ]
+            "enum": ["card", "text", "broll", "sound"]
           },
           "text": {
             "default": "",
@@ -230,16 +238,19 @@
           "assetId": {
             "type": "string",
             "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+          },
+          "gain": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 2
+          },
+          "audioSourceStartMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3600000
           }
         },
-        "required": [
-          "id",
-          "sceneId",
-          "offsetMs",
-          "durationMs",
-          "kind",
-          "text"
-        ],
+        "required": ["id", "sceneId", "offsetMs", "durationMs", "kind", "text"],
         "additionalProperties": false
       }
     },
@@ -266,13 +277,75 @@
           "default": "#151a22",
           "type": "string",
           "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "fontFamily": {
+          "type": "string",
+          "enum": ["system", "noto-sans-sc", "noto-serif-sc"]
+        },
+        "fontWeight": {
+          "anyOf": [
+            {
+              "type": "number",
+              "const": 300
+            },
+            {
+              "type": "number",
+              "const": 400
+            },
+            {
+              "type": "number",
+              "const": 500
+            },
+            {
+              "type": "number",
+              "const": 600
+            },
+            {
+              "type": "number",
+              "const": 700
+            }
+          ]
+        },
+        "backgroundOpacity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "strokeWidth": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 8
+        },
+        "strokeColor": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "shadowColor": {
+          "type": "string",
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "shadowOpacity": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "shadowBlur": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 20
+        },
+        "shadowOffsetX": {
+          "type": "number",
+          "minimum": -20,
+          "maximum": 20
+        },
+        "shadowOffsetY": {
+          "type": "number",
+          "minimum": -20,
+          "maximum": 20
         }
       },
-      "required": [
-        "fontSize",
-        "color",
-        "background"
-      ],
+      "required": ["fontSize", "color", "background"],
       "additionalProperties": false
     },
     "audio": {
@@ -294,9 +367,7 @@
           "maximum": 1
         }
       },
-      "required": [
-        "gain"
-      ],
+      "required": ["gain"],
       "additionalProperties": false
     }
   },

@@ -14,7 +14,9 @@ it("retains completed media on download failure, respects links-only and never e
       url: "https://media.example.test/video",
     },
   ];
-  const invoke = vi.fn(async (_name: string) => ({
+  const invoke = vi.fn(async (_name: string, input: any) => ({
+    purpose: input.purpose ?? "preview",
+    quality: { finalReady: true, status: "accepted", issues: [] },
     jobId: "job",
     status,
     media: status === "completed" ? media : [],
@@ -30,14 +32,20 @@ it("retains completed media on download failure, respects links-only and never e
     await Promise.all([server.connect(a), client.connect(b)]);
     const links = await client.callTool({
       name: "workspace_result",
-      arguments: { jobId: "job", delivery: "links" },
+      arguments: { jobId: "job", delivery: "links", purpose: "final" },
     });
     expect(links.isError).not.toBe(true);
     expect(materialize).not.toHaveBeenCalled();
     expect(links.content[1].type).toBe("resource_link");
-    const fallback = await client.callTool({
+    const preview = await client.callTool({
       name: "workspace_result",
       arguments: { jobId: "job" },
+    });
+    expect(preview.content).toHaveLength(1);
+    expect(materialize).not.toHaveBeenCalled();
+    const fallback = await client.callTool({
+      name: "workspace_result",
+      arguments: { jobId: "job", purpose: "final" },
     });
     expect(fallback.isError).not.toBe(true);
     expect((fallback.structuredContent as any).result).toMatchObject({

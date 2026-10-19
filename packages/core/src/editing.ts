@@ -11,6 +11,14 @@ const fail = (message: string): never => {
 };
 type Scene = Composition["scenes"][number];
 
+function invalidateSpeech(composition: Composition, scene: Scene) {
+  delete scene.words;
+  delete scene.speechAlignment;
+  composition.events = composition.events.filter(
+    (e) => e.sceneId !== scene.id || !e.wordId,
+  );
+}
+
 function sliceScene(
   c: Composition,
   scene: Scene,
@@ -48,6 +56,16 @@ function sliceScene(
         }
       : {}),
   };
+  if (scene.speechAlignment) {
+    result.text =
+      words
+        ?.map((w) => w.text)
+        .join(/^(zh|ja|ko)/.test(c.language) ? "" : " ") ?? "";
+    if (!words?.length) {
+      delete result.speechAlignment;
+      delete result.words;
+    }
+  }
   const events = c.events
     .filter((e) => e.sceneId === scene.id)
     .flatMap((event) => {
@@ -56,6 +74,23 @@ function sliceScene(
         : 0;
       const from = anchor + event.offsetMs,
         to = from + event.durationMs;
+      if (event.kind === "sound") {
+        const keptStart = Math.max(from, start),
+          keptEnd = Math.min(to, end);
+        if (keptEnd - keptStart < 50) return [];
+        return [
+          {
+            ...event,
+            id: `${event.id.slice(0, 60)}_${newId.slice(-30)}`,
+            sceneId: newId,
+            wordId: undefined,
+            offsetMs: keptStart - start,
+            durationMs: keptEnd - keptStart,
+            audioSourceStartMs:
+              (event.audioSourceStartMs ?? 0) + keptStart - from,
+          },
+        ];
+      }
       if (from < start || to > end) return [];
       const keptWord = result.words?.find((w) => w.id === event.wordId);
       return [
@@ -83,6 +118,31 @@ export function applyEdits(base: Composition, raw: Edit[]): Composition {
     if ("sceneId" in edit && index < 0) fail("找不到所选镜头，请刷新作品。");
     const scene = next.scenes[index];
     switch (edit.type) {
+      case "sound": {
+        const previous = next.events.find((e) => e.id === edit.eventId);
+        if (
+          previous &&
+          (previous.kind !== "sound" || previous.sceneId !== edit.sceneId)
+        )
+          fail("音效 ID 已被其他事件使用。");
+        next.events = next.events.filter((e) => e.id !== edit.eventId);
+        if (edit.assetId !== null) {
+          if (!edit.durationMs) fail("添加音效需要指定播放时长。");
+          next.events.push({
+            id: edit.eventId,
+            sceneId: edit.sceneId,
+            kind: "sound",
+            assetId: edit.assetId,
+            wordId: edit.wordId,
+            offsetMs: edit.offsetMs,
+            durationMs: edit.durationMs!,
+            gain: edit.gain,
+            audioSourceStartMs: edit.audioSourceStartMs,
+            text: "",
+          });
+        }
+        break;
+      }
       case "scene_speed": {
         const ratio = (scene.speed ?? 1) / edit.speed;
         const scale = (ms: number) => Math.round(ms * ratio);
@@ -197,6 +257,11 @@ export function applyEdits(base: Composition, raw: Edit[]): Composition {
         break;
       }
       case "visual":
+        if (
+          !edit.preserveAudio ||
+          (!scene.audioAssetId && scene.assetId !== edit.assetId)
+        )
+          invalidateSpeech(next, scene);
         scene.assetId = edit.assetId;
         scene.sourceStartMs = 0;
         if (!edit.preserveAudio) {
@@ -206,6 +271,13 @@ export function applyEdits(base: Composition, raw: Edit[]): Composition {
         if (edit.fit) scene.fit = edit.fit;
         break;
       case "scene_audio":
+        if (
+          edit.audioAssetId === null ||
+          (edit.audioAssetId &&
+            (edit.audioAssetId !== scene.audioAssetId ||
+              (scene.audioSourceStartMs ?? 0) !== 0))
+        )
+          invalidateSpeech(next, scene);
         scene.volume = edit.volume;
         if (edit.audioAssetId === null) {
           delete scene.audioAssetId;

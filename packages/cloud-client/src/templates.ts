@@ -14,6 +14,10 @@ import {
   validateSceneAssets,
   bindSceneAssets,
 } from "../../templates/src/local-library.js";
+import {
+  prepareTemplateSpeech,
+  validateSpeechVisuals,
+} from "../../templates/src/speech.js";
 const snapshotSchema = z.object({
   schemaVersion: z.literal(1),
   revision: z.number().int().nonnegative(),
@@ -109,14 +113,22 @@ export class TemplateClient {
       template.composition.scenes.map((s) => s.id),
       p.sceneAssets,
     );
-    const draft = bindSceneAssets(
-      instantiate(
-        template,
-        p.parameters,
-        Object.fromEntries(template.assets.map((a) => [a.id, a.id])),
+    const draft = await prepareTemplateSpeech(
+      this.service,
+      c,
+      template,
+      bindSceneAssets(
+        instantiate(
+          template,
+          p.parameters,
+          Object.fromEntries(template.assets.map((a) => [a.id, a.id])),
+        ),
+        bindings,
       ),
-      bindings,
+      p.speech,
+      p.parameters,
     );
+    validateSpeechVisuals(draft, bindings);
     const needed = new Set([
       ...draft.scenes.flatMap((s) => [s.assetId, s.audioAssetId]),
       ...draft.events.map((e) => e.assetId),
@@ -151,10 +163,23 @@ export class TemplateClient {
       }
       mapping[a.id] = asset.id;
     }
-    const composition = bindSceneAssets(
-      instantiate(template, p.parameters, mapping),
-      bindings,
+    const composition = await prepareTemplateSpeech(
+      this.service,
+      c,
+      template,
+      bindSceneAssets(instantiate(template, p.parameters, mapping), bindings),
+      p.speech,
+      p.parameters,
     );
+    const resolvedVisuals = { ...bindings };
+    for (const scene of composition.scenes)
+      if (scene.speechAlignment && scene.assetId && !resolvedVisuals[scene.id])
+        resolvedVisuals[scene.id] = await this.service.get(
+          c,
+          "asset",
+          scene.assetId,
+        );
+    validateSpeechVisuals(composition, resolvedVisuals);
     return {
       composition,
       templateSource: {

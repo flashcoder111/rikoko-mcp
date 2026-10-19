@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   compositionSchema,
+  captionStylePatchSchema,
   idSchema,
   sceneSchema,
   volumeEnvelopeSchema,
@@ -8,6 +9,19 @@ import {
 
 const ms = z.number().int().min(0).max(3_600_000);
 export const editSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      type: z.literal("sound"),
+      sceneId: idSchema,
+      eventId: idSchema,
+      assetId: idSchema.nullable(),
+      offsetMs: ms.default(0),
+      durationMs: ms.min(50).optional(),
+      gain: z.number().min(0).max(2).default(1),
+      audioSourceStartMs: ms.default(0),
+      wordId: idSchema.optional(),
+    })
+    .strict(),
   z
     .object({
       type: z.literal("scene_speed"),
@@ -92,20 +106,7 @@ export const editSchema = z.discriminatedUnion("type", [
       atIndex: z.number().int().min(0).max(100),
     })
     .strict(),
-  z
-    .object({
-      type: z.literal("style"),
-      fontSize: z.number().int().min(12).max(96).optional(),
-      color: z
-        .string()
-        .regex(/^#[0-9a-fA-F]{6}$/)
-        .optional(),
-      background: z
-        .string()
-        .regex(/^#[0-9a-fA-F]{6}$/)
-        .optional(),
-    })
-    .strict(),
+  captionStylePatchSchema.extend({ type: z.literal("style") }).strict(),
   z
     .object({
       type: z.literal("music"),

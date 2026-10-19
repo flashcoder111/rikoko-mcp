@@ -16,6 +16,8 @@ import { validateStoryboardInput } from "../../core/src/storyboard-state.js";
 import { cloudConnection } from "../../cloud-client/src/index.js";
 import { serviceMode } from "../../core/src/service-info.js";
 import { referenceShotPrompts } from "../../core/src/reference-prompts.js";
+import { generationDurationMs } from "../../providers/src/generation-parameters.js";
+import { generationTargetSchema } from "../../contracts/src/generation.js";
 
 const prompt = z.string().min(1).max(5000);
 const targetReference = generationReferenceSchema
@@ -36,6 +38,9 @@ const prepareSchema = z
             sourceShotId: idSchema,
             durationMs: z.number().int().min(100).max(600000).optional(),
             frameTimeMs: z.number().int().min(0).optional(),
+            useSourceComposition: z.boolean().default(false),
+            motionPurpose: z.enum(["action", "camera", "rhythm"]).optional(),
+            motionExclusions: z.string().min(1).max(1000).optional(),
             motionRange: z
               .object({
                 startMs: z.number().int().min(0),
@@ -81,13 +86,17 @@ const quoteSchema = z
     model: z.string().min(1).max(120),
     prompt: prompt.optional(),
     regenerate: z.boolean().default(false),
+    parameters: z.record(z.string(), z.json()).default({}),
+    target: generationTargetSchema.optional(),
+    lastFrameAssetId: idSchema.optional(),
+    preparedRequestId: idSchema.optional(),
   })
   .strict();
 export const storyboardTools = {
   reference_storyboard_prepare: {
     schema: prepareSchema,
     description:
-      "Prepare up to 12 selected shots from an owned v2 analysis: extract real composition frames and optional motion excerpts locally, attach target character/product/scene/style images with explicit roles, and save separate image-edit/video prompt drafts. No model call or purchase. Review the source times: estimates are not frame-accurate. Supply authored prompts when needed. Use idempotencyKey for retries. Read the persisted storyboard via record_get(type=storyboard).",
+      "Prepare up to 12 selected shots from an owned v2 analysis: extract real composition frames and optional motion excerpts locally, attach target character/product/scene/style images with explicit roles, and save source observations, never target-generation prompts. No model call or purchase. Review the source times: estimates are not frame-accurate. Author a target plan and compile it with production_shot_prompts before preparation. Use idempotencyKey for retries. Read the persisted storyboard via record_get(type=storyboard).",
   },
   reference_storyboard_review: {
     schema: reviewSchema,
@@ -97,7 +106,7 @@ export const storyboardTools = {
   reference_storyboard_quote: {
     schema: quoteSchema,
     description:
-      "Quote one storyboard image-edit or video step using a compatible declared model. Returns exact input for job_submit after price agreement. Image stage preserves ordered references; accepted images are reused unless regenerate=true. Video stage requires a reviewed target image and keeps any requested motion reference. Prefer available MiniMax video profiles. No silent fallback or duration truncation. After video jobs complete, pass their asset IDs as replacements to reference_adapt and its composition to workspace_commit.",
+      "Quote one storyboard image-edit or video step using a compatible model. Supply preparedRequestId to quote its frozen operation without rebuilding text or inputs; its storyboard/version/stage/model must match. A saved target-plan preparation is required; raw source observations cannot be quoted. Returns exact input for job_submit after price agreement. Accepted images are reused unless regenerate=true. Video requires a reviewed target image and any requested motion reference. Prefer available MiniMax. After generation use reference_adapt and workspace_commit.",
   },
 };
 
@@ -166,6 +175,14 @@ export async function callStoryboardTool(
       const shot = report.shots.find((s) => s.id === selection.sourceShotId);
       if (!shot)
         throw new AppError("INVALID_SHOT", "Unknown analyzed source shot");
+      if (
+        selection.motionRange &&
+        (!selection.motionPurpose || !selection.motionExclusions)
+      )
+        throw new AppError(
+          "REFERENCE_RESPONSIBILITY_REQUIRED",
+          "A motion excerpt needs motionPurpose and motionExclusions; do not automatically transfer both action and camera",
+        );
       // A near-start composition frame is a draft aid, never an automatically accepted target first frame.
       const frameTimeMs =
         selection.frameTimeMs ??
@@ -183,9 +200,12 @@ export async function callStoryboardTool(
           "Choose a frame inside this shot and a motion excerpt overlapping it",
         );
       const legend = input.references
-        .map((r, i) => `Image ${i + 2}: ${r.role}; ${r.instruction}`)
+        .map(
+          (r, i) =>
+            `Image ${i + (selection.useSourceComposition ? 2 : 1)}: ${r.role}; ${r.instruction}`,
+        )
         .join("\n");
-      const { imagePrompt, videoPrompt } = referenceShotPrompts(
+      const observation = referenceShotPrompts(
         report,
         shot,
         input.brief,
@@ -199,8 +219,10 @@ export async function callStoryboardTool(
         durationMs: selection.durationMs ?? shot.endMs - shot.startMs,
         frameTimeMs,
         motionRange: selection.motionRange,
-        imagePrompt,
-        videoPrompt,
+        useSourceComposition: selection.useSourceComposition,
+        motionPurpose: selection.motionPurpose,
+        motionExclusions: selection.motionExclusions,
+        ...observation,
         sourceDetails: shot.details,
         sourceVisualStyle: shot.visualStyle ?? report.visualStyle.description,
         evidenceIds: shot.evidenceIds,
@@ -223,18 +245,22 @@ export async function callStoryboardTool(
       analysisAssetId: input.analysisAssetId,
       source: report.source,
       brief: input.brief,
-      promptMethod: "authored-or-structured-draft",
+      promptMethod: "source-observation-only",
       unknowns: report.unknowns,
       coverageGaps: report.coverage.gaps,
       shots: drafts.map((draft, i) => ({
         ...draft,
         ...extracted[i],
         references: [
-          {
-            assetId: extracted[i].frame.assetId,
-            role: "composition",
-            instruction: "Source composition only",
-          },
+          ...(draft.useSourceComposition
+            ? [
+                {
+                  assetId: extracted[i].frame.assetId,
+                  role: "composition",
+                  instruction: "Source composition only",
+                },
+              ]
+            : []),
           ...input.references,
         ],
       })),
@@ -320,86 +346,79 @@ export async function callStoryboardTool(
     !mode ||
     (input.stage === "image"
       ? mode !== "image_edit"
-      : !["image_to_video", "reference_to_video"].includes(mode))
+      : !["image_to_video", "reference_to_video", "first_last_frame"].includes(
+          mode,
+        ))
   )
     throw new AppError(
       "REFERENCE_MODE_UNSUPPORTED",
       "Select an explicitly configured image-edit or image/reference-to-video model",
     );
-  let references: GenerationReference[], text: string;
-  if (input.stage === "image") {
-    references = shot.references.map(
-      ({ assetId, role }: GenerationReference) => ({ assetId, role }),
+  if (input.preparedRequestId) {
+    const prepared = await service.get(
+      c,
+      "generation-preparation",
+      input.preparedRequestId,
     );
-    text = input.prompt ?? shot.imagePrompt;
-  } else {
-    if (shot.motion && mode !== "reference_to_video")
+    if (!prepared.plan)
       throw new AppError(
-        "REFERENCE_MODE_UNSUPPORTED",
-        "This shot requires its motion video; select a compatible model",
+        "PRODUCTION_PLAN_REQUIRED",
+        "Bind storyboard generation to a saved target plan",
+        409,
       );
-    if (model!.generationInput!.outputDurationMs! < shot.durationMs)
-      throw new AppError(
-        "GENERATION_TOO_SHORT",
-        "Select a longer video profile or explicitly revise the target shot duration",
-      );
-    references = [
-      {
-        assetId: shot.review.imageAssetId,
-        role: mode === "image_to_video" ? "first_frame" : "scene",
-      },
-    ];
-    text = input.prompt ?? shot.videoPrompt;
-    if (mode === "reference_to_video") {
-      const targets = shot.references.filter(
-        (r: GenerationReference) => r.role !== "composition",
-      );
-      references.push(
-        ...targets.map(({ assetId, role }: GenerationReference) => ({
-          assetId,
-          role,
-        })),
-      );
-      text +=
-        "\nImage 1 supplies the reviewed target scene.\n" +
-        targets
-          .map(
-            (r: { role: string; instruction: string }, i: number) =>
-              `Image ${i + 2}: ${r.role}; ${r.instruction}`,
-          )
-          .join("\n");
-      if (shot.motion) {
-        references.push({ assetId: shot.motion.assetId, role: "motion" });
-        text +=
-          "\nVideo 1 supplies action timing and camera behavior only. Keep the target identities and products from the images.";
-      }
-    }
-  }
-  const operation = operationSchema.parse({
-    kind: "generate",
-    model: input.model,
-    mode,
-    prompt: text,
-    references,
-    storyboard: {
+    const operation = operationSchema.parse(prepared.input);
+    const link = {
       storyboardId: board.id,
       version: board.version,
       sourceShotId: shot.sourceShotId,
       stage: input.stage,
-    },
-  });
-  await service.scoped(c, "read", (tx) =>
-    validateStoryboardInput(tx, c.accountId, operation),
+    };
+    if (
+      operation.kind !== "generate" ||
+      operation.model !== input.model ||
+      fingerprint(operation.storyboard) !== fingerprint(link) ||
+      (input.prompt !== undefined && input.prompt !== operation.prompt) ||
+      Object.entries(input.parameters).some(
+        ([key, value]) =>
+          fingerprint(value) !== fingerprint(operation.parameters[key]),
+      ) ||
+      (input.target &&
+        fingerprint(input.target) !== fingerprint(operation.target)) ||
+      (input.lastFrameAssetId &&
+        !operation.references?.some(
+          (r) =>
+            r.role === "last_frame" && r.assetId === input.lastFrameAssetId,
+        ))
+    )
+      throw new AppError(
+        "PREPARED_REQUEST_MISMATCH",
+        "Use the saved preparation unchanged with its matching storyboard, version, stage and model",
+        409,
+      );
+    const durationMs = generationDurationMs(model!, operation.parameters);
+    if (
+      input.stage === "video" &&
+      (!durationMs || durationMs < shot.durationMs)
+    )
+      throw new AppError(
+        "GENERATION_TOO_SHORT",
+        "The prepared output does not cover this storyboard shot",
+      );
+    return {
+      status: "quote_required",
+      input: operation,
+      quote: gateway
+        ? await gateway.quote(c, operation)
+        : await service.quote(c, operation),
+      targetDurationMs: shot.durationMs,
+      generationDurationMs: durationMs,
+      instruction:
+        "Obtain agreement to this quote, then use job_submit with this exact prepared input and a stable idempotencyKey.",
+    };
+  }
+  throw new AppError(
+    "PRODUCTION_PLAN_REQUIRED",
+    "Storyboard observations cannot be quoted as target prompts. Save a target plan and supply its preparedRequestId.",
+    409,
   );
-  return {
-    status: "quote_required",
-    input: operation,
-    quote: gateway
-      ? await gateway.quote(c, operation)
-      : await service.quote(c, operation),
-    targetDurationMs: shot.durationMs,
-    generationDurationMs: model!.generationInput!.outputDurationMs,
-    instruction:
-      "Obtain agreement to this quote, then job_submit with this exact input and a stable idempotencyKey. Poll the existing job. After video generation use reference_adapt replacements and workspace_commit.",
-  };
 }

@@ -59,12 +59,36 @@ export async function validateStoryboardInput(
       "STORYBOARD_CONFLICT",
       "Reviewed image changed or is unavailable",
     );
-  if (!["image_to_video", "reference_to_video"].includes(input.mode ?? ""))
+  if (
+    !["image_to_video", "reference_to_video", "first_last_frame"].includes(
+      input.mode ?? "",
+    )
+  )
     throw new AppError(
       "REFERENCE_MODE_UNSUPPORTED",
       "Storyboard video requires first-frame or reference-directed generation",
     );
-  const imageRole = input.mode === "image_to_video" ? "first_frame" : "scene";
+  const imageRole =
+    input.mode === "reference_to_video" ? "scene" : "first_frame";
+  if (input.mode === "first_last_frame") {
+    const lastRef = input.references?.find((r) => r.role === "last_frame");
+    const last = lastRef
+      ? await tx.get(lastRef.assetId, accountId, "asset")
+      : undefined;
+    const reviews = await tx.list(accountId, "media-review");
+    const accepted = last
+      ? reviews
+          .filter(
+            (r) => r.assetId === last.id && r.sourceSha256 === last.sha256,
+          )
+          .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
+      : undefined;
+    if (!last || last.kind !== "image" || accepted?.decision !== "accepted")
+      throw new AppError(
+        "STORYBOARD_REVIEW_REQUIRED",
+        "The last frame requires a current visual acceptance",
+      );
+  }
   if (
     !input.references?.some(
       (r) => r.assetId === image.id && r.role === imageRole,

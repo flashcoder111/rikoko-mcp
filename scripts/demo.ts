@@ -1,6 +1,9 @@
 import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { media } from "../packages/render/src/media.js";
 import { openRuntime } from "../apps/server/src/runtime.js";
 import { Worker } from "../apps/worker/src/worker.js";
 import {
@@ -56,6 +59,29 @@ async function runJob(input: unknown, label: string) {
       throw Error(`${current.status}: ${current.error?.message}`);
   }
   throw Error("Job did not complete");
+}
+async function audioFixture(label: string, durationMs = 3000) {
+  const path = join(out, `${label}.wav`);
+  await promisify(execFile)("ffmpeg", [
+    "-v",
+    "error",
+    "-f",
+    "lavfi",
+    "-i",
+    `sine=frequency=440:sample_rate=32000:duration=${durationMs / 1000}`,
+    path,
+  ]);
+  return service.registerAsset(c.accountId, await readFile(path), {
+    name: `${label}.wav`,
+    kind: "audio",
+    mime: "audio/wav",
+    metadata: (await media({ command: "probe", path })).metadata,
+    provenance: {
+      source: "offline-demo-fixture",
+      evidence: "synthetic-tone-not-speech",
+      license: "original",
+    },
+  });
 }
 async function render(rev: Entity, label: string) {
   return runJob(
@@ -267,33 +293,20 @@ try {
   await check(
     "E05",
     async () => {
-      const en = await runJob(
-        {
-          kind: "tts",
-          text: "Meet Orbit. A lighter start to every day.",
-          language: "en",
-          voice: "default",
-          engine: "local",
-        },
-        "E05-en",
-      );
-      const zh = await runJob(
-        {
-          kind: "tts",
-          text: "你好，欢迎来到视频工作台。让想法成为下一条视频。",
-          language: "zh",
-          voice: "default",
-          engine: "local",
-        },
-        "E05-zh",
-      );
+      let rejected = false;
+      try {
+        await service.quote(c, { kind: "tts", text: "test", engine: "local" });
+      } catch {
+        rejected = true;
+      }
+      if (!rejected) throw Error("Removed local synthesis was accepted");
       return {
-        assetIds: [en.outputs[0], zh.outputs[0]],
-        engine: "system-tts",
-        listening_review: "NOT_RUN",
+        local_synthesis_removed: true,
+        cloud_synthesis: "NOT_RUN",
+        paid_requests: 0,
       };
     },
-    "Actual English and Chinese installed system voices",
+    "Local speech synthesis rejected; no paid cloud synthesis in the offline demo",
   );
   await check(
     "E06",
@@ -313,17 +326,7 @@ try {
         style: { fontSize: 28, color: "#ffd66b", background: "#151a22" },
       });
       await render(style, "E06-style");
-      const tts = await runJob(
-        {
-          kind: "tts",
-          text: "Meet Orbit. Bring a little calm to every new adventure, every day.",
-          language: "en",
-          voice: "default",
-          engine: "local",
-        },
-        "E06-voice",
-      );
-      const voice = await service.get(c, "asset", tts.outputs[0]);
+      const voice = await audioFixture("E06-audio-fixture");
       const durationMs = Math.max(2500, Math.ceil(voice.metadata.durationMs));
       const revision = await service.revise(c, style.id, {
         type: "scene",
@@ -358,7 +361,7 @@ try {
         unchanged_scene_hash: fingerprint(base.composition.scenes[2]),
       };
     },
-    "Real single-scene/style/voice changes, immutable versions and shifted word-bound card",
+    "Real scene/style/audio changes using a synthetic test tone, immutable versions and shifted word-bound card",
   );
   await check(
     "E07",
@@ -389,17 +392,10 @@ try {
       ];
       const scenes = [];
       for (let i = 0; i < 3; i++) {
-        const voice = await runJob(
-          {
-            kind: "tts",
-            text: translations[i],
-            language: "zh",
-            voice: "default",
-            engine: "local",
-          },
-          `E07-zh-voice${i + 1}`,
+        const a = await audioFixture(
+          `E07-audio-fixture${i + 1}`,
+          3000 + i * 100,
         );
-        const a = await service.get(c, "asset", voice.outputs[0]);
         scenes.push({
           sceneId: base.composition.scenes[i].id,
           text: translations[i],
@@ -418,10 +414,10 @@ try {
         variantIds: variants.map((v) => v.id),
         languageRevisionId: localized.id,
         translation_evidence: "precomputed",
-        voice_evidence: "local-real",
+        voice_evidence: "synthetic-tone-not-speech",
       };
     },
-    "Three distinct openings and a manually translated, newly voiced Chinese version",
+    "Three openings and manually translated Chinese captions with test tones; no AI translation or speech synthesis",
   );
   await writeFile(
     join(out, "service.json"),

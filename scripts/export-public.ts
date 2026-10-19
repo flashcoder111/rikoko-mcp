@@ -3,6 +3,7 @@ import { mkdir, readFile, readdir, lstat, writeFile } from "node:fs/promises";
 import { dirname, join, resolve, relative, isAbsolute, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { z } from "zod";
+import { requiredSkillReferences } from "../packages/bootstrap/src/skill-files.js";
 
 const safePath = z
   .string()
@@ -93,6 +94,21 @@ export async function exportPublicSource(root: string, destination: string) {
     else throw Error(`Unsupported file in public source: ${path}`);
   }
   for (const path of manifest.paths) await collect(path);
+  for (const [path, file] of selected) {
+    if (!path.endsWith("/SKILL.md")) continue;
+    for (const ref of requiredSkillReferences(file.bytes.toString("utf8"))) {
+      if (
+        !/^references\/[a-z0-9-]+\.md$/.test(ref) ||
+        !selected
+          .get(`${dirname(path)}/${ref}`)
+          ?.bytes.toString("utf8")
+          .trim()
+      )
+        throw Error(
+          `Required skill reference is absent from public export: ${dirname(path)}/${ref}`,
+        );
+    }
+  }
   for (const path of ["package.json", manifest.readme]) {
     await rejectSymlinks(path);
   }

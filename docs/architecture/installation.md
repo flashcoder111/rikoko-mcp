@@ -8,13 +8,17 @@ curl -fsSL https://github.com/flashcoder111/video-workbench/releases/latest/down
 
 安装器下载并校验 GitHub Release 的固定版本包，准备依赖、注册检测到的 Codex/Claude 客户端、启动本地服务并导出一段免费样片。随后重载客户端 MCP 即可使用，无需另开终端保持 `pnpm dev` 运行。没有支持的客户端时仍会完成本地安装。
 
+TikTok 短视频下载也在用户本机执行。安装器通过同一份 Python 锁文件准备 yt-dlp/curl_cffi；旧环境首次使用时由本地服务自动检查并补齐，用户无需源码或手动安装下载工具。准备、下载、校验和入库状态通过现有任务接口返回。仅支持单视频及 vm/vt/t 分享链接；平台登录要求、请求拦截或页面变化仍可能导致下载失败，工具会返回对应原因。
+
+下载复用用户配置的 HTTP(S) 代理环境变量，并自动检测 macOS 系统网页代理。需要覆盖时，可在启动 rikoko 的环境中设置 `RIKOKO_DOWNLOAD_PROXY`（例如 `http://127.0.0.1:7890`），重启本地服务后生效。下载器不读取浏览器 Cookie 或用户的 yt-dlp 配置，代理凭据不进入模型输入或任务错误。下载流量逐个校验目标公网地址；代理软件返回 198.18/15 合成地址时，通过所选代理向 Cloudflare DNS over HTTPS 查询真实公网地址后固定连接，不直接放行合成地址。最终视频限制为 100 MiB，下载执行限时三分钟，依赖准备限时五分钟。对外监听或使用远程数据库的实例不启用此本地下载入口。
+
 GitHub 公开发行默认只使用本地编辑、内置模板与 FFmpeg 渲染，不要求官方 API 域名或用户 Key。AI 生成需自行配置供应商。官方 API 与模板源可在后续有实际服务地址的发行物中预设；示例域名仍会被发行工具拒绝。
 
 ## 用户操作
 
 GitHub 的一行命令下载最新正式 Release 对应的 `install.sh` 并交给 Bash 执行；该脚本内置本版本源码下载地址和 SHA-256。用户无需填写 URL。只有发行物明确配置了官方地址时，安装器才提示绑定官方用户 Key。
 
-默认识别现有 Codex、Claude Code 配置目录；macOS 也识别 Claude Desktop。可在命令末尾使用 `bash -s -- --client codex` 或 `bash -s -- --client claude-code` 指定目标。安装器以 `rikoko` 注册 MCP，并为支持的客户端安装 `/rikoko` 技能；保留其他 MCP 配置，遇到同名但不同来源的条目时停止，不覆盖它。
+默认识别现有 Codex、Claude Code 配置目录；macOS 也识别 Claude Desktop。可在命令末尾使用 `bash -s -- --client codex` 或 `bash -s -- --client claude-code` 指定目标。安装器以 `rikoko` 注册 MCP，并为支持的客户端安装 `rikoko` 技能（入口语法见三端接入说明）；保留其他 MCP 配置，遇到同名但不同来源的条目时停止，不覆盖它。
 
 首次交互安装可输入自己的官方用户 Key，输入不回显，也不进入命令历史；回车可跳过绑定，先使用本地编辑。Key 只向内置的官方 API origin 请求 `/v1/usage` 验证，禁止重定向；不会发起付费生成。没有公开注册/设备授权接口时，安装器不能凭空创建官方账户，官方地址已配置也不等于用户已经登录。
 
@@ -63,7 +67,7 @@ MCP 子进程先检查自己的本地服务，缺失时在后台启动；关闭�
 
 脚本面向 macOS 与 Linux/WSL（arm64/x64），原生 Windows PowerShell 安装器尚未实现。Node 22.19+ 可复用；缺失时从 Node 官方 HTTPS 地址安装独立运行时并校验 SHA-256。uv 缺失时使用官方指定版本安装器，并通过锁文件准备 uv 管理的 Python 3.12 环境，避免依赖系统 Python 的完整性。不会修改 shell 启动文件。
 
-FFmpeg/ffprobe 优先复用。缺失时使用 Homebrew、apt 或 dnf；系统软件安装可能需要管理员密码或系统开发工具。安装器不能绕过系统授权。FFmpeg 必须支持 libx264，最后的真实样片会检测此能力；某些发行版的 `ffmpeg-free` 不包含它，需要配置该发行版的完整 FFmpeg。Linux 的系统配音与中文字体也需要相应系统包。
+FFmpeg/ffprobe 优先复用。缺失时使用 Homebrew、apt 或 dnf；系统软件安装可能需要管理员密码或系统开发工具。安装器不能绕过系统授权。FFmpeg 必须支持 libx264，最后的真实样片会检测此能力；某些发行版的 `ffmpeg-free` 不包含它，需要配置该发行版的完整 FFmpeg。Linux 的中文字幕需要相应字体包；安装器不再安装系统配音组件。
 
 同版本重跑可恢复安装；不同版本不会直接覆盖已有安装目录，升级迁移需另行安排。当前发行工具只生成本地文件，不上传、不创建 Git 仓库或分支、不部署 API。
 
@@ -86,3 +90,11 @@ pnpm release:installer config/distribution.local.json
 生成目录包含公开源码、源码压缩包、校验文件、`release.json` 与内置地址的 `install.sh`，并输出发布后的用户命令。只将这些经过审阅的发行物放到对应下载地址。构建命令不代表已经发布，也不会验证生产 API 是否上线。
 
 依赖来源：[Node 官方下载](https://nodejs.org/en/download)、[uv 安装](https://docs.astral.sh/uv/getting-started/installation/)、[FFmpeg 下载说明](https://www.ffmpeg.org/download.html)。
+
+### Required skill references
+
+The public source export and private runtime package include `skills/rikoko/SKILL.md` and `skills/rikoko/references`. Export and installation verify every local reference linked by `SKILL.md`; a missing or empty playbook fails instead of installing broken links. `rikoko_guide` serves these same files over MCP for hosts without a local file reader, including Claude Desktop.
+
+已有安装可在更新后的源码目录使用 `pnpm clients sync-skill codex`、`claude-code` 或 `hermes`，仅更新托管 Skill 和参考文档并备份差异，不改启动配置或凭据。Claude Desktop 通过运行时读取指引，无独立 Skill 同步目标。更新后重载 Skill/MCP；详见[三端适配](../../examples/clients/README.md#三端适配与导演指引)。
+
+Video generation requires target dimensions, and reference-input video requires a saved preparation. For a deliberate legacy-client migration only, the service operator may set `RIKOKO_ALLOW_LEGACY_GENERATION=true`; it is disabled by default and cannot be selected per request. This does not waive storyboard target plans or final-delivery acceptance.

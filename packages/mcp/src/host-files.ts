@@ -40,10 +40,34 @@ export const importFileSchema = z
 export async function allowedMediaPath(path: string, roots: string[]) {
   if (!isAbsolute(path))
     throw new AppError("INVALID_INPUT", "Use an absolute media file path.");
-  const actual = await realpath(path);
-  const permitted = await Promise.all(roots.map((root) => realpath(root)));
+  if (roots.some((root) => !isAbsolute(root)))
+    throw new AppError(
+      "INVALID_INPUT",
+      "Configure absolute media import directories in VIDEOWORKBENCH_IMPORT_ROOTS, then reload the host's MCP connection.",
+    );
+  const actual = await realpath(path).catch((error: NodeJS.ErrnoException) => {
+    if (error.code !== "ENOENT") throw error;
+    throw new AppError(
+      "NOT_FOUND",
+      "This media attachment is no longer available at that path. Attach it again or copy it into a configured import directory and retry with its current absolute path.",
+      404,
+    );
+  });
+  const permitted = await Promise.all(
+    roots.map(async (root) => {
+      try {
+        return await realpath(root);
+      } catch (error) {
+        // A host may not have created its attachment directory yet. Do not
+        // prevent imports from other roots, or implicitly allow the missing one.
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+        throw error;
+      }
+    }),
+  );
   if (
     !permitted.some((root) => {
+      if (root === null) return false;
       const rest = relative(root, actual);
       return (
         rest &&
@@ -55,7 +79,9 @@ export async function allowedMediaPath(path: string, roots: string[]) {
   )
     throw new AppError(
       "FORBIDDEN",
-      "This file is outside the configured media import directories.",
+      "This file is outside the configured media import directories. " +
+        `Configured directories: ${JSON.stringify(roots)}. ` +
+        "Copy the selected media into an available directory above and retry with that path, or have the operator add its dedicated attachment directory to VIDEOWORKBENCH_IMPORT_ROOTS and reload the host's MCP connection. Do not add the entire home directory or retry the same rejected path unchanged.",
       403,
     );
   if (

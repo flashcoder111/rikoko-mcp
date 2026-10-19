@@ -1,4 +1,15 @@
+import {
+  loadReferenceReport,
+  referenceEvidence,
+  referenceHandoff,
+  validateRemakeEvidence,
+} from "../../core/src/reference-handoff.js";
+import { productionPlanSchema } from "../../core/src/production-plan.js";
+import { productionScopeState } from "../../core/src/production-scope.js";
 import { z } from "zod";
+import { resolveTiming } from "../../core/src/production-timing.js";
+import { captionStylePatchSchema } from "../../contracts/src/caption-style.js";
+import { prepareCaptionStyle } from "../../core/src/caption-style.js";
 import {
   analysisSettings,
   analysisSettingsSchema,
@@ -30,6 +41,7 @@ const getSchema = z
     analysisAssetId: idSchema,
     section: z
       .enum([
+        "handoff",
         "all",
         "overview",
         "shots",
@@ -41,6 +53,7 @@ const getSchema = z
         "parts",
       ])
       .default("overview"),
+    sourceShotIds: z.array(idSchema).max(20).default([]),
     offset: z.number().int().min(0).default(0),
     limit: z.number().int().min(1).max(50).default(20),
   })
@@ -59,21 +72,39 @@ export const referenceAdaptSchema = z
     analysisAssetId: idSchema,
     title: z.string().min(1).max(160),
     projectId: idSchema.optional(),
+    plan: z
+      .object({
+        planId: idSchema,
+        expectedVersion: z.number().int().positive(),
+      })
+      .strict()
+      .optional(),
     width: z.number().int().min(144).max(1920).default(360),
     height: z.number().int().min(144).max(1920).default(640),
     language: z.string().min(2).max(20).default("zh"),
     reuseReference: z.boolean().default(false),
+    matchCaptionStyle: z.boolean().default(false),
+    captionDescription: z.string().max(2000).optional(),
+    captionStyle: captionStylePatchSchema.optional(),
     replacements: z
       .array(
         z
           .object({
-            sourceShotId: idSchema,
+            sourceShotId: idSchema.optional(),
+            productionShotId: idSchema.optional(),
             text: z.string().max(1000).default(""),
             assetId: idSchema.optional(),
             sourceStartMs: z.number().int().min(0).default(0),
             durationMs: z.number().int().min(100).max(600000).optional(),
+            timingPolicy: z
+              .enum(["full_asset", "selected_range", "fit_target"])
+              .optional(),
           })
-          .strict(),
+          .strict()
+          .refine(
+            (r) => !!r.sourceShotId || !!r.productionShotId,
+            "Identify a source or target shot",
+          ),
       )
       .max(100)
       .default([]),
@@ -89,12 +120,12 @@ export const referenceTools = {
   reference_analyze: {
     schema: analyzeSchema,
     description:
-      "Quote one independent video analysis. Explicit detail (overview/shots/recreate) overrides reference_analysis_settings; when omitted use the account preference, or with auto use recreate for purpose=remake and shots otherwise. focus prioritizes motion, camera, appearance, text, audio or continuity. For full-video recreate or long/dense videos, use reference_analysis_plan/prepare first, analyze every prepared clip and merge; this tool alone makes one model request. Recreate requires structured initial/final states and action stages. Returns cache or exact quote input, never purchases. Obtain price agreement before job_submit. range is prompt-only on fal; only prepared clip assets physically restrict the upload. FPS is unknown on fal.",
+      "Quote one independent Gemini video analysis; the configured upstream must declare the Gemini family, regardless of the host LLM. Explicit detail (overview/shots/recreate) overrides reference_analysis_settings; when omitted use the account preference, or with auto use recreate for purpose=remake and shots otherwise. focus prioritizes motion, camera, appearance, text, audio or continuity. For full-video recreate or long/dense videos, use reference_analysis_plan/prepare first, analyze every prepared clip and merge; this tool alone makes one model request. Recreate requires structured initial/final states and action stages. Returns cache or exact quote input, never purchases. Obtain price agreement before job_submit. range is prompt-only on fal; only prepared clip assets physically restrict the upload. FPS is unknown on fal.",
   },
   reference_analysis_get: {
     schema: getSchema,
     description:
-      "Read a source-bound reference analysis. Choose overview for compact context, or paginated shots/events/evidence/unknowns/parts. parts retains per-segment summaries, audio and source boundaries without repeating them on every page. Times use original-source milliseconds; model times are estimates, FFmpeg cut candidates are separate measurements. all returns the bounded full report.",
+      "Read a source-bound reference analysis. For remake authoring choose section=handoff with optional sourceShotIds and pagination: returns verified Gemini lineage/hash, full shot states/stages, relevant beats/evidence/unknown indices/gaps and source neighbors. Handoff requires a completed recreate analysis job or a trusted merged report, never an uploaded provenance claim. Choose overview for compact context, or paginated shots/events/evidence/unknowns/parts. parts retains per-segment summaries, audio and source boundaries without repeating them on every page. Times use original-source milliseconds; model times are estimates, FFmpeg cut candidates are separate measurements. all returns the bounded full report.",
   },
   reference_analysis_query: {
     schema: querySchema,
@@ -104,7 +135,7 @@ export const referenceTools = {
   reference_adapt: {
     schema: referenceAdaptSchema,
     description:
-      "Convert analyzed shots into a source-linked target composition with replacement text/media and per-shot generation needs. Uses actual analyzed timing and structure. Source footage is reused only with explicit reuseReference. No paid generation/render; pass composition to workspace_commit after review. Optional projectId saves an editable revision.",
+      "With plan={planId,expectedVersion}, assemble in target-plan order and dimensions using replacements.productionShotId, including split/merged source mapping. Returns the default scoped projectId for workspace_commit. Without plan, creates a draft using source timing and optional direct productionShotId mapping. Source footage is reused only with explicit reuseReference. No paid generation/render; pass composition to workspace_commit after review. Optional projectId saves an editable revision. Set matchCaptionStyle to suggest subtitle styling from visualStyle even when the reference has no subtitles; captionDescription and explicit captionStyle override the suggestion. This does not recognize an exact source font.",
   },
 };
 export async function readReferenceReport(
@@ -112,35 +143,12 @@ export async function readReferenceReport(
   c: Context,
   id: string,
 ): Promise<ReferenceReport> {
-  const asset = await service.get(c, "asset", id);
-  if (asset.kind !== "analysis" || asset.bytes > 2 * 1024 * 1024)
-    throw new AppError(
-      "INVALID_ANALYSIS",
-      "Expected a bounded reference analysis asset",
-    );
-  let report: ReferenceReport;
-  try {
-    report = referenceReportSchema.parse(
-      JSON.parse(
-        Buffer.from(await service.storage.read(asset.storageKey)).toString(),
-      ),
-    );
-  } catch {
-    throw new AppError(
-      "INVALID_ANALYSIS",
-      "Expected a validated version 2 reference report",
-    );
-  }
-  const source = await service.get(c, "asset", report.source.assetId);
-  if (
-    source.sha256 !== report.source.sha256 ||
-    source.metadata?.durationMs !== report.source.durationMs
-  )
-    throw new AppError(
-      "SOURCE_MISMATCH",
-      "Analysis does not match the owned source video",
-    );
-  return report;
+  return service.scoped(
+    c,
+    "read",
+    async (tx) =>
+      (await loadReferenceReport(service, tx, c.accountId, id)).report,
+  );
 }
 export async function adaptReference(
   service: Service,
@@ -149,6 +157,7 @@ export async function adaptReference(
 ) {
   const input = referenceAdaptSchema.parse(raw);
   const report = await readReferenceReport(service, c, input.analysisAssetId);
+  if (input.plan) return adaptTargetPlan(service, c, input, report);
   if (report.analysis?.detail === "overview")
     throw new AppError(
       "ANALYSIS_DETAIL_REQUIRED",
@@ -171,7 +180,9 @@ export async function adaptReference(
     shotMapping = [];
   for (const shot of report.shots) {
     const replacement = replacements.get(shot.id);
-    const durationMs = replacement?.durationMs ?? shot.endMs - shot.startMs;
+    let durationMs = replacement?.durationMs ?? shot.endMs - shot.startMs;
+    let speed = 1;
+    let discardedTailMs = 0;
     const assetId =
       replacement?.assetId ??
       (input.reuseReference ? report.source.assetId : undefined);
@@ -186,6 +197,16 @@ export async function adaptReference(
           "Explicitly enable source footage reuse",
         );
       const asset = await service.get(c, "asset", assetId);
+      if (asset.kind === "video" && assetId !== report.source.assetId) {
+        const timing = resolveTiming(asset.metadata?.durationMs, {
+          policy: replacement?.timingPolicy,
+          sourceStartMs,
+          durationMs: replacement?.durationMs,
+        });
+        durationMs = timing.durationMs;
+        speed = timing.speed;
+        discardedTailMs = timing.discardedTailMs;
+      }
       if (!["image", "video"].includes(asset.kind))
         throw new AppError(
           "INVALID_MEDIA",
@@ -194,7 +215,7 @@ export async function adaptReference(
       if (
         asset.kind === "video" &&
         (!Number.isFinite(asset.metadata?.durationMs) ||
-          sourceStartMs + durationMs > asset.metadata.durationMs)
+          sourceStartMs + durationMs * speed > asset.metadata.durationMs + 0.01)
       )
         throw new AppError(
           "INVALID_INTERVAL",
@@ -209,7 +230,9 @@ export async function adaptReference(
         : `ref-${fingerprint(shot.id).slice(0, 32)}`;
     scenes.push({
       id,
+      productionShotId: replacement?.productionShotId,
       durationMs,
+      speed,
       assetId,
       sourceStartMs,
       text: replacement?.text ?? "",
@@ -218,6 +241,13 @@ export async function adaptReference(
     });
     shotMapping.push({
       targetSceneId: id,
+      discardedTailMs,
+      warnings:
+        discardedTailMs > 1000
+          ? [
+              "More than one second of the generated tail was discarded. Use media_inspect on the omitted interval and check action completion.",
+            ]
+          : [],
       sourceShotId: shot.id,
       sourceStartMs: shot.startMs,
       sourceEndMs: shot.endMs,
@@ -237,6 +267,16 @@ export async function adaptReference(
       },
     });
   }
+  const captionStyling =
+    input.matchCaptionStyle || input.captionDescription || input.captionStyle
+      ? prepareCaptionStyle({
+          description: input.captionDescription,
+          referenceStyle: input.matchCaptionStyle
+            ? report.visualStyle.description
+            : undefined,
+          overrides: input.captionStyle,
+        })
+      : undefined;
   const composition = compositionSchema.parse({
     schemaVersion: 1,
     title: input.title,
@@ -244,12 +284,14 @@ export async function adaptReference(
     height: input.height,
     language: input.language,
     scenes,
+    ...(captionStyling ? { captionStyle: captionStyling.style } : {}),
   });
   const revision = input.projectId
     ? await service.addRevision(c, input.projectId, composition)
     : undefined;
   return {
     planningMethod: "reference-shot-mapping",
+    ...(captionStyling ? { captionStyling } : {}),
     analysisAssetId: input.analysisAssetId,
     referenceAssetId: report.source.assetId,
     composition,
@@ -260,6 +302,187 @@ export async function adaptReference(
     generationRequired: shotMapping
       .filter((s) => s.status === "needs_media")
       .map((s) => s.targetSceneId),
+    rendered: false,
+  };
+}
+async function adaptTargetPlan(
+  service: Service,
+  c: Context,
+  input: z.infer<typeof referenceAdaptSchema>,
+  report: ReferenceReport,
+) {
+  const saved = await service.get(c, "production-plan", input.plan!.planId);
+  if (saved.version !== input.plan!.expectedVersion)
+    throw new AppError(
+      "PLAN_CONFLICT",
+      "Use the current target plan version",
+      409,
+    );
+  const plan = productionPlanSchema.parse(saved.plan);
+  if (!plan.remake || plan.remake.analysisAssetId !== input.analysisAssetId)
+    throw new AppError(
+      "REMAKE_REQUIREMENTS_REQUIRED",
+      "Use a target remake plan bound to this source analysis",
+      409,
+    );
+  await service.scoped(c, "read", (tx) =>
+    validateRemakeEvidence(service, tx, c.accountId, plan),
+  );
+  const projectId = input.projectId ?? saved.productionProjectId;
+  if (!projectId)
+    throw new AppError(
+      "PRODUCTION_SCOPE_REQUIRED",
+      "Bind a project to the target plan",
+      409,
+    );
+  const state = await service.scoped(c, "read", (tx) =>
+    productionScopeState(tx, c.accountId, projectId),
+  );
+  if (
+    state.scope?.planId !== saved.id ||
+    state.scope.planVersion !== saved.version
+  )
+    throw new AppError(
+      "PRODUCTION_SCOPE_CHANGED",
+      "Use a project bound to this plan version",
+      409,
+    );
+  const replacements = new Map<string, (typeof input.replacements)[number]>();
+  for (const replacement of input.replacements) {
+    const candidates = plan.shots.filter((s) =>
+      replacement.productionShotId
+        ? s.id === replacement.productionShotId
+        : s.sourceShotIds.includes(replacement.sourceShotId!),
+    );
+    if (
+      candidates.length !== 1 ||
+      replacements.has(candidates[0].id) ||
+      (replacement.sourceShotId &&
+        !candidates[0].sourceShotIds.includes(replacement.sourceShotId))
+    )
+      throw new AppError(
+        "INVALID_SHOT",
+        "Use a unique productionShotId; source-only mapping must be unambiguous",
+      );
+    replacements.set(candidates[0].id, replacement);
+  }
+  const scenes = [],
+    shotMapping = [];
+  for (const shot of plan.shots) {
+    const replacement = replacements.get(shot.id);
+    const source =
+      shot.sourceShotIds.length === 1
+        ? report.shots.find((s) => s.id === shot.sourceShotIds[0])
+        : undefined;
+    const assetId =
+      replacement?.assetId ??
+      (input.reuseReference && source ? report.source.assetId : undefined);
+    if (input.reuseReference && !assetId && shot.visualKind !== "graphic")
+      throw new AppError(
+        "INVALID_SHOT",
+        "A merged or new target shot needs explicit replacement media",
+      );
+    if (assetId === report.source.assetId && !input.reuseReference)
+      throw new AppError(
+        "REFERENCE_REUSE_REQUIRED",
+        "Explicitly enable source footage reuse",
+      );
+    const asset = assetId ? await service.get(c, "asset", assetId) : undefined;
+    if (asset && !["image", "video"].includes(asset.kind))
+      throw new AppError("INVALID_MEDIA", "Target shot needs visual media");
+    let durationMs = replacement?.durationMs ?? shot.durationMs;
+    let sourceStartMs = replacement?.sourceStartMs ?? 0,
+      speed = 1;
+    if (asset?.kind === "video") {
+      if (assetId === report.source.assetId && !replacement) {
+        sourceStartMs = source!.startMs;
+        durationMs = source!.endMs - source!.startMs;
+      }
+      const timing = resolveTiming(asset.metadata.durationMs, {
+        policy:
+          assetId === report.source.assetId
+            ? "selected_range"
+            : replacement?.timingPolicy,
+        sourceStartMs,
+        durationMs:
+          assetId === report.source.assetId
+            ? durationMs
+            : replacement?.durationMs,
+      });
+      ({ durationMs, sourceStartMs, speed } = timing);
+    }
+    if (!durationMs)
+      throw new AppError(
+        "TARGET_DURATION_REQUIRED",
+        `Set durationMs for target shot ${shot.id}`,
+      );
+    if (asset?.kind === "image" && sourceStartMs)
+      throw new AppError("INVALID_INTERVAL", "Images have no source offset");
+    scenes.push({
+      id: shot.id,
+      productionShotId: shot.id,
+      visualKind: shot.visualKind === "graphic" ? "graphic" : undefined,
+      assetId,
+      sourceStartMs,
+      durationMs,
+      speed,
+      text: replacement?.text ?? "",
+      fit: "contain",
+      color: "#173b42",
+    });
+    shotMapping.push({
+      targetSceneId: shot.id,
+      productionShotId: shot.id,
+      sourceShotIds: shot.sourceShotIds,
+      status:
+        asset || shot.visualKind === "graphic" ? "reused_media" : "needs_media",
+      visualBrief: {
+        action: shot.action,
+        initialState: shot.initialState,
+        endState: shot.endState,
+        camera: shot.camera,
+      },
+    });
+  }
+  const captionStyling =
+    input.matchCaptionStyle || input.captionDescription || input.captionStyle
+      ? prepareCaptionStyle({
+          description: input.captionDescription,
+          referenceStyle: input.matchCaptionStyle
+            ? report.visualStyle.description
+            : undefined,
+          overrides: input.captionStyle,
+        })
+      : undefined;
+  const composition = compositionSchema.parse({
+    schemaVersion: 1,
+    title: input.title,
+    width: plan.width,
+    height: plan.height,
+    language: input.language,
+    scenes,
+    ...(captionStyling ? { captionStyle: captionStyling.style } : {}),
+  });
+  const revision = input.projectId
+    ? await service.addRevision(c, projectId, composition)
+    : undefined;
+  return {
+    planningMethod: "target-plan-mapping",
+    projectId,
+    planId: saved.id,
+    planVersion: saved.version,
+    productionScope: state.scope,
+    analysisAssetId: input.analysisAssetId,
+    referenceAssetId: report.source.assetId,
+    composition,
+    shotMapping,
+    revisionId: revision?.id,
+    ...(captionStyling ? { captionStyling } : {}),
+    generationRequired: shotMapping
+      .filter((s) => s.status === "needs_media")
+      .map((s) => s.targetSceneId),
+    unknowns: report.unknowns,
+    coverageGaps: report.coverage.gaps,
     rendered: false,
   };
 }
@@ -337,8 +560,29 @@ export async function callReferenceTool(
   }
   if (name === "reference_adapt") return adaptReference(service, c, raw);
   if (name === "reference_analysis_get") {
-    const input = getSchema.parse(raw),
-      report = await readReferenceReport(service, c, input.analysisAssetId);
+    const input = getSchema.parse(raw);
+    if (input.section === "handoff")
+      return service.scoped(c, "read", async (tx) => {
+        const { report, binding } = await referenceEvidence(
+          service,
+          tx,
+          c.accountId,
+          input.analysisAssetId,
+        );
+        return referenceHandoff(
+          report,
+          binding,
+          input.sourceShotIds,
+          input.offset,
+          input.limit,
+        );
+      });
+    if (input.sourceShotIds.length)
+      throw new AppError(
+        "INVALID_INPUT",
+        "sourceShotIds is only supported for section=handoff",
+      );
+    const report = await readReferenceReport(service, c, input.analysisAssetId);
     if (input.section === "all") return report;
     const { parts, ...profile } = report.analysis ?? {};
     const overview = {

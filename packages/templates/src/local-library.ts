@@ -10,7 +10,8 @@ import { Service } from "../../core/src/index.js";
 import { libraryMetadataSchema } from "../../core/src/library-metadata.js";
 import { sha256 } from "../../storage/src/index.js";
 import { starterAssets, starterTemplates } from "./starters.js";
-import { instantiate } from "./schema.js";
+import { instantiate, type applyTemplateSchema } from "./schema.js";
+import { prepareTemplateSpeech, validateSpeechVisuals } from "./speech.js";
 
 export const organizeAssetSchema = z
   .object({
@@ -133,12 +134,7 @@ export function bindSceneAssets(
 export async function prepareStarter(
   service: Service,
   c: Context,
-  input: {
-    id: string;
-    version: number;
-    parameters: Record<string, string>;
-    sceneAssets: Record<string, string>;
-  },
+  input: z.infer<typeof applyTemplateSchema>,
 ) {
   await service.scoped(c, "write", async () => {});
   const template = starterTemplates.find(
@@ -155,7 +151,18 @@ export async function prepareStarter(
   const placeholder = Object.fromEntries(
     template.assets.map((a) => [a.id, a.id]),
   );
-  const composition = instantiate(template, input.parameters, placeholder);
+  const composition = await prepareTemplateSpeech(
+    service,
+    c,
+    template,
+    bindSceneAssets(
+      instantiate(template, input.parameters, placeholder),
+      bindings,
+    ),
+    input.speech,
+    input.parameters,
+  );
+  validateSpeechVisuals(composition, bindings);
   const needed = new Set(
     composition.scenes.filter((s) => !bindings[s.id]).map((s) => s.assetId),
   );
@@ -166,7 +173,7 @@ export async function prepareStarter(
     if (!bindings[scene.id] && scene.assetId)
       scene.assetId = mapping[scene.assetId];
   return {
-    composition: bindSceneAssets(composition, bindings),
+    composition,
     template: { id: template.id, version: template.version },
     reuse: {
       existingScenes: Object.keys(bindings).length,

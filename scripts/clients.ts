@@ -12,6 +12,7 @@ import {
   chmod,
 } from "node:fs/promises";
 import { createHash } from "node:crypto";
+import { z } from "zod";
 import { Client } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import {
@@ -19,6 +20,8 @@ import {
   clientConfigPath,
   hostLaunch,
   mergeHostConfig,
+  readHostLaunch,
+  type HostLaunch,
 } from "../packages/mcp/src/host-config.js";
 import {
   backendUrl,
@@ -27,14 +30,44 @@ import {
 } from "../packages/mcp/src/host-connection.js";
 import { ensureBackend } from "../packages/bootstrap/src/managed.ts";
 import { readPrivateText } from "../packages/bootstrap/src/config.ts";
+import {
+  installManagedSkill,
+  validateSkillReferences,
+} from "../packages/bootstrap/src/skill-files.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const [command = "doctor", clientInput = "codex"] = process.argv.slice(2);
 const client = clients.find((name) => name === clientInput);
-if (!client || !["doctor", "install", "config"].includes(command))
+if (!client || !["doctor", "install", "config", "sync-skill"].includes(command))
   throw Error(
-    "Usage: pnpm clients <doctor|install|config> <codex|claude-desktop|claude-code|hermes>",
+    "Usage: pnpm clients <doctor|install|config|sync-skill> <codex|claude-desktop|claude-code|hermes>",
   );
+const clientHome = process.env.VIDEOWORKBENCH_CLIENT_HOME ?? homedir();
+const skillPath =
+  client === "codex"
+    ? join(clientHome, ".codex/skills/rikoko/SKILL.md")
+    : client === "claude-code"
+      ? join(clientHome, ".claude/skills/rikoko/SKILL.md")
+      : client === "hermes"
+        ? join(clientHome, ".hermes/skills/rikoko/SKILL.md")
+        : undefined;
+if (command === "sync-skill") {
+  if (!skillPath)
+    throw Error(
+      "Claude Desktop uses rikoko_guide over MCP; no local skill is installed.",
+    );
+  console.log(
+    JSON.stringify(
+      await installManagedSkill(
+        join(root, "skills/rikoko"),
+        dirname(skillPath),
+      ),
+      null,
+      2,
+    ),
+  );
+  process.exit(0);
+}
 const managedFile = process.env.VIDEOWORKBENCH_MANAGED_CONFIG;
 const managed = managedFile ? await ensureBackend(managedFile) : undefined;
 const base = managed?.url ?? backendUrl(process.env.VIDEOWORKBENCH_URL);
@@ -46,15 +79,6 @@ const identity = createHash("sha256")
   .digest("hex")
   .slice(0, 12);
 const service = `ai.rikoko.mcp.${identity}.${client}`;
-const clientHome = process.env.VIDEOWORKBENCH_CLIENT_HOME ?? homedir();
-const skillPath =
-  client === "codex"
-    ? join(clientHome, ".codex/skills/rikoko/SKILL.md")
-    : client === "claude-code"
-      ? join(clientHome, ".claude/skills/rikoko/SKILL.md")
-      : client === "hermes"
-        ? join(clientHome, ".hermes/skills/rikoko/SKILL.md")
-        : undefined;
 const launch = hostLaunch({
   client,
   root,
@@ -64,6 +88,7 @@ const launch = hostLaunch({
     !managed && process.platform === "darwin" ? service : undefined,
   managedConfig: managedFile,
   credentialFile,
+  home: clientHome,
 });
 const run = promisify(execFile);
 async function readOptional(path: string) {
@@ -74,15 +99,18 @@ async function readOptional(path: string) {
     throw e;
   }
 }
-async function connectCheck() {
+async function connectCheck(
+  profile: HostLaunch = launch,
+  configSource = "generated",
+) {
   const env = Object.fromEntries(
     Object.entries(process.env).filter(
       (pair): pair is [string, string] => typeof pair[1] === "string",
     ),
   );
   const transport = new StdioClientTransport({
-    ...launch,
-    env: { ...env, ...launch.env },
+    ...profile,
+    env: { ...env, ...profile.env },
     stderr: "pipe",
   });
   const test = new Client({
@@ -97,6 +125,28 @@ async function connectCheck() {
       arguments: {},
     });
     if (response.isError) throw Error("Backend capability check failed");
+    const guideAvailable = list.tools.some(
+      (tool) => tool.name === "rikoko_guide",
+    );
+    const guide = guideAvailable
+      ? await test.callTool({
+          name: "rikoko_guide",
+          arguments: { topic: "overview" },
+        })
+      : undefined;
+    if (guide?.isError) throw Error("Bundled guide check failed");
+    const guideMetadata = guide
+      ? z
+          .object({
+            result: z.object({
+              topic: z.string(),
+              configuredHost: z.string(),
+              sha256: z.string(),
+              availableTopics: z.array(z.string()),
+            }),
+          })
+          .parse(guide.structuredContent)
+      : undefined;
     const resources = test.getServerCapabilities()?.resources
       ? (await test.listResources()).resources
       : [];
@@ -114,7 +164,19 @@ async function connectCheck() {
           tools: list.tools.map((t) => t.name),
           interaction: "native-conversation-media-and-content",
           inlineCardResource: false,
+          productionGuide: {
+            available: guideAvailable,
+            ...guideMetadata,
+            hostVisionVerified: false,
+            hostDeliveryVerified: false,
+          },
           paidTestExecuted: false,
+          configSource,
+          importRoots: JSON.parse(
+            profile.env.VIDEOWORKBENCH_IMPORT_ROOTS ??
+              env.VIDEOWORKBENCH_IMPORT_ROOTS ??
+              "[]",
+          ),
         },
         null,
         2,
@@ -128,10 +190,12 @@ if (command === "config") {
   console.log(mergeHostConfig(client, "", launch));
 } else if (command === "doctor") {
   try {
-    await connectCheck();
+    const path = clientConfigPath(client, clientHome);
+    const installed = readHostLaunch(client, await readOptional(path));
+    await connectCheck(installed ?? launch, installed ? path : "generated");
   } catch {
     console.error(
-      `rikoko ${client} connection failed. Check credential access and the running backend at ${base}.`,
+      `rikoko ${client} connection failed. Check the installed MCP profile, credential access and backend connection.`,
     );
     process.exitCode = 1;
   }
@@ -147,6 +211,7 @@ if (command === "config") {
     ? await readFile(join(root, "skills/rikoko/SKILL.md"), "utf8")
     : undefined;
   const currentSkill = skillPath ? await readOptional(skillPath) : undefined;
+  if (skillPath) await validateSkillReferences(join(root, "skills/rikoko"));
   if (
     currentSkill &&
     currentSkill !== skill &&
@@ -234,17 +299,8 @@ if (command === "config") {
     await writeFile(temp, updated, { mode: 0o600, flag: "wx" });
     await rename(temp, path);
   }
-  if (skillPath && skill && currentSkill !== skill) {
-    await mkdir(dirname(skillPath), { recursive: true });
-    if (currentSkill) {
-      const backup = `${skillPath}.rikoko-${Date.now()}.bak`;
-      await copyFile(skillPath, backup);
-      await chmod(backup, 0o600);
-    }
-    const temp = `${skillPath}.rikoko-tmp`;
-    await writeFile(temp, skill, { mode: 0o644, flag: "wx" });
-    await rename(temp, skillPath);
-  }
+  if (skillPath)
+    await installManagedSkill(join(root, "skills/rikoko"), dirname(skillPath));
   console.log(
     `Registered ${client}: ${path}${skillPath ? `; skill: ${skillPath}` : ""}. Reload the host's MCP connections to activate. Existing servers were preserved. The dedicated key has no paid-generation budget.`,
   );

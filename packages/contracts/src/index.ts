@@ -1,9 +1,17 @@
 import { z } from "zod";
+import {
+  captionStyleSchema,
+  captionStylePatchSchema,
+} from "./caption-style.js";
+export * from "./caption-style.js";
+import { videoImportOperationSchema } from "./asset-import.js";
 import { referenceOperationSchema } from "./reference-analysis.js";
 import {
   generationModeSchema,
   generationReferenceSchema,
   storyboardLinkSchema,
+  generationTargetSchema,
+  productionLinkSchema,
 } from "./generation.js";
 export * from "./reference-analysis.js";
 export * from "./generation.js";
@@ -35,12 +43,21 @@ export const sceneSchema = z
     id: idSchema,
     durationMs: ms.min(100),
     assetId: idSchema.optional(),
+    visualKind: z.enum(["graphic", "placeholder"]).optional(),
+    productionShotId: idSchema.optional(),
     audioAssetId: idSchema.optional(),
     audioSourceStartMs: ms.optional(),
     sourceStartMs: ms.default(0),
     color: color.default("#173b42"),
     text: z.string().max(1000).default(""),
     words: z.array(wordSchema).max(500).optional(),
+    speechAlignment: z
+      .object({
+        sourceAssetId: idSchema,
+        transcriptAssetId: idSchema,
+      })
+      .strict()
+      .optional(),
     fit: z.enum(["contain", "cover"]).default("contain"),
     volume: z.number().min(0).max(2).default(1),
     speed: z.number().min(0.25).max(4).optional(),
@@ -54,9 +71,11 @@ export const eventSchema = z
     wordId: idSchema.optional(),
     offsetMs: ms.default(0),
     durationMs: ms.min(50),
-    kind: z.enum(["card", "text", "broll"]),
+    kind: z.enum(["card", "text", "broll", "sound"]),
     text: z.string().max(200).default(""),
     assetId: idSchema.optional(),
+    gain: z.number().min(0).max(2).optional(),
+    audioSourceStartMs: ms.optional(),
   })
   .strict();
 export const compositionSchema = z
@@ -79,14 +98,11 @@ export const compositionSchema = z
     language: z.string().min(2).max(20).default("en"),
     scenes: z.array(sceneSchema).min(1).max(100),
     events: z.array(eventSchema).max(300).default([]),
-    captionStyle: z
-      .object({
-        fontSize: z.number().int().min(12).max(96).default(28),
-        color: color.default("#ffffff"),
-        background: color.default("#151a22"),
-      })
-      .strict()
-      .default({ fontSize: 28, color: "#ffffff", background: "#151a22" }),
+    captionStyle: captionStyleSchema.default({
+      fontSize: 28,
+      color: "#ffffff",
+      background: "#151a22",
+    }),
     audio: z
       .object({
         assetId: idSchema.optional(),
@@ -105,6 +121,14 @@ export const compositionSchema = z
         ctx.addIssue({ code: "custom", message: "Duplicate scene ID" });
       ids.add(s.id);
       total += s.durationMs;
+      if (
+        s.speechAlignment &&
+        (!s.words?.length || s.audioAssetId !== s.speechAlignment.sourceAssetId)
+      )
+        ctx.addIssue({
+          code: "custom",
+          message: "Speech alignment needs words and its matching audio source",
+        });
       let pointTime = -1;
       for (const point of s.volumeEnvelope ?? []) {
         if (point.timeMs <= pointTime || point.timeMs > s.durationMs)
@@ -138,7 +162,7 @@ export const compositionSchema = z
         !s ||
         (e.wordId && !w) ||
         start + e.durationMs > (s?.durationMs ?? 0) ||
-        (e.kind === "broll" && !e.assetId)
+        (["broll", "sound"].includes(e.kind) && !e.assetId)
       )
         ctx.addIssue({
           code: "custom",
@@ -171,6 +195,7 @@ export const transcriptSchema = z
     }
   });
 export const operationSchema = z.discriminatedUnion("kind", [
+  videoImportOperationSchema,
   referenceOperationSchema,
   z
     .object({
@@ -213,10 +238,7 @@ export const operationSchema = z.discriminatedUnion("kind", [
       kind: z.literal("captions"),
       assetId: idSchema,
       transcript: transcriptSchema,
-      style: z
-        .object({ fontSize: z.number().int().min(12).max(96), color })
-        .strict()
-        .optional(),
+      style: captionStylePatchSchema.optional(),
     })
     .strict(),
   z
@@ -237,8 +259,9 @@ export const operationSchema = z.discriminatedUnion("kind", [
         .string()
         .regex(/^[\w -]{1,80}$/)
         .default("default"),
-      engine: z.enum(["local", "fal"]).default("local"),
-      model: z.string().max(120).optional(),
+      engine: z.literal("fal").default("fal"),
+      model: z.string().min(1).max(120).default("elevenlabs-voice"),
+      voiceAssetId: idSchema.optional(),
     })
     .strict(),
   z
@@ -250,6 +273,9 @@ export const operationSchema = z.discriminatedUnion("kind", [
       mode: generationModeSchema.optional(),
       references: z.array(generationReferenceSchema).min(1).max(12).optional(),
       storyboard: storyboardLinkSchema.optional(),
+      preparedRequestId: idSchema.optional(),
+      production: productionLinkSchema.optional(),
+      target: generationTargetSchema.optional(),
     })
     .strict(),
   z
@@ -323,6 +349,7 @@ export const eventBindingsSchema = z
   .max(300);
 export const scenePatchSchema = z
   .object({
+    productionShotId: idSchema.optional(),
     durationMs: ms.min(100).optional(),
     assetId: idSchema.optional(),
     audioAssetId: idSchema.optional(),

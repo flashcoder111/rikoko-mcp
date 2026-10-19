@@ -1,3 +1,4 @@
+import { setProductionSynchronizer } from "../../core/src/production-scope.js";
 import type { Service } from "../../core/src/index.js";
 import { TemplateClient } from "./templates.js";
 import { GatewayClient } from "./gateway.js";
@@ -29,6 +30,13 @@ export function connectServices(
         : undefined,
   };
   connections.set(service, value);
+  setProductionSynchronizer(
+    service,
+    value.gateway
+      ? (tx, c, kind, record) =>
+          value.gateway!.syncProductionChange(tx, c, kind, record)
+      : undefined,
+  );
   return value;
 }
 export function connectCloud(

@@ -63,6 +63,15 @@ export class FalVideoProvider extends FalProvider {
   override describe() {
     return super.describe().map((m) => ({
       ...m,
+      ...(m.kind === "analysis"
+        ? {
+            referenceUnderstanding: {
+              family: "gemini",
+              upstreamModel: this.models.find((p) => p.id === m.id)?.parameters
+                .model,
+            },
+          }
+        : {}),
       available:
         m.available &&
         (m.kind !== "analysis" ||
@@ -88,7 +97,10 @@ export class FalVideoProvider extends FalProvider {
       }
       if (
         input.kind === "tts" &&
-        model.endpoint === "fal-ai/minimax/speech-2.8-hd"
+        [
+          "fal-ai/minimax/speech-2.8-hd",
+          "fal-ai/minimax/speech-02-hd",
+        ].includes(model.endpoint)
       )
         speechLanguage(input.language, "tts");
       if (model.kind === "analysis")
@@ -326,21 +338,6 @@ export class FalVideoProvider extends FalProvider {
         audio_url: this.mediaUrl(assetUrl),
         language_code: speechLanguage(input.language, "transcribe"),
       });
-    }
-    if (input.kind === "tts") {
-      const model = this.validate(input);
-      if (model.endpoint === "fal-ai/minimax/speech-2.8-hd")
-        return this.submitPayload(model, {
-          ...model.parameters,
-          prompt: input.text,
-          language_boost: speechLanguage(input.language, "tts"),
-          output_format: "url",
-          voice_setting: {
-            ...((model.parameters.voice_setting as Record<string, unknown>) ??
-              {}),
-            ...(input.voice !== "default" ? { voice_id: input.voice } : {}),
-          },
-        });
     }
     if (input.kind !== "reference_analyze")
       return super.submit(input, assetUrl, references);

@@ -47,7 +47,14 @@ const input = () => ({
   focus: ["motion", "camera", "continuity", "appearance"],
   language: "en",
 });
-function connection(advertised: unknown = protocol, available = true) {
+function connection(
+  advertised: unknown = protocol,
+  available = true,
+  understanding: unknown = {
+    family: "gemini",
+    upstreamModel: "gemini-fixture",
+  },
+) {
   const paths: string[] = [];
   const operations: any[] = [];
   const fetcher = vi.fn(async (url: any, init?: RequestInit) => {
@@ -60,6 +67,7 @@ function connection(advertised: unknown = protocol, available = true) {
           kind: "analysis",
           available,
           referenceAnalysis: advertised,
+          referenceUnderstanding: understanding,
         },
         { id: "video", kind: "video", available: true },
       ]);
@@ -123,6 +131,47 @@ it("does not advertise an old analysis protocol as available or disable unrelate
     },
     { id: "video", available: true },
   ]);
+});
+
+it.each([null, {}])(
+  "reports missing upstream declarations as deployment incompatibility before upload: %j",
+  async (understanding) => {
+    const { gateway, paths } = connection(protocol, true, understanding);
+    expect(await gateway.models(context)).toMatchObject([
+      {
+        id: "gemini-reference",
+        available: false,
+        unavailableReason: "ANALYSIS_PROTOCOL_MISMATCH",
+        unavailableMessage: expect.stringContaining(
+          "resume the saved analysis plan",
+        ),
+      },
+      { id: "video", available: true },
+    ]);
+    paths.length = 0;
+    await expect(gateway.quote(context, input())).rejects.toMatchObject({
+      code: "ANALYSIS_PROTOCOL_MISMATCH",
+      message: expect.stringContaining("referenceUnderstanding.upstreamModel"),
+    });
+    expect(paths).toEqual(["/v1/generation-models"]);
+    expect(await service.list(context, "quote")).toHaveLength(0);
+  },
+);
+
+it("distinguishes an explicitly unsupported upstream from missing cloud metadata", async () => {
+  const { gateway, paths } = connection(protocol, true, {
+    family: "other",
+    upstreamModel: "other-vlm",
+  });
+  expect((await gateway.models(context))[0]).toMatchObject({
+    available: false,
+    unavailableReason: "REFERENCE_MODEL_POLICY",
+  });
+  paths.length = 0;
+  await expect(gateway.quote(context, input())).rejects.toMatchObject({
+    code: "REFERENCE_MODEL_POLICY",
+  });
+  expect(paths).toEqual(["/v1/generation-models"]);
 });
 
 it.each([

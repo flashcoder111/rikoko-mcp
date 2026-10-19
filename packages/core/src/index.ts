@@ -1,3 +1,4 @@
+import { requireGeminiUnderstanding } from "./reference-handoff.js";
 import { randomUUID, randomBytes, createHash } from "node:crypto";
 import { z } from "zod";
 import { Database, Transaction } from "../../db/src/index.js";
@@ -14,9 +15,12 @@ import {
   type Operation,
 } from "../../contracts/src/index.js";
 import { FalProvider, type MediaProvider } from "../../providers/src/index.js";
-import { sha256, type Storage } from "../../storage/src/index.js";
+import { sha256, LocalStorage, type Storage } from "../../storage/src/index.js";
 import { validateGenerationAssets } from "../../providers/src/generation-input.js";
 import { validateStoryboardInput } from "./storyboard-state.js";
+import { checkGenerationTarget } from "../../providers/src/generation-target.js";
+import { validateVoiceProfile } from "./voice-profile.js";
+import { validatePreparedGeneration } from "./generation-preparation.js";
 export const fingerprint = (v: unknown): string =>
   createHash("sha256").update(canonical(v)).digest("hex");
 function canonical(v: any): string {
@@ -44,12 +48,17 @@ const ensure = (ok: unknown, code: string, message: string, status = 400) => {
   if (!ok) throw new AppError(code, message, status);
 };
 export class Service {
+  public allowLegacyGeneration =
+    process.env.RIKOKO_ALLOW_LEGACY_GENERATION === "true";
+  public localVideoDownloads: boolean;
   constructor(
     public db: Database,
     public storage: Storage,
     public provider: MediaProvider = new FalProvider(),
     public billingSource: "credits" | "external" | "testing" = "credits",
-  ) {}
+  ) {
+    this.localVideoDownloads = storage instanceof LocalStorage;
+  }
   /** All workspace and session operations recheck revocation inside their transaction. */
   async scoped<T>(
     c: Context,
@@ -287,6 +296,20 @@ export class Service {
       ].filter(Boolean) as string[],
     );
     for (const ref of refs) await this.owned(tx, c, "asset", ref);
+    for (const event of composition.events.filter((e) => e.kind === "sound")) {
+      const asset = await this.owned(tx, c, "asset", event.assetId!);
+      ensure(
+        asset.kind === "audio" && asset.metadata?.hasAudio,
+        "INVALID_MEDIA",
+        "Sound events require probed audio",
+      );
+      ensure(
+        (event.audioSourceStartMs ?? 0) + event.durationMs <=
+          asset.metadata.durationMs + 100,
+        "INVALID_INTERVAL",
+        "Sound event exceeds its source",
+      );
+    }
   }
   async addRevision(c: Context, projectId: string, input: unknown) {
     const composition = compositionSchema.parse(input);
@@ -518,10 +541,23 @@ export class Service {
     c: Context,
     input: Operation,
   ) {
+    if (input.kind === "import_video")
+      ensure(
+        this.localVideoDownloads,
+        "CAPABILITY_UNAVAILABLE",
+        "TikTok 下载需要用户本机的 rikoko 服务和本地素材库。",
+        409,
+      );
+    if (input.kind === "tts" && input.voiceAssetId)
+      validateVoiceProfile(
+        await this.owned(tx, c, "asset", input.voiceAssetId),
+        input,
+      );
     if (input.kind === "generate") {
       const assets = [];
       for (const ref of input.references ?? [])
         assets.push(await this.owned(tx, c, "asset", ref.assetId));
+      checkGenerationTarget(this.provider.validate(input), input, assets);
       if (input.references?.length) {
         validateGenerationAssets(this.provider.validate(input), input, assets);
         if (
@@ -587,6 +623,10 @@ export class Service {
     }
   }
   estimate(input: Operation) {
+    if (input.kind === "reference_analyze")
+      requireGeminiUnderstanding(
+        this.provider.analysisSettings?.(input)?.upstreamModel,
+      );
     if (isPaidOperation(input)) {
       const price = this.provider.estimate(input);
       if (this.billingSource === "testing")
@@ -620,10 +660,23 @@ export class Service {
     const price = this.estimate(input);
     return this.db.transaction(async (tx) => {
       await this.authorize(tx, c);
+      const preparation = await validatePreparedGeneration(
+        this,
+        tx,
+        c.accountId,
+        input,
+      );
       await this.validateOperation(tx, c, input);
       return tx.put(
         entity(c.accountId, "quote", {
           inputHash: fingerprint(input),
+          ...(preparation
+            ? {
+                preparedRequestId: preparation.id,
+                preparedRequestHash: preparation.requestHash,
+                templateVersion: preparation.prompt.templateVersion,
+              }
+            : {}),
           referenceAssets: await this.referenceSnapshots(
             tx,
             c.accountId,
@@ -676,6 +729,19 @@ export class Service {
         "Request a new quote",
         409,
       );
+      const preparation = await validatePreparedGeneration(
+        this,
+        tx,
+        c.accountId,
+        data.input,
+      );
+      ensure(
+        q.preparedRequestId === preparation?.id &&
+          q.preparedRequestHash === preparation?.requestHash,
+        "PREPARED_REQUEST_MISMATCH",
+        "Quote and saved preparation must match",
+        409,
+      );
       const price = this.estimate(data.input);
       ensure(
         q.priceVersion === price.priceVersion &&
@@ -721,6 +787,13 @@ export class Service {
       );
       const job = entity(c.accountId, "job", {
         input: data.input,
+        ...(preparation
+          ? {
+              preparedRequestId: preparation.id,
+              preparedRequestHash: preparation.requestHash,
+              templateVersion: preparation.prompt.templateVersion,
+            }
+          : {}),
         referenceAssets,
         billingSource: this.billingSource,
         inputHash: hash,
@@ -1086,8 +1159,23 @@ export class Service {
     },
   ) {
     const hash = sha256(data);
+    const cloneIdentity = (provenance: Record<string, unknown>) =>
+      fingerprint([
+        provenance.voiceClone,
+        provenance.cloudOrigin,
+        provenance.remoteVoiceAssetId,
+      ]);
     const existing = await this.db.transaction(async (tx) =>
-      (await tx.list(accountId, "asset")).find((a) => a.sha256 === hash),
+      (await tx.list(accountId, "asset")).find(
+        (a) =>
+          a.sha256 === hash &&
+          (info.kind !== "transcript" ||
+            (a.kind === "transcript" &&
+              a.metadata?.sourceAssetId === info.metadata.sourceAssetId)) &&
+          (!info.provenance.voiceClone ||
+            cloneIdentity(a.provenance ?? {}) ===
+              cloneIdentity(info.provenance)),
+      ),
     );
     if (existing) return existing;
     const assetId = id();

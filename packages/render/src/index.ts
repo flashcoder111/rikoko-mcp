@@ -2,6 +2,7 @@ import {
   compositionSchema,
   type Composition,
 } from "../../contracts/src/index.js";
+import { sceneCaptionInterval } from "../../contracts/src/captions.js";
 export function resolveTimeline(input: Composition) {
   const c = compositionSchema.parse(input);
   let offset = 0;
@@ -25,9 +26,10 @@ export function srt(c: Composition) {
   let n = 0;
   return resolveTimeline(c)
     .scenes.filter((s) => s.text)
-    .map(
-      (s) => `${++n}\n${stamp(s.startMs)} --> ${stamp(s.endMs)}\n${s.text}\n`,
-    )
+    .map((s) => {
+      const interval = sceneCaptionInterval(s);
+      return `${++n}\n${stamp(s.startMs + interval.startMs)} --> ${stamp(s.startMs + interval.endMs)}\n${s.text}\n`;
+    })
     .join("\n");
 }
 export function stamp(ms: number) {

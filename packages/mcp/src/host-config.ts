@@ -1,6 +1,9 @@
 import { join } from "node:path";
+import { homedir } from "node:os";
+import { isDeepStrictEqual } from "node:util";
 import { parse as parseToml } from "smol-toml";
 import { parseDocument } from "yaml";
+import { z } from "zod";
 import { backendUrl } from "./host-connection.js";
 
 export const clients = [
@@ -23,6 +26,8 @@ export function hostLaunch(options: {
   keychainService?: string;
   managedConfig?: string;
   credentialFile?: string;
+  home?: string;
+  platform?: NodeJS.Platform;
 }): HostLaunch {
   return {
     command: options.node,
@@ -44,6 +49,15 @@ export function hostLaunch(options: {
       VIDEOWORKBENCH_IMPORT_ROOTS: JSON.stringify([
         join(options.root, "artifacts"),
         join(options.root, "media-inbox"),
+        ...(options.client === "hermes" &&
+        (options.platform ?? process.platform) === "darwin"
+          ? [
+              join(
+                options.home ?? homedir(),
+                "Library/Application Support/Hermes/composer-images",
+              ),
+            ]
+          : []),
       ]),
       ...(options.keychainService
         ? { VIDEOWORKBENCH_KEYCHAIN_SERVICE: options.keychainService }
@@ -76,12 +90,37 @@ function matching(old: unknown, desired: unknown) {
   const next = desired as HostLaunch;
   if (
     previous.command !== next.command ||
-    JSON.stringify(previous.args) !== JSON.stringify(next.args) ||
-    JSON.stringify(previous.env) !== JSON.stringify(next.env)
+    !isDeepStrictEqual(previous.args, next.args) ||
+    !isDeepStrictEqual(
+      Object.entries(previous.env ?? {}).sort(([a], [b]) => a.localeCompare(b)),
+      Object.entries(next.env).sort(([a], [b]) => a.localeCompare(b)),
+    )
   )
     throw Error(
       "An existing rikoko MCP entry differs. Preserve it; choose its original workspace or review the configuration manually.",
     );
+}
+// Doctor must inspect the installed profile, not silently test generated defaults.
+export function readHostLaunch(client: ClientName, existing: string) {
+  if (!existing.trim()) return undefined;
+  let config;
+  if (client === "codex") config = parseToml(existing);
+  else if (client === "hermes") {
+    const doc = parseDocument(existing, { uniqueKeys: true });
+    if (doc.errors.length) throw Error("Existing Hermes YAML is invalid.");
+    config = doc.toJS();
+  } else config = JSON.parse(existing);
+  if (config === null || typeof config !== "object" || Array.isArray(config))
+    throw Error("Existing host configuration must be an object.");
+  const entry = (config?.mcp_servers ?? config?.mcpServers)?.rikoko;
+  if (entry === undefined) return undefined;
+  return z
+    .object({
+      command: z.string().min(1),
+      args: z.array(z.string()).default([]),
+      env: z.record(z.string(), z.string()).default({}),
+    })
+    .parse(entry);
 }
 export function mergeHostConfig(
   client: ClientName,
@@ -106,6 +145,39 @@ export function mergeHostConfig(
       throw Error("Existing Hermes YAML is invalid; no changes written.");
     const data = doc.toJS() as { mcp_servers?: Record<string, unknown> };
     const old = data?.mcp_servers?.rikoko;
+    if (old) {
+      const previous = readHostLaunch(client, existing)!;
+      const nextRoots: string[] = JSON.parse(
+        launch.env.VIDEOWORKBENCH_IMPORT_ROOTS,
+      );
+      // Only upgrade the exact legacy defaults. A custom/narrower allowlist
+      // remains an operator decision; all other launch settings must match.
+      if (
+        nextRoots.length === 3 &&
+        previous.env.VIDEOWORKBENCH_IMPORT_ROOTS !== undefined &&
+        isDeepStrictEqual(
+          JSON.parse(previous.env.VIDEOWORKBENCH_IMPORT_ROOTS),
+          nextRoots.slice(0, 2),
+        )
+      ) {
+        matching(
+          {
+            ...previous,
+            env: {
+              ...previous.env,
+              VIDEOWORKBENCH_IMPORT_ROOTS:
+                launch.env.VIDEOWORKBENCH_IMPORT_ROOTS,
+            },
+          },
+          launch,
+        );
+        doc.setIn(
+          ["mcp_servers", "rikoko", "env", "VIDEOWORKBENCH_IMPORT_ROOTS"],
+          launch.env.VIDEOWORKBENCH_IMPORT_ROOTS,
+        );
+        return doc.toString();
+      }
+    }
     matching(old, launch);
     if (old) return existing;
     doc.setIn(["mcp_servers", "rikoko"], {

@@ -1,6 +1,21 @@
 import { z } from "zod";
 
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/);
+export const productionLinkSchema = z
+  .object({
+    projectId: id,
+    scopeVersion: z.number().int().positive(),
+    shotId: id,
+  })
+  .strict();
+export const generationTargetSchema = z
+  .object({
+    width: z.number().int().min(144).max(4096),
+    height: z.number().int().min(144).max(4096),
+    aspectPolicy: z.enum(["match", "contain", "allow_crop"]).default("match"),
+    minDurationMs: z.number().int().min(100).max(600000).optional(),
+  })
+  .strict();
 export const referenceRoleSchema = z.enum([
   "composition",
   "character",
@@ -19,6 +34,7 @@ export const generationModeSchema = z.enum([
   "first_last_frame",
   "reference_to_video",
   "video_to_video",
+  "voice_clone",
 ]);
 export const generationReferenceSchema = z
   .object({
@@ -49,6 +65,18 @@ const bindingSchema = z
       .min(1)
       .max(20 * 1024 * 1024),
     maxPixels: z.number().int().positive().max(40_000_000).optional(),
+    mimeTypes: z
+      .array(z.string().regex(/^(?:image|video|audio)\/[a-z0-9.+-]+$/))
+      .min(1)
+      .max(10)
+      .optional(),
+    containers: z
+      .array(z.enum(["mp4", "mov", "webm", "other"]))
+      .min(1)
+      .max(4)
+      .optional(),
+    minDimension: z.number().int().positive().max(4096).optional(),
+    maxDimension: z.number().int().positive().max(4096).optional(),
     minDurationMs: z.number().int().min(0).optional(),
     maxDurationMs: z.number().int().positive().max(600000).optional(),
     maxTotalDurationMs: z.number().int().positive().max(600000).optional(),
@@ -57,6 +85,7 @@ const bindingSchema = z
 export const generationInputSchema = z
   .object({
     mode: generationModeSchema,
+    referenceSyntax: z.enum(["descriptive", "kling"]).optional(),
     bindings: z.array(bindingSchema).min(1).max(10),
     maxTotalBytes: z
       .number()
@@ -64,6 +93,7 @@ export const generationInputSchema = z
       .positive()
       .max(40 * 1024 * 1024),
     outputDurationMs: z.number().int().min(100).max(600000).optional(),
+    outputDurationSource: z.literal("source_video").optional(),
   })
   .strict()
   .superRefine((profile, ctx) => {
@@ -107,6 +137,16 @@ export const generationInputSchema = z
           code: "custom",
           message: "Invalid reference duration bounds",
         });
+      if (
+        b.mimeTypes?.some((mime) => !mime.startsWith(`${b.kind}/`)) ||
+        (b.containers && b.kind !== "video") ||
+        (b.kind === "audio" && (b.minDimension || b.maxDimension)) ||
+        (b.minDimension ?? 0) > (b.maxDimension ?? Infinity)
+      )
+        ctx.addIssue({
+          code: "custom",
+          message: "Invalid reference format or dimension bounds",
+        });
     }
     const required = (role: string) =>
       profile.bindings.some(
@@ -125,7 +165,20 @@ export const generationInputSchema = z
         code: "custom",
         message: "Image editing accepts image references",
       });
-    if (profile.mode !== "image_edit" && !profile.outputDurationMs)
+    if (
+      profile.outputDurationSource &&
+      (profile.mode !== "video_to_video" || profile.outputDurationMs)
+    )
+      ctx.addIssue({
+        code: "custom",
+        message:
+          "Source duration is only valid for video editing and cannot also be fixed",
+      });
+    if (
+      !["image_edit", "voice_clone"].includes(profile.mode) &&
+      !profile.outputDurationMs &&
+      !profile.outputDurationSource
+    )
       ctx.addIssue({
         code: "custom",
         message: "Video profile requires its quoted output duration",
@@ -142,5 +195,22 @@ export const generationInputSchema = z
         code: "custom",
         message: "Source video must be required",
       });
+    if (
+      profile.mode === "voice_clone" &&
+      (!required("voice") || profile.bindings.some((b) => b.kind !== "audio"))
+    )
+      ctx.addIssue({
+        code: "custom",
+        message: "Voice cloning requires a single audio voice reference",
+      });
   });
 export type GenerationInput = z.infer<typeof generationInputSchema>;
+
+export const voiceCloneSchema = z
+  .object({
+    voiceId: z.string().regex(/^[\w-]{1,80}$/),
+    provider: z.literal("minimax"),
+    reuseModel: z.literal("minimax-cloned-speech"),
+    activationRequiredWithinDays: z.literal(7),
+  })
+  .strict();

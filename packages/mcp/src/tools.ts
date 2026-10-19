@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { productionTools, callProductionTool } from "./production-tools.js";
+import { captionTools, prepareCaptionStyleTool } from "./caption-tools.js";
 import { referenceDetailProfiles } from "./reference-instructions.js";
 import { analysisCommand } from "../../core/src/analysis-commands.js";
 import {
@@ -6,6 +8,7 @@ import {
   callMemoryTool,
   type MemoryToolName,
 } from "./memory-tools.js";
+import { creativeCommands, generationRoles } from "../../core/src/commands.js";
 import { storyboardTools, callStoryboardTool } from "./storyboard-tools.js";
 import { randomUUID } from "node:crypto";
 import {
@@ -39,6 +42,7 @@ import {
   matchesAsset,
 } from "../../core/src/library-metadata.js";
 import { importUrl } from "../../core/src/assets.js";
+import { urlImportSchema } from "../../contracts/src/asset-import.js";
 import { assetWaveform, waveformInput } from "../../core/src/waveform.js";
 import {
   workspaceCommit,
@@ -69,6 +73,8 @@ import {
   adaptReference,
 } from "./reference-tools.js";
 export const tools = {
+  ...productionTools,
+  ...captionTools,
   ...memoryTools,
   ...referenceTools,
   ...storyboardTools,
@@ -89,7 +95,7 @@ export const tools = {
   },
   template_prepare: {
     description:
-      "Prepare a template with text parameters and optional sceneAssets mapping scene IDs to owned image/video asset IDs. Imports only needed reusable media; returns composition and reuse counts without creating a project, rendering or generating. Then pass composition to workspace_commit with a stable idempotencyKey. Missing template media is downloaded, never bought. Keep accepted assets when making changes.",
+      "Prepare a template with text parameters and optional sceneAssets mapping scene IDs to owned image/video asset IDs. Only templates declaring speech.mode=optional accept speech={assetId,transcriptAssetId}: use an existing recording and its source-bound transcript, match every scene's copy to the spoken text in order, then derive scene changes and sentence captions from actual word times. No transcription or synthesis starts automatically. Keyword anchors in the template follow real words; never split a Chinese timing group by estimating times. Imports only needed reusable media; returns composition and reuse counts without creating a project, rendering or generating. Then pass composition to workspace_commit with a stable idempotencyKey. Missing template media is downloaded, never bought. Keep accepted assets when making changes.",
     schema: applyTemplateSchema,
   },
   template_match: {
@@ -146,10 +152,11 @@ export const tools = {
   },
   workspace_result: {
     description:
-      "Read real job status. Completed results include video/subtitle/image delivery links, current screen text and a workspace link. Deliver the video and relevant content in the original conversation. Configured Codex/Hermes hosts also save native attachments; delivery=links skips local downloads. Never open a browser or separate chat automatically. Requires write scope for media access; never starts rendering or generation. Set PUBLIC_BASE_URL for remote/mobile access; expired links can be refreshed by querying this tool again.",
+      "Read real job status. Completed results include video/subtitle/image delivery links, current screen text and a workspace link. Deliver the video and relevant content in the original conversation, and always include the returned workspace URL as a clickable Markdown link for the user to open and edit, including with native attachments and delivery=links. Configured Codex/Hermes hosts also save native attachments; delivery=links skips local downloads. Never open a browser or separate chat automatically. Requires write scope for media access; never starts rendering or generation. Set PUBLIC_BASE_URL for remote/mobile access; expired links can be refreshed by querying this tool again.",
     schema: z.object({
       jobId: idSchema,
       delivery: z.enum(["auto", "links"]).default("auto"),
+      purpose: z.enum(["preview", "final"]).default("preview"),
     }),
   },
   workspace_request_save: {
@@ -179,7 +186,7 @@ export const tools = {
   },
   workspace_commit: {
     description:
-      "Create a video, apply structured edits, or restore a version, then queue a real local render. Chat and studio share this endpoint. Always pass a stable idempotencyKey; editing requires projectId and the current baseRevisionId. On REVISION_CONFLICT read workspace_snapshot and re-plan. Existing media is reused; this tool does not buy new generated footage. Returns project/revision/job IDs and a workspace link. Call workspace_result for progress. Keep the user in the original Agent conversation. Deliver completed video and content using workspace_result; do not open a window automatically.",
+      "Create a video, apply structured edits, or restore a version, then queue a real local render. Chat and studio share this endpoint. Always pass a stable idempotencyKey; editing requires projectId and the current baseRevisionId. Initial create may use the empty scoped productionProjectId returned by production_plan_save. On REVISION_CONFLICT read workspace_snapshot and re-plan. Existing media is reused; this tool does not buy new generated footage. Returns project/revision/job IDs and a workspace link. Call workspace_result for progress. Keep the user in the original Agent conversation. Deliver video and content only after workspace_result purpose=final confirms finalReady=true, always including its returned workspace URL as a clickable Markdown link for the user to open and edit; do not open a window automatically.",
     schema: commitSchema,
   },
   capabilities: {
@@ -207,6 +214,11 @@ export const tools = {
         "plan",
         "storyboard",
         "analysis-plan",
+        "production-plan",
+        "generation-preparation",
+        "production-asset-assignment",
+        "media-inspection",
+        "media-review",
       ]),
     }),
   },
@@ -223,6 +235,11 @@ export const tools = {
         "quote",
         "storyboard",
         "analysis-plan",
+        "production-plan",
+        "generation-preparation",
+        "production-asset-assignment",
+        "media-inspection",
+        "media-review",
       ]),
       id: idSchema,
     }),
@@ -302,22 +319,17 @@ export const tools = {
   },
   asset_import_url: {
     description:
-      "Import public HTTP(S) media after SSRF checks and media validation. Requires confirmation of rights.",
-    schema: z.object({
-      url: z.url(),
-      name: z.string().max(120),
-      license: z.string().max(100),
-      rightsConfirmed: z.literal(true),
-    }),
+      "Import public media or a TikTok single-video/share link into the local library. Direct media returns an asset. TikTok returns a durable job (type=job, id): poll record_get with type=job, then use completed assetId/outputs[0] for analysis. Local rikoko automatically prepares missing locked yt-dlp/curl_cffi dependencies and downloads without model charges; job_cancel stops the download. Read progressMessage/error for specific failures; never resubmit to poll. Optional idempotencyKey makes retries stable. Requires confirmation of rights; never infer ownership or license from a downloadable URL. Analysis-only requests stop after analysis and never render/generate.",
+    schema: urlImportSchema,
   },
   quote_create: {
     description:
-      "Validate operation and produce a five-minute server-owned quote. No work or paid request begins.",
+      "Validate operation and produce a five-minute server-owned quote. For prepared generation pass the exact saved input including preparedRequestId; dependencies are rechecked and template/request versions bound to this quote. No paid generation begins.",
     schema: z.object({ input: operationSchema }),
   },
   job_submit: {
     description:
-      "Reserve the quote budget and queue a durable job. Reuse idempotencyKey for retry; disconnect does not cancel.",
+      "Reserve the quote budget and queue a durable job. Use the exact quoted input including preparedRequestId when present. Preparation dependencies are rechecked at submission and before execution. Reuse idempotencyKey for retry; disconnect does not cancel.",
     schema: z.object({
       quoteId: idSchema,
       idempotencyKey: z.string().min(1).max(128),
@@ -395,7 +407,7 @@ export async function callTool(
   )
     throw new AppError(
       "CLOUD_NOT_CONFIGURED",
-      "请恢复任务原有的官方套餐连接后查询；不会改用其他付费来源",
+      "Restore the job's original official plan connection before checking its status; no other billing source will be used.",
       409,
     );
   if (Object.hasOwn(storyboardTools, name))
@@ -403,6 +415,13 @@ export async function callTool(
       service,
       c,
       name as keyof typeof storyboardTools,
+      raw,
+    );
+  if (Object.hasOwn(productionTools, name))
+    return callProductionTool(
+      service,
+      c,
+      name as keyof typeof productionTools,
       raw,
     );
   if (Object.hasOwn(referenceTools, name))
@@ -413,6 +432,8 @@ export async function callTool(
       raw,
     );
   switch (name) {
+    case "caption_style_prepare":
+      return prepareCaptionStyleTool(service, c, data);
     case "asset_waveform":
       return assetWaveform(service, c, data);
     case "generation_usage": {
@@ -423,7 +444,11 @@ export async function callTool(
           mode: "official",
         };
       if (serviceMode(service) === "official")
-        throw new AppError("CLOUD_NOT_CONFIGURED", "官方套餐尚未连接", 409);
+        throw new AppError(
+          "CLOUD_NOT_CONFIGURED",
+          "The official plan is not connected",
+          409,
+        );
       return { ...(await service.usage(c)), mode: "custom" };
     }
     case "asset_starters":
@@ -460,7 +485,7 @@ export async function callTool(
       if (!client)
         throw new AppError(
           "CLOUD_NOT_CONFIGURED",
-          "这个云端模板尚未缓存，请先配置模板源并更新",
+          "This cloud template is not cached. Configure the template source and sync it first.",
           409,
         );
       return client.prepare(c, data);
@@ -486,7 +511,7 @@ export async function callTool(
       if (!connection?.templates)
         throw new AppError(
           "CLOUD_NOT_CONFIGURED",
-          "尚未配置模板源，请配置 TEMPLATE_API_URL 或 config.templates.url 后手动更新；无需开通付费 API",
+          "No template source is configured. Set TEMPLATE_API_URL or config.templates.url, then sync manually. A paid API subscription is not required.",
           409,
         );
       if (name === "template_sync") {
@@ -498,13 +523,17 @@ export async function callTool(
     case "cloud_usage": {
       const gateway = cloudConnection(service)?.gateway;
       if (!gateway)
-        throw new AppError("CLOUD_NOT_CONFIGURED", "请配置云端用户 Key", 409);
+        throw new AppError(
+          "CLOUD_NOT_CONFIGURED",
+          "Configure your cloud user key",
+          409,
+        );
       return gateway.usage(c);
     }
     case "workspace_result":
       if (data.jobId.startsWith("cloud-") && cloudConnection(service)?.gateway)
         await cloudConnection(service)!.gateway!.get(c, data.jobId);
-      return workspaceResult(service, c, data.jobId);
+      return workspaceResult(service, c, data.jobId, data.purpose);
     case "delivery_revoke":
       return revokeDelivery(service, c, data.grantId);
     case "workspace_snapshot":
@@ -523,11 +552,67 @@ export async function callTool(
       let providerError: string | null = null;
       const providers = gateway
         ? await gateway.models(c).catch(() => {
-            providerError = "官方模型目录暂时无法读取，请稍后刷新。";
+            providerError =
+              "The official model catalog is temporarily unavailable. Refresh and try again.";
             return [];
           })
         : service.provider.describe();
       return {
+        generationPreparation: {
+          protocol: "rikoko-prepared-generation-v1",
+          persistent: true,
+          planStages: ["video", "first_frame", "last_frame"],
+          remakeEvidenceProtocol: "rikoko-remake-handoff-v1",
+          remakePromptOverride: false,
+          cloudSupported: gateway
+            ? await gateway.preparationSupported(c)
+            : false,
+          cloudProtocol: "rikoko-cloud-preparation-v1",
+          formalScopeTool: "production_scope_save",
+          assetAssignmentTool: "production_asset_assign",
+          prepareTool: "generation_prepare",
+          recordType: "generation-preparation",
+          templateVersion: "rikoko-direction-v2",
+          recheckAt: ["quote", "submit", "worker_before_provider"],
+          legacyUnpreparedOperations: service.allowLegacyGeneration
+            ? "explicitly_enabled"
+            : "reference_video_blocked",
+          videoTargetRequired: !service.allowLegacyGeneration,
+          defaultScopedProject: true,
+          formalDeliveryRequiresScope: true,
+        },
+        visualReview: {
+          schemaVersion: 2,
+          inspectionTool: "media_inspect",
+          reviewTool: "media_review",
+          checkStatuses: ["pass", "fail", "unknown", "not_applicable"],
+          sampling: {
+            maxFramesPerCall: 12,
+            explicitTimes: true,
+            timeBasis: "requested",
+            continuous: false,
+          },
+          actionEvidence: {
+            requiredForPass: true,
+            maxSampleGapMs: 250,
+            defaultHoldMs: 200,
+            cutValidation: "error",
+          },
+          legacyAcceptanceRequiresReview: true,
+          semanticReviewer: "host_or_user",
+          hostVisionVerified: false,
+        },
+        captionStyles: {
+          prepareTool: "caption_style_prepare",
+          fonts: ["system", "noto-sans-sc", "noto-serif-sc"],
+          weights: [300, 400, 500, 600, 700],
+          stroke: true,
+          shadow: true,
+          textOnly: true,
+          referenceVisualStyle: true,
+          exactFontRecognition: false,
+          srtStyles: false,
+        },
         creativeMemory: {
           storage: "local-database",
           tools: Object.keys(memoryTools),
@@ -557,7 +642,18 @@ export async function callTool(
             ],
           },
         },
-        commands: { agentEntry: "/rikoko", items: [analysisCommand] },
+        commands: {
+          agentEntry: "/rikoko",
+          items: [...creativeCommands, analysisCommand],
+          modelCatalog: "providers",
+          modelRoles: generationRoles,
+          independentModelSelections: true,
+          parameterInput: "natural-language",
+          parameterResolution: "match-fixed-model-profile",
+          defaultVideoPreference: "MiniMax",
+          selectionIsConsent: false,
+          requirementsAreFixedParameterOverrides: false,
+        },
         referenceAnalysis: {
           command: analysisCommand,
           settingsTool: "reference_analysis_settings",
@@ -574,6 +670,15 @@ export async function callTool(
           localClipPreparation: true,
           samplingControl: "provider-profile-only",
           independentOfHostModel: true,
+          requiredUpstreamFamily: "gemini",
+          handoff: {
+            tool: "reference_analysis_get",
+            section: "handoff",
+            protocol: "rikoko-remake-handoff-v1",
+            requiredDetail: "recreate",
+            semanticAcceptance: false,
+          },
+          targetShotAuthor: "host_agent",
           models: providers.filter(
             (m: { kind: string }) => m.kind === "analysis",
           ),
@@ -602,26 +707,46 @@ export async function callTool(
           error: providerError,
         },
         speech: {
+          templateAlignment: {
+            mode: "opt-in",
+            prepareTool: "template_prepare",
+            input: ["speech.assetId", "speech.transcriptAssetId"],
+            requiresTemplateDeclaration: true,
+            captions: "sentence",
+            automaticTranscription: false,
+            automaticSynthesis: false,
+          },
           synthesis: providers.filter(
             (m: { kind: string; category?: string }) =>
-              m.kind === "audio" && m.category === "speech",
+              m.kind === "audio" &&
+              m.category === "speech" &&
+              !("generationInput" in m && m.generationInput),
           ),
           transcription: providers.filter(
             (m: { kind: string }) => m.kind === "transcript",
           ),
           cloudEngine: "fal",
-          localSynthesis: {
-            engine: "local",
-            macOS: { zh: "Tingting", en: "Samantha" },
-            linux: "espeak-ng",
-            availability: "runtime-dependent",
-          },
+          defaultSynthesisModel: "elevenlabs-voice",
+          synthesisPurpose: "post-production-replacement",
+          nativeVideoAudio: "preserve-when-present",
+          cloning: providers.filter(
+            (m: any) => m.generationInput?.mode === "voice_clone",
+          ),
           localTranscription: {
             engine: "local",
             adapter: "WhisperX",
             availability: "requires-local-weights",
           },
           automaticFallback: false,
+        },
+        audio: {
+          music: providers.filter(
+            (m: any) => m.kind === "audio" && m.category === "music",
+          ),
+          soundEffects: providers.filter(
+            (m: any) => m.kind === "audio" && m.category === "sound",
+          ),
+          soundEdit: "sound",
         },
         workspace: {
           modes: ["conversation", "studio"],
@@ -644,6 +769,7 @@ export async function callTool(
             "insert",
             "style",
             "music",
+            "sound",
             "format",
             "restore",
           ],
@@ -675,11 +801,6 @@ export async function callTool(
             requires: "WhisperX environment and local weights",
             status: "not_verified",
           },
-          {
-            id: "tts",
-            requires: "installed system voice or espeak-ng",
-            status: "runtime-dependent",
-          },
         ],
         providers,
         cloud: {
@@ -693,6 +814,14 @@ export async function callTool(
           maxUploadBytes: 104857600,
           maxCompositionMs: 600000,
           maxInputMs: 3600000,
+        },
+        downloads: {
+          tiktok: service.localVideoDownloads,
+          execution: "local-worker",
+          dependencyPreparation: "automatic",
+          maxBytes: 104857600,
+          tool: "asset_import_url",
+          statusTool: "record_get",
         },
         notImplemented: [
           "OAuth",

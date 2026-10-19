@@ -20,6 +20,7 @@ import {
 import { FalVideoProvider } from "./fal-video.js";
 import { GeminiProvider } from "./gemini.js";
 import { ReplicateProvider } from "./replicate.js";
+import { allowedParametersSchema } from "./generation-parameters.js";
 
 const identifier = z.string().regex(/^[a-zA-Z0-9_-]{1,120}$/);
 const envName = z.string().regex(/^[A-Z][A-Z0-9_]{0,100}$/);
@@ -57,16 +58,24 @@ export const modelSchema = z
     priceVersion: z.string().min(1).max(200),
     hardBoundConfirmed: z.boolean(),
     parameters: z.record(z.string(), z.json()),
+    allowedParameters: allowedParametersSchema.optional(),
     promptField: z.string().regex(/^\w+$/).optional(),
     assetField: z.string().regex(/^\w+$/).optional(),
     responseField: z.string().regex(/^\w+$/).optional(),
+    requiresVoiceProfile: z.boolean().optional(),
     generationInput: generationInputSchema.optional(),
   })
   .strict()
   .superRefine((model, ctx) => {
     const profile = model.generationInput;
     if (!profile) return;
-    if ((profile.mode === "image_edit" ? "image" : "video") !== model.kind)
+    if (
+      (profile.mode === "image_edit"
+        ? "image"
+        : profile.mode === "voice_clone"
+          ? "audio"
+          : "video") !== model.kind
+    )
       ctx.addIssue({
         code: "custom",
         path: ["generationInput", "mode"],
@@ -168,7 +177,11 @@ export class ProviderRegistry implements MediaProvider {
       c.provider.models.some((m) => "model" in input && m.id === input.model),
     );
     if (!connection)
-      throw new AppError("CAPABILITY_UNAVAILABLE", "模型未配置或不可用", 409);
+      throw new AppError(
+        "CAPABILITY_UNAVAILABLE",
+        "The model is not configured or is unavailable",
+        409,
+      );
     return connection;
   }
   private forTicket(ticket: Ticket) {
@@ -178,7 +191,7 @@ export class ProviderRegistry implements MediaProvider {
     if (!connection || connection.version !== ticket.connectionVersion)
       throw new AppError(
         "PROVIDER_CONFIG_CHANGED",
-        "任务的模型连接已变化，请恢复原配置后查询；不会重新购买",
+        "The job's model connection has changed. Restore the original configuration before checking its status; no new purchase will be made.",
         409,
       );
     return connection;

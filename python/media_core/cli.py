@@ -10,7 +10,7 @@ import subprocess
 import sys
 import tempfile
 from typing import Any
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
 from jsonschema import validate
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -63,7 +63,17 @@ def probe(path: str) -> dict[str, Any]:
         raise ValueError('Input resolution exceeds 4096 pixels')
     rate = (video.get('r_frame_rate') or '0/1').split('/') if video else ['0', '1']
     fps = float(rate[0]) / float(rate[1]) if float(rate[1]) else 0
-    return {'kind': kind, 'fps': fps, 'durationMs': round(duration * 1000), 'width': video.get('width') if video else None, 'height': video.get('height') if video else None, 'hasAudio': bool(audio), 'codec': video.get('codec_name') if video else audio.get('codec_name'), 'sampleRate': int(audio.get('sample_rate', 0)) if audio else None}
+    brand = data.get('format', {}).get('tags', {}).get('major_brand', '').strip()
+    container = 'other'
+    if kind == 'video':
+        if 'webm' in formats:
+            container = 'webm'
+        elif 'mov' in formats:
+            if brand == 'qt' or header[4:8] in (b'moov', b'mdat', b'wide'):
+                container = 'mov'
+            elif brand in ('isom', 'iso2', 'iso3', 'iso4', 'iso5', 'iso6', 'iso7', 'iso8', 'iso9', 'mp41', 'mp42', 'avc1', 'dash', 'MSNV', 'M4V'):
+                container = 'mp4'
+    return {'kind': kind, 'fps': fps, 'durationMs': round(duration * 1000), 'width': video.get('width') if video else None, 'height': video.get('height') if video else None, 'hasAudio': bool(audio), 'codec': video.get('codec_name') if video else audio.get('codec_name'), 'container': container, 'sampleRate': int(audio.get('sample_rate', 0)) if audio else None}
 
 
 def validate_timeline(composition: dict[str, Any]) -> None:
@@ -99,7 +109,21 @@ def validate_timeline(composition: dict[str, Any]) -> None:
             raise ValueError('Event outside scene')
 
 
-def font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+def font(size: int, style: dict[str, Any] | None = None) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    style = style or {}
+    family = style.get('fontFamily', 'system')
+    if family == 'system' and style.get('fontWeight', 400) != 400:
+        family = 'noto-sans-sc'
+    bundled = {'noto-sans-sc': 'NotoSansSC.ttf', 'noto-serif-sc': 'NotoSerifSC.ttf'}
+    if family != 'system':
+        if family not in bundled:
+            raise ValueError('Unsupported caption font')
+        path = ROOT / 'packages/render/fonts' / bundled[family]
+        if not path.is_file():
+            raise ValueError('Bundled caption font missing; reinstall the rikoko runtime')
+        face = ImageFont.truetype(str(path), size)
+        face.set_variation_by_axes([style.get('fontWeight', 400)])
+        return face
     candidates = [os.environ.get('MEDIA_FONT', ''), '/System/Library/Fonts/PingFang.ttc', '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc', '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf', '/Library/Fonts/Arial Unicode.ttf']
     for name in candidates:
         if name and Path(name).is_file():
@@ -122,22 +146,44 @@ def wrap(draw: ImageDraw.ImageDraw, text: str, face: Any, width: int) -> list[st
     return lines
 
 
-def overlay_text(path: Path, width: int, height: int, text: str, size: int, color: str, background: str, card: bool = False) -> None:
-    image = Image.new('RGBA', (width, height), (0,0,0,0))
+def overlay_text(path: Path, width: int, height: int, text: str, size: int, color: str, background: str, card: bool = False, style: dict[str, Any] | None = None) -> None:
+    style = style or {}
+    image = Image.new('RGBA', (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
-    face = font(size)
-    lines = wrap(draw, text, face, width - 56)
-    while len(lines) * (size + 8) > height * .32 and size > 12:
+    stroke = round(style.get('strokeWidth', 0))
+    shadow_alpha = round(style.get('shadowOpacity', 0) * 255)
+    blur = style.get('shadowBlur', 4)
+    dx, dy = style.get('shadowOffsetX', 0), style.get('shadowOffsetY', 2)
+    effect_padding = stroke + (math.ceil(blur * 2 + max(abs(dx), abs(dy))) if shadow_alpha else 0)
+    face = font(size, style)
+    available = width - 56 - effect_padding * 2
+    lines = wrap(draw, text, face, available)
+    while len(lines) * (size + 8 + stroke * 2) > height * .32 and size > 12:
         size -= 2
-        face = font(size)
-        lines = wrap(draw, text, face, width - 56)
-    if len(lines) * (size + 8) > height * .4:
-        raise ValueError('Caption text does not fit; split the scene')
-    box_height = len(lines) * (size + 8) + 28
+        face = font(size, style)
+        lines = wrap(draw, text, face, available)
+    line_height = size + 8 + stroke * 2
+    if available <= 0 or len(lines) * line_height > height * .4:
+        raise ValueError('Caption text does not fit; split the scene or reduce effects')
+    box_height = len(lines) * line_height + 28 + effect_padding * 2
     y = round(height * .15) if card else height - box_height - round(height * .1)
-    draw.rounded_rectangle((16, y, width-16, y+box_height), radius=12, fill=background + 'ee')
-    for index, line in enumerate(lines):
-        draw.text(((width-draw.textlength(line, font=face))/2, y+12+index*(size+8)), line, font=face, fill=color)
+    if y < 0:
+        raise ValueError('Caption effects do not fit inside the frame')
+    opacity = round(style.get('backgroundOpacity', 238 / 255) * 255)
+    draw.rounded_rectangle((16, y, width - 16, y + box_height), radius=12, fill=background + f'{opacity:02x}')
+    positions = [((width - draw.textlength(line, font=face)) / 2, y + 12 + effect_padding + index * line_height) for index, line in enumerate(lines)]
+    if shadow_alpha:
+        mask = Image.new('L', (width, height), 0)
+        shadow_draw = ImageDraw.Draw(mask)
+        for line, (x, top) in zip(lines, positions):
+            shadow_draw.text((x + dx, top + dy), line, font=face, fill=shadow_alpha, stroke_width=stroke, stroke_fill=shadow_alpha)
+        mask = mask.filter(ImageFilter.GaussianBlur(blur / 2))
+        shadow = Image.new('RGBA', (width, height), style.get('shadowColor', '#000000'))
+        shadow.putalpha(mask)
+        image = Image.alpha_composite(image, shadow)
+        draw = ImageDraw.Draw(image)
+    for line, position in zip(lines, positions):
+        draw.text(position, line, font=face, fill=color, stroke_width=stroke, stroke_fill=style.get('strokeColor', '#000000'))
     image.save(path)
 
 
@@ -224,7 +270,10 @@ def render(payload: dict[str, Any], work: Path) -> dict[str, Any]:
             cmd += ['-ss',str(scene.get('sourceStartMs',0)/1000),'-protocol_whitelist','file,pipe','-i',source]
         else:
             source = str(work / f'graphic-{index}.png')
-            graphic(Path(source),width,height,scene['color'],index)
+            if scene.get('visualKind') == 'graphic':
+                Image.new('RGB', (width, height), scene['color']).save(source)
+            else:
+                graphic(Path(source),width,height,scene['color'],index)
             cmd += ['-loop','1','-framerate',str(fps),'-i',source]
         input_count = 1
         filters = []
@@ -237,14 +286,18 @@ def render(payload: dict[str, Any], work: Path) -> dict[str, Any]:
         video_label = 'base'
         style = composition['captionStyle']
         if scene.get('text'):
+            caption_start = scene['words'][0]['startMs'] if scene.get('speechAlignment') and scene.get('words') else 0
+            caption_end = scene['words'][-1]['endMs'] if scene.get('speechAlignment') and scene.get('words') else scene['durationMs']
             caption = work / f'caption-{index}.png'
-            overlay_text(caption,width,height,scene['text'],style['fontSize'],style['color'],style['background'])
+            overlay_text(caption,width,height,scene['text'],style['fontSize'],style['color'],style['background'],style=style)
             cmd += ['-loop','1','-framerate',str(fps),'-i',str(caption)]
-            filters.append(f'[{video_label}][{input_count}:v]overlay=0:0:shortest=1[v{input_count}]')
+            filters.append(f"[{video_label}][{input_count}:v]overlay=0:0:shortest=1:enable='gte(t,{caption_start/1000})*lt(t,{caption_end/1000})'[v{input_count}]")
             video_label = f'v{input_count}'
             input_count += 1
-            subtitle_entries.append((cursor, cursor+scene["durationMs"], scene["text"]))
+            subtitle_entries.append((cursor+caption_start, cursor+caption_end, scene['text']))
         for event in (e for e in composition.get('events',[]) if e['sceneId']==scene['id']):
+            if event['kind'] == 'sound':
+                continue
             word = next((w for w in scene.get('words',[]) if w['id']==event.get('wordId')),None)
             start = ((word['startMs'] if word else 0)+event['offsetMs'])/1000
             end = start+event['durationMs']/1000
@@ -258,7 +311,7 @@ def render(payload: dict[str, Any], work: Path) -> dict[str, Any]:
                 filters.append(f'[{video_label}][ev{input_count}]overlay=(W-w)/2:H*0.18:enable=\'between(t,{start},{end})\'[v{input_count}]')
             else:
                 card = work / f'event-{index}-{input_count}.png'
-                overlay_text(card,width,height,event['text'],max(14,style['fontSize']-4),style['color'] if event['kind']=='text' else '#173b42',style['background'] if event['kind']=='text' else '#d7f5ae',event['kind']=='card')
+                overlay_text(card,width,height,event['text'],max(14,style['fontSize']-4),style['color'] if event['kind']=='text' else '#173b42',style['background'] if event['kind']=='text' else '#d7f5ae',event['kind']=='card',style=style if event['kind']=='text' else None)
                 cmd += ['-loop','1','-framerate',str(fps),'-i',str(card)]
                 filters.append(f'[{video_label}][{input_count}:v]overlay=0:0:enable=\'between(t,{start},{end})\'[v{input_count}]')
             video_label = f'v{input_count}'
@@ -286,14 +339,40 @@ def render(payload: dict[str, Any], work: Path) -> dict[str, Any]:
     run(['ffmpeg','-hide_banner','-loglevel','error','-nostdin','-y','-f','concat','-safe','1','-i',str(listing),'-vf',f'fps={fps}','-r',str(fps),'-frames:v',str(round(cursor*fps/1000)),'-af','aresample=async=1:first_pts=0','-t',str(cursor/1000),'-c:v','libx264','-preset','veryfast','-crf','23','-pix_fmt','yuv420p','-c:a','aac',str(joined)])
     output = work / 'output.mp4'
     audio = composition.get('audio',{})
-    if audio.get('assetId') or audio.get('toneHz'):
+    sound_events = [e for e in composition.get('events', []) if e['kind'] == 'sound']
+    if audio.get('assetId') or audio.get('toneHz') or sound_events:
         cmd = ['ffmpeg','-hide_banner','-loglevel','error','-nostdin','-y','-i',str(joined)]
+        filters = []
+        labels = ['[0:a]']
+        audio_index = 1
+        input_limits = {0: cursor / 1000}
         if audio.get('assetId'):
             cmd += ['-stream_loop','-1','-protocol_whitelist','file,pipe','-i',assets[audio['assetId']]]
-        else:
+        elif audio.get('toneHz'):
             cmd += ['-f','lavfi','-i',f'sine=frequency={audio["toneHz"]}:sample_rate=48000:duration={cursor/1000}']
-        cmd += ['-filter_complex',f'[1:a]volume={audio.get("gain",.1)}[music];[0:a][music]amix=inputs=2:duration=first:normalize=0[a]','-map','0:v','-map','[a]','-t',str(cursor/1000),'-c:v','copy','-c:a','aac','-movflags','+faststart',str(output)]
-        run(cmd)
+        if audio.get('assetId') or audio.get('toneHz'):
+            filters.append(f'[{audio_index}:a]volume={audio.get("gain",.1)}[music]')
+            labels.append('[music]')
+            input_limits[audio_index] = cursor / 1000
+            audio_index += 1
+        for index, event in enumerate(sound_events):
+            source = assets[event['assetId']]
+            metadata = probe(source)
+            source_start = event.get('audioSourceStartMs', 0)
+            if metadata['kind'] != 'audio' or not metadata['hasAudio'] or source_start + event['durationMs'] > metadata['durationMs'] + 100:
+                raise ValueError('Sound event requires audio and a valid source interval')
+            scene = next(s for s in composition['scenes'] if s['id'] == event['sceneId'])
+            word = next((w for w in scene.get('words', []) if w['id'] == event.get('wordId')), None)
+            scene_start = next(s['startMs'] for s in timeline if s['id'] == scene['id'])
+            delay = scene_start + (word['startMs'] if word else 0) + event['offsetMs']
+            cmd += ['-ss', str(source_start / 1000), '-t', str(event['durationMs'] / 1000), '-protocol_whitelist', 'file,pipe', '-i', source]
+            filters.append(f'[{audio_index}:a]aresample=48000,aformat=channel_layouts=stereo,atrim=duration={event["durationMs"]/1000},asetpts=PTS-STARTPTS,volume={event.get("gain",1)},adelay={delay}:all=1[sfx{index}]')
+            labels.append(f'[sfx{index}]')
+            input_limits[audio_index] = event['durationMs'] / 1000
+            audio_index += 1
+        filters.append(f'{"".join(labels)}amix=inputs={len(labels)}:duration=first:normalize=0[a]')
+        cmd += ['-filter_complex',';'.join(filters),'-map','0:v','-map','[a]','-t',str(cursor/1000),'-c:v','copy','-c:a','aac','-movflags','+faststart',str(output)]
+        run(cmd, input_limits=input_limits)
     else:
         shutil.copyfile(joined,output)
     subtitles = work / 'captions.srt'
@@ -325,9 +404,7 @@ def main() -> None:
         from adapters.whisperx_adapter import transcribe
         result = transcribe(payload)
     elif command == 'tts':
-        sys.path.insert(0,str(ROOT/'python'))
-        from adapters.tts import synthesize
-        result = synthesize(payload)
+        raise ValueError('Local speech synthesis has been removed; use the configured cloud speech model')
     else:
         raise ValueError('Unsupported command')
     json.dump(result,sys.stdout,ensure_ascii=False)

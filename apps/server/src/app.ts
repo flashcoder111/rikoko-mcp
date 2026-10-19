@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { captionFontBytes } from "../../../packages/render/src/fonts.js";
 import { bodyLimit } from "hono/body-limit";
 import { getCookie, setCookie, deleteCookie } from "hono/cookie";
 import { serveStatic } from "@hono/node-server/serve-static";
@@ -92,6 +93,13 @@ export function createApp(
   app.get("/service-info", async (c) => {
     c.header("Cache-Control", "no-store");
     return c.json(await publicServiceInfo(service));
+  });
+  app.get("/fonts/:filename", async (c) => {
+    const bytes = await captionFontBytes(c.req.param("filename"));
+    if (!bytes) return c.notFound();
+    c.header("Content-Type", "font/ttf");
+    c.header("Cache-Control", "public, max-age=86400");
+    return c.body(new Uint8Array(bytes));
   });
   const sessionName = "video_session";
   const browserOrigin = (url: string) =>

@@ -131,7 +131,7 @@ it("persists full staged actions, rejects shallow recreate output, and reads leg
   expect(referenceReportSchema.safeParse(old).success).toBe(true);
 });
 
-it("uses the entire action record for image and video drafts without copying the overview", () => {
+it("preserves the entire source observation without making it a target prompt", () => {
   const report = reportFor();
   const prompts = referenceShotPrompts(
     report,
@@ -139,12 +139,20 @@ it("uses the entire action record for image and video drafts without copying the
     "Same story with our character",
     "",
   );
-  expect(prompts.imagePrompt).toContain("already lies on the floor");
-  expect(prompts.videoPrompt).toContain("Bend knees");
-  expect(prompts.videoPrompt).toContain("Up and toward camera");
-  expect(prompts.videoPrompt).toContain("before contact");
-  expect(prompts.videoPrompt).toContain("Match airborne pose");
-  expect(prompts.videoPrompt).toContain("Do not add a landing");
+  expect(JSON.stringify(prompts.sourceObservation)).toContain(
+    "already lies on the floor",
+  );
+  expect(JSON.stringify(prompts.sourceObservation)).toContain("Bend knees");
+  expect(JSON.stringify(prompts.sourceObservation)).toContain(
+    "Up and toward camera",
+  );
+  expect(JSON.stringify(prompts.sourceObservation)).toContain("before contact");
+  expect(JSON.stringify(prompts.sourceObservation)).toContain(
+    "Match airborne pose",
+  );
+  expect(JSON.stringify(prompts.sourceObservation)).toContain(
+    "Do not add a landing",
+  );
 });
 
 it("includes adjacent shot states as context while keeping the current shot's style", () => {
@@ -155,8 +163,10 @@ it("includes adjacent shot states as context while keeping the current shot's st
   report.shots.push(next);
   report.shots[0].visualStyle = "Cold cabin";
   const prompts = referenceShotPrompts(report, report.shots[0], "Remake", "");
-  expect(prompts.videoPrompt).toContain("Healthy person airborne in warm snow");
-  expect(prompts.videoPrompt).toContain("Cold cabin");
+  expect(JSON.stringify(prompts.sourceObservation)).toContain(
+    "Healthy person airborne in warm snow",
+  );
+  expect(JSON.stringify(prompts.sourceObservation)).toContain("Cold cabin");
 });
 
 it("keeps every short candidate interval and uses bounded windows for long continuous shots", () => {
@@ -187,15 +197,20 @@ it("keeps sub-100ms insert shots and makes oversized drafts explicit instead of 
     subjectMotion: "y".repeat(300),
     cameraMotion: "z".repeat(300),
   }));
-  expect(() =>
-    referenceShotPrompts(report, report.shots[0], "Remake", ""),
-  ).toThrow(/5000/);
-  expect(
-    referenceShotPrompts(report, report.shots[0], "Remake", "", {
+  const observation = referenceShotPrompts(
+    report,
+    report.shots[0],
+    "Remake",
+    "",
+    {
       imagePrompt: "Authored image",
       videoPrompt: "Authored action",
-    }).videoPrompt,
-  ).toBe("Authored action");
+    },
+  );
+  expect(observation.sourceObservation.details?.actionStages).toHaveLength(16);
+  expect(observation.readyForGeneration).toBe(false);
+  expect(observation).not.toHaveProperty("videoPrompt");
+  expect(observation.authoredDrafts.videoPrompt).toBe("Authored action");
 });
 
 it("allocates shot groups without inventing an FPS and refuses unbounded plans", () => {

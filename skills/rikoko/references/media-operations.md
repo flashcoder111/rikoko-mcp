@@ -1,0 +1,60 @@
+# Editing, imports, audio and captions
+
+Read only the relevant section for the requested operation. Tool schemas and current capabilities determine available inputs.
+
+## Editing an existing video's contents with Kling O3
+
+For character, object, background or style changes to existing footage, inspect an available `video_to_video` profile such as `kling-o3-video-edit`. Use the same official gateway or custom fal connection. Import the original clip as `source_video`; optional character/product/scene/style/composition images map, in their relative order, to `@Image1`, `@Image2`, etc. Reference the source as `@Video1` in the prompt. Use `generation_prompt_preview` with the selected `model`, then `generation_prepare` for the `generate` operation with `mode=video_to_video`, `parameters={}`, actual owned asset IDs and `target` dimensions. Pass its exact returned input to `quote_create` and, after price agreement, `job_submit`. This path does not require a new storyboard image or `reference_storyboard_quote`.
+
+`generationInput.outputDurationSource=source_video` means duration follows the original clip. Inspect the profile's actual container, MIME, dimensions, size and duration constraints and `fixedParameters.keep_audio`. The bundled O3 profile retains original audio, accepts one 3–15 second MP4/MOV clip (20 MiB, both dimensions 720–3840), up to four images (10 MiB each), and 40 MiB total. These are conservative local limits. Unknown container metadata from older assets requires reimport/probing. For a scene using part of a longer asset, render and import the intended excerpt first: the model receives the complete source asset, not scene trim offsets. Never silently trim, enlarge, split or omit references to satisfy the limits.
+
+Reuse the same accepted identity/product/style references across shots and describe what to preserve. After generation, check actual duration and inspect adjacent shots for identity, lighting, motion and camera continuity; do not promise seamless transitions from model selection alone. Read `workspace_snapshot` and replace only the target scene using a `visual` edit, preserving captions, timing and independent narration/music, then render. Keep ordinary timeline changes local and MiniMax as the automatic default for compatible new footage. Do not claim an unconfigured O3 profile is available or use model selection as agreement to generation charges.
+
+## TikTok reference links
+
+When `capabilities.downloads.tiktok` is true, import a TikTok single-video or share link with the existing `asset_import_url`. The user's local rikoko automatically prepares its locked downloader when needed, downloads, probes and saves the video. Users only supply their link; do not ask them to install Python/yt-dlp or obtain source code. Honor the existing license/rights-confirmation fields; download availability does not establish rights.
+
+Direct media imports still return an asset. TikTok imports return a job (`type=job`, `id`): poll `record_get` with `type=job` and that ID. Show `progressMessage` when relevant. A completed download supplies `assetId` and `outputs[0]`; use that owned asset for the existing reference-analysis workflow. Reuse the job or a stable `idempotencyKey`; never resubmit to poll. `job_cancel` cancels downloads. Failed/cancelled imports may be submitted again as a fresh attempt.
+
+Download itself makes no paid model call. Subsequent paid analysis keeps its normal quote and consent. For an analysis-only request, finish with analysis evidence and do not generate, create a composition or render. Local download/storage and a later cloud analysis upload are separate actions. Report the specific returned failure: login/access requirement, platform rejection, connectivity, dependency preparation or extractor compatibility. An extraction failure does not prove that the video was deleted. After an actual failure, request an accessible local file. The first version handles single videos, not profiles, live streams or photo posts.
+
+## Video analysis precision
+
+Support `/rikoko analysis [overview|shots|recreate|auto]` through `reference_analysis_settings`. Accept equivalent natural-language requests, including existing Chinese aliases. No argument reads the current setting; `auto` resets it. Confirm that it is the account default for future analyses. A command alone only reads/saves this preference and never starts analysis, uploads, quotes, rendering or purchases. Unknown arguments leave the setting unchanged. The studio uses `/analysis` with the same persisted setting.
+
+Explicit per-task detail wins over the saved account default, which wins over automatic inference. Read `reference_analysis_settings` to choose the workflow; omit `detail` from plan/analyze when the user has not overridden it for this task, so the server resolves the saved preference. With `auto`, ordinary analysis uses `shots` and remake/later-generation uses `recreate`. Explicit “quick summary” → `overview`; “shot breakdown” → `shots`; “recreation detail” → `recreate`. Keep requested focus such as motion, camera, appearance, text, audio or continuity; persist it with the existing workspace request when available. A phrase like “Expand only the action in shot 5” means read that shot's original-source range and prepare a focused recreate plan. Prepared tasks keep their resolved detail even if the account default later changes.
+
+For complete-shot or recreate analysis, use `reference_analysis_plan` then `reference_analysis_prepare`, following every `nextOffset`. This creates actual local clips and representative frames. Quote each returned exact `reference_analyze` input directly; never recursively plan a prepared clip. Present the intended call count and aggregate quoted charge for the bounded set before purchasing. Reuse accepted inputs and existing jobs; do not retry purchases or exceed the agreed scope. Use `reference_analysis_merge` only after all segment reports are available. Keep original reports when adding a focused analysis.
+
+If analysis fails, preserve prepared clips and pause dependent remake generation. `ANALYSIS_PROTOCOL_MISMATCH` requires upgrading the official cloud runtime; `INVALID_INPUT` requires inspecting the rejected contract. Do not retry unchanged requests, drop `detail`/`focus`, or bypass semantic analysis by passing clips directly as motion references. Prepared clips are not analysis results. Resume the saved plan after repair and read its completed reports before generating. Output dimensions belong to the selected model profile, not the model family; do not treat center cropping as an automatic fix for incompatible output dimensions.
+
+Read full `shots` records before generating: starting and ending state, spatial relationships, lighting, ordered `actionStages`, and continuity. A static shot may have no stages. Complex motion needs its observable stages; a word count is not a quality guarantee. Generate separate image and video prompts from these records, retaining neighboring end/start poses as context without adding neighboring scenes to the current shot. Never use the chat overview as the production prompt or invent unseen preparation, contact, landing or outcomes. If a full record exceeds a generation prompt's length limit, author a bounded prompt without dropping the user's important constraints; the full analysis remains stored.
+
+Local cut detection produces candidates. Long continuous shots can be divided into processing windows, which are not verified new shots; report that distinction. On the fal video route, actual FPS remains provider controlled. A detailed prompt or a local clip does not prove higher FPS or frame accuracy.
+
+## Native audio and post-production sound
+
+Preserve the video model’s actual native dialogue, ambience and effects by default. Independent speech is for requested later changes or replacement; default to available **ElevenLabs Eleven v3** (`elevenlabs-voice`). Read capabilities first. Local system TTS is removed. Never silently select MiniMax speech or a system voice when Eleven v3 is unavailable.
+
+- **Narration replacement:** quote `tts` with `engine=fal`, explicit model, text, language and voice; retain visuals and change only the intended audio.
+- **Music:** use a configured audio/category=music profile such as `elevenlabs-music-30s`; describe mood and instruments and inspect fixed `music_length_ms` and `force_instrumental`. Generate with `parameters={}`; use a `music` edit to mix the returned asset.
+- **Sound effects:** use audio/category=sound, e.g. `elevenlabs-sound-5s`; inspect fixed `duration_seconds`. Use a `sound` edit with sceneId, eventId, assetId, offsetMs, durationMs, gain and optional audioSourceStartMs/wordId. Setting assetId=null removes that effect. Effects mix with native audio, narration and music instead of replacing them.
+- **Voice cloning:** use `minimax-voice-clone` with `mode=voice_clone`, an owned audio reference with role=voice and preview text as prompt. Check the profile’s measured duration/size limits. Review the preview and retain its output asset: `provenance.voiceClone` contains the provider-specific voiceId and reuseModel. For later synthesis, submit `tts` with that reuseModel, voice=voiceId and voiceAssetId=the clone output. MiniMax clone IDs are incompatible with Eleven v3 and cannot move between provider accounts. A new MiniMax clone must be used with TTS within 7 days to retain it; this requires its own quote, not an automatic purchase. Do not clone again for each line.
+
+Music, effects, cloning and later cloned-voice synthesis each use their own quote and user agreement. Configuration and mock tests do not establish live voice or music quality.
+
+## Optional speech timing in templates
+
+Use word alignment when the user's requested narration, talking-head, tutorial, list or explanation template needs it. Read the selected template's `speech.mode=optional`. Pure visual and music-led templates keep their own pacing; do not transcribe or synthesize for every video.
+
+Reuse the final accepted audio/video recording and its source-bound transcript. If the transcript is genuinely missing, quote transcription and obtain price agreement before submitting it. Then call `template_prepare` with `speech: {assetId, transcriptAssetId}`, existing `sceneAssets` and scene text parameters matching the spoken content in order. Preparation itself makes no model call. Sentence captions and scene changes follow actual word/group times. Chinese groups with no independent character timings remain intact; adjust sentence boundaries or obtain finer real alignment rather than distributing time evenly.
+
+Templates may declare `speech.anchors` with `eventId`, literal/parameterized `text` and `occurrence` to trigger an existing event at a spoken keyword. Replacing audio invalidates previous words and dependent events. Prepare again using the new matching transcript and accepted visuals; changing volume alone retains alignment. Word timing does not establish lip synchronization.
+
+### 字幕外观
+
+用户要求根据视频风格调整字幕时，使用 `caption_style_prepare`（文字描述、可选现有 `analysisAssetId`、`currentStyle` 和明确 `overrides`）或直接编写 `style` 编辑。参考视频没有字幕不构成阻塞：使用其已知视觉风格，或只根据用户文字设计；不能声称识别到不存在的字幕或精确字体。不要为设置样式自动购买分析、转写或视频生成。
+
+支持 `fontFamily`（`noto-sans-sc`、`noto-serif-sc`，旧版兼容 `system`）、`fontWeight`（300/400/500/600/700）、`fontSize`、`color`、`background`、`backgroundOpacity`、`strokeWidth`、`strokeColor`、`shadowColor`、`shadowOpacity`、`shadowBlur`、`shadowOffsetX`、`shadowOffsetY`。明确用户属性优先于参考推荐。复杂描述由宿主 Agent 解读为受校验的属性；本地规则返回的 `unmatched` 不能忽略或宣称已全部完成。
+
+将返回的 `style` 用于 composition，或把 `edit` 交给 `workspace_commit`。保持字幕文字、语音时间和已接受素材，仅重渲染本地成片。SRT 不保存视觉样式；样式烧录到视频。`reference_adapt` 也可传 `matchCaptionStyle`、`captionDescription`、`captionStyle`。

@@ -1,33 +1,58 @@
 ---
 name: rikoko
-description: Use rikoko MCP in the current conversation to answer questions about a video, create one, revise an existing project, or export the result when asked.
+description: Use rikoko MCP to analyze a reference video, direct a remake or new video, revise existing media, and deliver the reviewed result in the current conversation.
 ---
 
 <!-- Managed by the rikoko installer. Local changes are backed up before an update. -->
 
 # rikoko
 
-Use the connected rikoko MCP tools in this conversation. If the user invokes `/rikoko` without a request, ask what video they want to make or change.
+Work in the user's current conversation. Gemini analyzes original video through rikoko; the host authors the target and reviews outputs when it can actually see them; rikoko executes and records evidence. Use this skill for media work, not for changing rikoko's source code or the host's settings.
 
-- Read `capabilities` before promising an operation. For a new video, use `template_match` to choose suitable reusable structure and assets; honor requests to avoid templates or follow a reference.
-- For an existing project, read `workspace_snapshot` before making changes. Reuse accepted media for edits.
-- Answer questions using the available project records and analysis evidence. If inputs are missing, record the request with `workspace_request_save` and ask for the specific required items in this conversation. If reference analysis or new media needs a paid operation, show its quote and wait for the user's agreement before `job_submit`. Do not imply that a configured model or budget is available without checking.
-- Use `workspace_commit` for local composition or edits and `workspace_result` for progress. When complete, provide the actual video through the host's supported attachment flow or returned media links, with relevant text and the optional workspace link. Honor a request for links only. Use `workspace_export` to save a completed file for native attachment delivery when needed; do not generate again for delivery.
+## Load the relevant guidance
 
-## Video analysis precision
+Read only the current host's adapter: [Codex](references/host-codex.md), [Claude Code or Desktop](references/host-claude.md), or [Hermes](references/host-hermes.md). The client's name does not establish vision, local-file access or attachment delivery. Check tools exposed in this session and whether inspection images actually reach the active model.
 
-Support `/rikoko analysis [overview|shots|recreate|auto]` through `reference_analysis_settings`. Accept Chinese aliases 概览、逐镜头、复刻、自动. No argument reads the current setting; `auto` resets it. Confirm that it is the account default for future analyses. A command alone only reads/saves this preference and never starts analysis, uploads, quotes, rendering or purchases. Unknown arguments leave the setting unchanged. The studio uses `/analysis` with the same persisted setting.
+If local references are unavailable, call `rikoko_guide {topic:"overview"}` and then the matching topic below. It returns the same bundled Markdown over MCP without a browser, file permission or paid model call. Follow the connected runtime's schemas and capabilities; do not infer a missing tool from this document. Older runtimes need an update/reconnection for newer contracts.
 
-Explicit per-task detail wins over the saved account default, which wins over automatic inference. Read `reference_analysis_settings` to choose the workflow; omit `detail` from plan/analyze when the user has not overridden it for this task, so the server resolves the saved preference. With `auto`, ordinary analysis uses `shots` and remake/later-generation uses `recreate`. Explicit “概览/quick summary” → `overview`; “逐镜头/shot breakdown” → `shots`; “复刻精度” → `recreate`. Keep requested focus such as motion, camera, appearance, text, audio or continuity; persist it with the existing workspace request when available. A phrase like “只把第 5 镜动作展开” means read that shot's original-source range and prepare a focused recreate plan. Prepared tasks keep their resolved detail even if the account default later changes.
+| When | Read | MCP topic |
+| --- | --- | --- |
+| Codex | [Codex adapter](references/host-codex.md) | `host-codex` |
+| Claude | [Claude adapter](references/host-claude.md) | `host-claude` |
+| Hermes | [Hermes adapter](references/host-hermes.md) | `host-hermes` |
+| Reference analysis, attachment import or rejected analysis quote | [Analysis preflight](references/analysis-preflight.md) | `analysis-preflight` |
+| New footage or a remake | [Video direction](references/video-direction.md) and [director examples](references/directing-examples.md) | `video-direction`, `directing-examples` |
+| First/last frames or image generation | [Image direction](references/image-direction.md) | `image-direction` |
+| Assembly, handling or other physical processes | [Process B-roll](references/process-broll.md) | `process-broll` |
+| Inspecting, accepting or delivering media | [Visual review](references/visual-review.md) | `visual-review` |
+| Help, model choice, brief/spec changes | [Commands](references/commands.md) | `commands` |
+| Video edits, TikTok import, speech, music or captions | [Media operations](references/media-operations.md) | `media-operations` |
 
-For complete-shot or recreate analysis, use `reference_analysis_plan` then `reference_analysis_prepare`, following every `nextOffset`. This creates actual local clips and representative frames. Quote each returned exact `reference_analyze` input directly; never recursively plan a prepared clip. Present the intended call count and aggregate quoted charge for the bounded set before purchasing. Reuse accepted inputs and existing jobs; do not retry purchases or exceed the agreed scope. Use `reference_analysis_merge` only after all segment reports are available. Keep original reports when adding a focused analysis.
+## Start from the user's request
 
-If analysis fails, preserve prepared clips and pause dependent remake generation. `ANALYSIS_PROTOCOL_MISMATCH` requires upgrading the official cloud runtime; `INVALID_INPUT` requires inspecting the rejected contract. Do not retry unchanged requests, drop `detail`/`focus`, or bypass semantic analysis by passing clips directly as motion references. Prepared clips are not analysis results. Resume the saved plan after repair and read its completed reports before generating. Output dimensions belong to the selected model profile, not the model family; do not treat center cropping as an automatic fix for incompatible output dimensions.
+- Read `capabilities` before promising work. Help/model-list turns only report the catalog; analysis-only turns end with analysis. Neither implies generation or rendering. An empty skill invocation shows concise `help`, `models`, `model <id>` and `brief <request>` examples and asks for the request.
+- For an existing project, read `workspace_snapshot`. Resume `workspace_request_get` for an existing request. Keep accepted assets and use the current `baseRevisionId` and `requestVersion`.
+- For a new brief, use `template_match` to select a useful structure/assets unless the user declines templates. For a supplied reference, prioritize its requirements. Never invent product facts or require a reference merely to start.
+- Import accessible user-selected attachments as actual assets. A thumbnail, filename or description is not an import. Save genuine gaps with `workspace_request_save` (original intent, collected asset IDs, remaining `missingInputs` with kind/prompt/purpose/required) before asking for them. Optional inputs do not block. Attachment-only follow-ups continue the same request.
 
-Read full `shots` records before generating: starting and ending state, spatial relationships, lighting, ordered `actionStages`, and continuity. A static shot may have no stages. Complex motion needs its observable stages; a word count is not a quality guarantee. Generate separate image and video prompts from these records, retaining neighboring end/start poses as context without adding neighboring scenes to the current shot. Never use the chat overview as the production prompt or invent unseen preparation, contact, landing or outcomes. If a full record exceeds a generation prompt's length limit, author a bounded prompt without dropping the user's important constraints; the full analysis remains stored.
+## Direct, prepare and review
 
-Local cut detection produces candidates. Long continuous shots can be divided into processing windows, which are not verified new shots; report that distinction. On the fal video route, actual FPS remains provider controlled. A detailed prompt or a local clip does not prove higher FPS or frame accuracy.
+For generation, turn the brief into readable target shots using the direction playbooks. Describe what changes on screen, in what order, and what proves completion. Keep source observations separate from target decisions; each shot has a clear purpose, stable subjects, initial state, ordered action, end state, camera and visible acceptance criteria.
 
-## Missing material and follow-up replies
+For remakes, obtain Gemini `recreate` analysis and read `reference_analysis_get section=handoff` through every `nextOffset`. Bind the report ID/hash, preserve/adapt/free requirements, source evidence and uncertainty decisions in `plan.remake`. Do not replace that record with a host summary. Analysis gaps that affect the target must be resolved before dependent production.
 
-Before asking for genuinely missing media or facts, call `workspace_request_save` with the original message, existing asset IDs and specific `missingInputs` (kind, prompt, purpose and required). Keep optional inputs non-blocking. On a follow-up, read `workspace_request_get`, import accessible user-selected attachments and save only the remaining gaps using the current `requestVersion`. Do not claim an attachment was imported if the host did not expose its bytes. Preserve the original intent and accepted assets. Pass `requestId` and `requestVersion` to `workspace_commit` once ready. `workspace_plan` persists and resumes requests too, including attachment-only turns. Paid generation still requires agreement to its quote.
+Use `production_plan_validate/save` and the saved formal project scope. Compile each shot with `production_shot_prompts` using actual model IDs; `generation_prompt_preview` previews mode-specific wording. Use `generation_prepare` for each boundary-image/video stage with the exact prompt/direction, actual owned references and supported target specs. Revise the saved plan before changing a remake prompt. Source timing does not dictate target duration; sending source composition or motion to the model is an explicit input decision.
+
+Prefer an available MiniMax video profile that supports the requested reference roles and output specs; honor explicit model selections. The configured official gateway or custom fal connection controls availability. Model preference and budget are not quote acceptance. Present the exact quote (or bounded set and total) and obtain agreement before `job_submit`; changed billable inputs need a fresh quote and agreement. Preserve prepared input unchanged. Poll existing jobs, never resubmit to check progress.
+
+Inspect actual generated images/clips with `media_inspect` and record honest `media_review` results. If pixels are not available to the active model, obtain a user or supported vision-capable review; otherwise keep `decision="unreviewed"`. First/last-frame images require their own acceptance. Apply only accepted assets to the scoped project. Keep complete generated clips by default; inspect any intentionally trimmed action/hold.
+
+Use `workspace_commit` for local composition/edits with a stable idempotency key and the current revision. Render a preview, run `workspace_validate`, inspect the actual cut and record acceptance bound to its exact `revisionId`. `workspace_result purpose=final` must confirm `finalReady=true` before presenting visual media as final. Technical completion and visual acceptance are separate.
+
+## Continue and deliver
+
+After a reconnect, context loss or host switch, retrieve existing request/project, plan, preparation, job and review records by their IDs. Check current versions before changing anything. Reuse successful media and already submitted jobs; a cached chat statement of approval does not authorize changed inputs. If a required contract is unavailable, preserve the records and explain the specific missing capability instead of stripping validation fields.
+
+Deliver reviewed media in this conversation using the current host's attachment support or exact returned links. Always include the returned workspace URL as a clickable Markdown link, including links-only replies, so the user can continue editing. Preserve project/revision parameters; never append credentials or invent paths. Do not automatically open a browser, MCP App, popup or separate chat. `workspace_export` saves existing outputs and does not regenerate; `purpose=preview` is for inspection and must be labeled as such. Expired links can be refreshed with `workspace_result`.
+
+Report observations separately from inferences and unknowns. Keep progress useful: what is prepared, submitted, rendered, reviewed, or blocked, plus the next necessary action. Carry tool IDs internally; explain choices to the user in ordinary language.

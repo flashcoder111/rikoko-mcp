@@ -54,6 +54,14 @@ export class GeminiProvider implements MediaProvider {
       name: m.name ?? m.id,
       description: m.description ?? "",
       kind: m.kind,
+      ...(m.kind === "analysis"
+        ? {
+            referenceUnderstanding: {
+              family: "gemini",
+              upstreamModel: m.endpoint,
+            },
+          }
+        : {}),
       category: m.category,
       maxCostCents: m.maxCostCents,
       creditPriceCents: m.creditPriceCents,

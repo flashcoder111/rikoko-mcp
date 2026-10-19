@@ -1,3 +1,5 @@
+import { requireGenerationPreparation } from "../../core/src/generation-policy.js";
+import { requireGeminiUnderstanding } from "../../core/src/reference-handoff.js";
 import { randomUUID } from "node:crypto";
 import { Service, fingerprint } from "../../core/src/index.js";
 import { sha256 } from "../../storage/src/index.js";
@@ -9,15 +11,23 @@ import {
   isOfficialOperation,
   transcriptSchema,
   operationSchema,
+  voiceCloneSchema,
   type Context,
+  type Operation,
   type Entity,
 } from "../../contracts/src/index.js";
+import { validateVoiceProfile } from "../../core/src/voice-profile.js";
+import { assessGenerationOutput } from "../../core/src/generation-output.js";
+import { checkGenerationTarget } from "../../providers/src/generation-target.js";
+import { PreparationClient } from "./preparation.js";
+import type { Transaction } from "../../db/src/index.js";
 import { cloudOrigin, cloudRequest } from "./http.js";
 import {
   compatibleAnalysisProtocol,
   analysisProtocolMessage,
 } from "./analysis-protocol.js";
 export class GatewayClient {
+  private preparations: PreparationClient;
   private uploads = new Map<string, Promise<string>>();
   private imports = new Map<string, Promise<Entity>>();
   constructor(
@@ -27,6 +37,12 @@ export class GatewayClient {
     private fetcher: typeof fetch = fetch,
   ) {
     cloudOrigin(origin);
+    this.preparations = new PreparationClient(
+      service,
+      origin,
+      key,
+      (path, body) => this.request(path, body),
+    );
   }
   private async request(path: string, body?: unknown) {
     return (
@@ -35,6 +51,20 @@ export class GatewayClient {
         body,
       })
     ).data;
+  }
+  preparationSupported(c: Context) {
+    return this.preparations.supported(c);
+  }
+  prepare(c: Context, raw: unknown) {
+    return this.preparations.prepare(c, raw);
+  }
+  syncProductionChange(
+    tx: Transaction,
+    c: Context,
+    kind: "plan" | "scope",
+    record: Entity,
+  ) {
+    return this.preparations.sync(tx, c, kind, record).then(() => {});
   }
   async models(c: Context) {
     await this.service.scoped(c, "read", async () => {});
@@ -45,40 +75,116 @@ export class GatewayClient {
         "Cloud model catalog must be an array",
         502,
       );
-    return models.map((model) =>
-      model.kind === "analysis" &&
-      !compatibleAnalysisProtocol(model.referenceAnalysis)
-        ? {
-            ...model,
-            available: false,
-            unavailableReason: "ANALYSIS_PROTOCOL_MISMATCH",
-            unavailableMessage: analysisProtocolMessage,
-          }
-        : model,
-    );
+    return models.map((model) => {
+      if (model.kind !== "analysis") return model;
+      if (!compatibleAnalysisProtocol(model.referenceAnalysis))
+        return {
+          ...model,
+          available: false,
+          unavailableReason: "ANALYSIS_PROTOCOL_MISMATCH",
+          unavailableMessage: analysisProtocolMessage,
+        };
+      if (model.referenceUnderstanding?.upstreamModel === undefined)
+        return {
+          ...model,
+          available: false,
+          unavailableReason: "ANALYSIS_PROTOCOL_MISMATCH",
+          unavailableMessage:
+            "The official cloud catalog does not declare the reference analysis upstream (referenceUnderstanding.upstreamModel). Update the official runtime, then refresh capabilities and resume the saved analysis plan. This is a deployment compatibility issue, not a media or model failure; do not change billing connections or remove analysis requirements.",
+        };
+      try {
+        requireGeminiUnderstanding(model.referenceUnderstanding.upstreamModel);
+      } catch (error) {
+        if (!(error instanceof AppError)) throw error;
+        return {
+          ...model,
+          available: false,
+          unavailableReason: error.code,
+          unavailableMessage: error.message,
+        };
+      }
+      return model;
+    });
   }
   async usage(c: Context) {
     await this.service.scoped(c, "read", async () => {});
     return this.request("/v1/usage");
   }
+  private async enforceGenerationPolicy(
+    c: Context,
+    input: Operation,
+    prepared?: Entity,
+  ) {
+    if (input.kind !== "generate" || this.service.allowLegacyGeneration) return;
+    const kind =
+      prepared?.providerRequest?.kind ??
+      (await this.models(c)).find((model: any) => model.id === input.model)
+        ?.kind;
+    if (!kind)
+      throw new AppError("CAPABILITY_UNAVAILABLE", "Unknown cloud model");
+    requireGenerationPreparation(input, kind, false);
+  }
   async quote(c: Context, raw: unknown) {
     await this.service.scoped(c, "write", async () => {});
     const input = operationSchema.parse(raw);
+    const prepared = await this.preparations.validate(c, input);
+    await this.enforceGenerationPolicy(c, input, prepared);
     if (!isOfficialOperation(input))
       throw new AppError(
         "INVALID_CAPABILITY",
         "云端支持媒体生成与参考视频分析",
       );
+    if (input.kind === "generate" && input.preparedRequestId) {
+      const binding = (await this.preparations.bind(c, input, (a) =>
+        this.upload(c, a),
+      ))!;
+      const referenceAssets = await this.references(c, input);
+      const remote = await this.request("/v1/quotes", {
+        input: binding.bound.input,
+      });
+      this.preparations.verifyQuote(remote, binding.bound);
+      await this.preparations.validate(c, input);
+      return this.service.scoped(c, "write", (tx) =>
+        tx.put({
+          ...remote,
+          id: randomUUID(),
+          accountId: c.accountId,
+          type: "quote",
+          remoteQuoteId: remote.id,
+          remoteInput: binding.bound.input,
+          referenceAssets,
+          cloudOrigin: this.origin,
+          inputHash: fingerprint(input),
+          preparedRequestId: binding.record.id,
+          preparedRequestHash: binding.record.requestHash,
+          remotePreparedRequestId: binding.bound.id,
+          remotePreparedRequestHash: binding.bound.requestHash,
+          createdAt: new Date().toISOString(),
+        }),
+      );
+    }
     const referenceAssets = await this.references(c, input);
+    let analysisUpstreamModel: string | undefined;
+    if (input.kind === "generate" && input.target) {
+      const model = (await this.models(c)).find(
+        (m: any) => m.id === input.model,
+      );
+      if (!model)
+        throw new AppError("CAPABILITY_UNAVAILABLE", "Unknown cloud model");
+      checkGenerationTarget(model, input, referenceAssets);
+    }
     if (input.kind === "reference_analyze") {
       const model = (await this.models(c)).find(
         (candidate) =>
           candidate.id === input.model && candidate.kind === "analysis",
       );
-      if (model?.unavailableReason === "ANALYSIS_PROTOCOL_MISMATCH")
+      if (
+        model?.unavailableReason === "ANALYSIS_PROTOCOL_MISMATCH" ||
+        model?.unavailableReason === "REFERENCE_MODEL_POLICY"
+      )
         throw new AppError(
-          "ANALYSIS_PROTOCOL_MISMATCH",
-          analysisProtocolMessage,
+          model.unavailableReason,
+          model.unavailableMessage,
           409,
         );
       if (!model?.available)
@@ -87,8 +193,27 @@ export class GatewayClient {
           "The selected cloud analysis model is unavailable",
           409,
         );
+      analysisUpstreamModel = model.referenceUnderstanding?.upstreamModel;
+      requireGeminiUnderstanding(analysisUpstreamModel);
     }
     const remoteInput = { ...input };
+    if (
+      input.kind === "tts" &&
+      input.voiceAssetId &&
+      remoteInput.kind === "tts"
+    ) {
+      const asset = await this.service.get(c, "asset", input.voiceAssetId);
+      validateVoiceProfile(asset, input);
+      if (
+        asset.provenance?.cloudOrigin !== this.origin ||
+        !asset.provenance?.remoteVoiceAssetId
+      )
+        throw new AppError(
+          "VOICE_PROFILE_MISMATCH",
+          "The cloned voice belongs to a different provider connection",
+        );
+      remoteInput.voiceAssetId = asset.provenance.remoteVoiceAssetId;
+    }
     if (
       (input.kind === "reference_analyze" || input.kind === "transcribe") &&
       (remoteInput.kind === "reference_analyze" ||
@@ -119,6 +244,7 @@ export class GatewayClient {
         type: "quote",
         remoteQuoteId: remote.id,
         remoteInput,
+        ...(analysisUpstreamModel ? { analysisUpstreamModel } : {}),
         referenceAssets,
         cloudOrigin: this.origin,
         inputHash: fingerprint(input),
@@ -132,6 +258,7 @@ export class GatewayClient {
   ) {
     await this.service.scoped(c, "write", async () => {});
     const input = operationSchema.parse(p.input);
+
     if (!isOfficialOperation(input))
       throw new AppError(
         "INVALID_CAPABILITY",
@@ -149,13 +276,51 @@ export class GatewayClient {
         throw new AppError("IDEMPOTENCY_CONFLICT", "重复请求内容不同", 409);
       return existing;
     }
+    const prepared = await this.preparations.validate(c, input);
+    await this.enforceGenerationPolicy(c, input, prepared);
+    if (
+      prepared &&
+      (q.preparedRequestId !== prepared.id ||
+        q.preparedRequestHash !== prepared.requestHash)
+    )
+      throw new AppError(
+        "QUOTE_MISMATCH",
+        "Quote differs from the frozen preparation",
+        409,
+      );
     await this.references(c, input, q.referenceAssets ?? []);
+    if (input.kind === "reference_analyze") {
+      requireGeminiUnderstanding(q.analysisUpstreamModel);
+      const model = (await this.models(c)).find(
+        (m: any) => m.id === input.model,
+      );
+      if (
+        !model?.available ||
+        model.referenceUnderstanding?.upstreamModel !== q.analysisUpstreamModel
+      )
+        throw new AppError(
+          "REFERENCE_MODEL_POLICY",
+          "The quoted Gemini profile changed; request a new quote",
+          409,
+        );
+    }
     const remote = await this.request("/v1/generations", {
       ...p,
       input: q.remoteInput ?? input,
       quoteId: q.remoteQuoteId,
       idempotencyKey: fingerprint([c.accountId, p.idempotencyKey]),
     });
+    if (
+      prepared &&
+      (remote.preparedRequestId !== q.remotePreparedRequestId ||
+        remote.preparedRequestHash !== q.remotePreparedRequestHash ||
+        remote.templateVersion !== q.templateVersion)
+    )
+      throw new AppError(
+        "CLOUD_RESPONSE_INVALID",
+        "Cloud job is not bound to the quoted preparation; retry with the same idempotency key",
+        502,
+      );
     return this.service.scoped(c, "write", (tx) =>
       tx.put({
         ...remote,
@@ -165,6 +330,18 @@ export class GatewayClient {
         remoteJobId: remote.id,
         priceVersion: q.priceVersion,
         remoteInput: q.remoteInput,
+        ...(q.analysisUpstreamModel
+          ? { analysisUpstreamModel: q.analysisUpstreamModel }
+          : {}),
+        ...(prepared
+          ? {
+              preparedRequestId: prepared.id,
+              preparedRequestHash: prepared.requestHash,
+              remotePreparedRequestId: q.remotePreparedRequestId,
+              remotePreparedRequestHash: q.remotePreparedRequestHash,
+              templateVersion: q.templateVersion,
+            }
+          : {}),
         cloudOrigin: this.origin,
         input,
         inputHash: fingerprint(input),
@@ -266,7 +443,8 @@ export class GatewayClient {
           bytes: asset.bytes,
           sha256: asset.sha256,
           source: "rikoko-reference",
-          license: asset.license,
+          license:
+            asset.license ?? asset.provenance?.license ?? "user-provided",
           rightsConfirmed: true,
         });
         if (
@@ -317,6 +495,17 @@ export class GatewayClient {
     const remote = await this.request(
       `/v1/generations/${encodeURIComponent(local.remoteJobId)}`,
     );
+    if (
+      local.preparedRequestId &&
+      (remote.preparedRequestId !== local.remotePreparedRequestId ||
+        remote.preparedRequestHash !== local.remotePreparedRequestHash ||
+        remote.templateVersion !== local.templateVersion)
+    )
+      throw new AppError(
+        "CLOUD_RESPONSE_INVALID",
+        "Cloud job no longer matches the saved preparation",
+        502,
+      );
     let outputs = local.outputs ?? [];
     if (
       remote.status === "completed" &&
@@ -416,6 +605,15 @@ export class GatewayClient {
               const report = referenceReportSchema.parse(
                 JSON.parse(Buffer.from(bytes).toString()),
               );
+              if (
+                local.analysisUpstreamModel &&
+                report.provenance.upstreamModel !== local.analysisUpstreamModel
+              )
+                throw new AppError(
+                  "REFERENCE_MODEL_POLICY",
+                  "Returned analysis differs from the quoted Gemini upstream",
+                  409,
+                );
               const source = await this.service.get(
                 c,
                 "asset",
@@ -433,11 +631,14 @@ export class GatewayClient {
                   409,
                 );
               if (
-                (local.input.detail && report.analysis?.detail !== local.input.detail) ||
-                fingerprint(report.analysis?.focus ?? []) !== fingerprint(local.input.focus ?? []) ||
+                (local.input.detail &&
+                  report.analysis?.detail !== local.input.detail) ||
+                fingerprint(report.analysis?.focus ?? []) !==
+                  fingerprint(local.input.focus ?? []) ||
                 report.provenance.model !== local.input.model ||
                 report.coverage.startMs !== (local.input.range?.startMs ?? 0) ||
-                report.coverage.endMs !== (local.input.range?.endMs ?? source.metadata.durationMs)
+                report.coverage.endMs !==
+                  (local.input.range?.endMs ?? source.metadata.durationMs)
               )
                 throw new AppError(
                   "ANALYSIS_PROFILE_MISMATCH",
@@ -481,7 +682,58 @@ export class GatewayClient {
             license: "provider-model-terms",
             rightsConfirmed: true,
           });
-        })().finally(() => this.imports.delete(id));
+        })()
+          .then(async (asset) => {
+            const generationCheck = assessGenerationOutput(
+              local.input,
+              asset.metadata,
+            );
+            if (generationCheck) {
+              asset = {
+                ...asset,
+                provenance: { ...asset.provenance, generationCheck },
+              };
+              await this.service.scoped(c, "write", (tx) => tx.put(asset));
+            }
+            if (remote.result.voiceClone) {
+              if (
+                local.input.kind !== "generate" ||
+                local.input.mode !== "voice_clone" ||
+                asset.kind !== "audio"
+              )
+                throw new AppError(
+                  "INVALID_PROVIDER_RESPONSE",
+                  "Unexpected cloned voice result",
+                );
+              const voiceClone = voiceCloneSchema.parse(
+                remote.result.voiceClone,
+              );
+              if (!remote.outputs?.[0])
+                throw new AppError(
+                  "INVALID_PROVIDER_RESPONSE",
+                  "Missing remote voice asset",
+                );
+              return this.service.registerAsset(
+                c.accountId,
+                await this.service.storage.read(asset.storageKey),
+                {
+                  name: asset.name,
+                  kind: asset.kind,
+                  mime: asset.mime,
+                  metadata: asset.metadata,
+                  provenance: {
+                    ...asset.provenance,
+                    voiceClone,
+                    cloudOrigin: this.origin,
+                    remoteVoiceAssetId: remote.outputs[0],
+                    voiceReferenceAssets: local.input.references,
+                  },
+                },
+              );
+            }
+            return asset;
+          })
+          .finally(() => this.imports.delete(id));
         this.imports.set(id, pending);
       }
       outputs = [(await pending).id];
@@ -489,6 +741,11 @@ export class GatewayClient {
     const next = {
       ...local,
       ...remote,
+      input: local.input,
+      inputHash: local.inputHash,
+      preparedRequestId: local.preparedRequestId,
+      preparedRequestHash: local.preparedRequestHash,
+      templateVersion: local.templateVersion,
       id: local.id,
       accountId: c.accountId,
       type: "job",

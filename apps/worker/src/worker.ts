@@ -3,16 +3,19 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Service, fingerprint } from "../../../packages/core/src/index.js";
-import { mimeFor } from "../../../packages/core/src/assets.js";
+import {
+  mimeFor,
+  importTikTokVideo,
+} from "../../../packages/core/src/assets.js";
 import {
   AppError,
   isPaidOperation,
   compositionSchema,
-  transcriptSchema,
   type Entity,
   type Operation,
 } from "../../../packages/contracts/src/index.js";
 import { media, probeSchema } from "../../../packages/render/src/media.js";
+import { assessGenerationOutput } from "../../../packages/core/src/generation-output.js";
 import { editMap } from "../../../packages/render/src/index.js";
 import { downloadPublic } from "../../../packages/storage/src/download.js";
 import {
@@ -24,6 +27,7 @@ import { bindTranscript } from "../../../packages/providers/src/speech.js";
 import { bindReferenceReport } from "../../../packages/core/src/reference-report.js";
 import { validateStoryboardInput } from "../../../packages/core/src/storyboard-state.js";
 import { generationReferences } from "../../../packages/core/src/generation-references.js";
+import { validatePreparedGeneration } from "../../../packages/core/src/generation-preparation.js";
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export class Worker {
   private id = randomUUID();
@@ -55,6 +59,7 @@ export class Worker {
     const abort = new AbortController();
     const work = await mkdtemp(join(tmpdir(), "video-media-"));
     let busy = false;
+    let providerSubmissionStarted = false;
     const heartbeat = setInterval(async () => {
       if (busy) return;
       busy = true;
@@ -186,11 +191,30 @@ export class Worker {
               "CANCELLED",
               "Job cancelled before provider submission",
             );
+          if (input.kind === "generate")
+            await this.service.db.transaction(async (tx) => {
+              const prepared = await validatePreparedGeneration(
+                this.service,
+                tx,
+                job!.accountId,
+                input,
+              );
+              if (
+                job!.preparedRequestId !== prepared?.id ||
+                job!.preparedRequestHash !== prepared?.requestHash
+              )
+                throw new AppError(
+                  "PREPARED_REQUEST_MISMATCH",
+                  "Queued work no longer matches its preparation",
+                  409,
+                );
+            });
           // Resolving storage references may take time; review can change meanwhile.
           if (input.kind === "generate" && input.storyboard)
             await this.service.db.transaction((tx) =>
               validateStoryboardInput(tx, job!.accountId, input),
             );
+          providerSubmissionStarted = true;
           const ticket = await this.service.provider.submit(
             input,
             assetUrl,
@@ -286,7 +310,10 @@ export class Worker {
                 name: `${result.kind}.json`,
                 kind: result.kind,
                 mime: "application/json",
-                metadata: {},
+                metadata:
+                  input.kind === "transcribe"
+                    ? { sourceAssetId: input.assetId }
+                    : {},
                 provenance: {
                   source: job.ticket.connectionId ?? "fal",
                   model: "model" in input ? input.model : null,
@@ -325,12 +352,20 @@ export class Worker {
                 mime: mimeFor(metadata),
                 metadata,
                 provenance: {
+                  generationCheck: assessGenerationOutput(input, metadata),
                   source: job.ticket.connectionId ?? "fal",
                   model: "model" in input ? input.model : null,
                   requestId: job.ticket.requestId,
                   evidence: "provider-live",
                   license: "provider-model-terms",
                   costStatus: "pending_reconciliation",
+                  ...(result.voiceClone
+                    ? {
+                        voiceClone: result.voiceClone,
+                        voiceReferenceAssets:
+                          input.kind === "generate" ? input.references : [],
+                      }
+                    : {}),
                 },
                 jobId: job.id,
               },
@@ -373,7 +408,38 @@ export class Worker {
           },
         ],
       });
-      const outputs = await this.executeLocal(job, work, abort.signal);
+      const outputs =
+        input.kind === "import_video"
+          ? await (async () => {
+              const asset = await importTikTokVideo(
+                this.service,
+                job!.accountId,
+                input,
+                work,
+                job!.id,
+                abort.signal,
+                async (phase) => {
+                  await checkpoint({
+                    phase,
+                    progressMessage:
+                      phase === "preparing_download"
+                        ? "正在准备下载环境"
+                        : phase === "downloading"
+                          ? "正在下载 TikTok 视频"
+                          : "正在校验并保存视频",
+                  });
+                },
+              );
+              return {
+                ids: [asset.id],
+                extra: {
+                  assetId: asset.id,
+                  metadata: asset.metadata,
+                  progressMessage: "视频已保存到本地素材库",
+                },
+              };
+            })()
+          : await this.executeLocal(job, work, abort.signal);
       if (abort.signal.aborted)
         throw new AppError("CANCELLED", "Job cancelled");
       await this.service.finish(
@@ -407,7 +473,9 @@ export class Worker {
       const paid = isPaidOperation(input);
       const unknown =
         e instanceof SubmissionUnknown ||
-        (job.phase === "submitting" && e.code !== "PROVIDER_REJECTED");
+        (providerSubmissionStarted &&
+          job.phase === "submitting" &&
+          e.code !== "PROVIDER_REJECTED");
       const pending = paid && (unknown || !!job.ticket);
       try {
         await this.service.finish(
@@ -461,36 +529,14 @@ export class Worker {
       jobId: job.id,
     };
     if (input.kind === "tts") {
-      const result = await media(
-        { command: "tts", ...input, workDir: work },
-        signal,
+      throw new AppError(
+        "CAPABILITY_UNAVAILABLE",
+        "Local speech synthesis has been removed; request a cloud speech quote",
       );
-      const metadata = probeSchema.parse(
-        (await media({ command: "probe", path: result.output }, signal))
-          .metadata,
-      );
-      const a = await this.service.registerAsset(
-        job.accountId,
-        await readFile(result.output),
-        {
-          name: "voice.wav",
-          kind: "audio",
-          mime: "audio/wav",
-          metadata,
-          provenance: {
-            ...provenance,
-            textHash: fingerprint(input.text),
-            language: input.language,
-            voice: result.voice,
-          },
-          jobId: job.id,
-        },
-      );
-      return { ids: [a.id] };
     }
     if (input.kind === "transcribe") {
       const source = await this.stage(job, input.assetId, work);
-      const result = transcriptSchema.parse(
+      const result = bindTranscript(
         await media(
           {
             command: "transcribe",
@@ -499,6 +545,7 @@ export class Worker {
           },
           signal,
         ),
+        source.asset,
       );
       const a = await this.service.registerAsset(
         job.accountId,
@@ -507,7 +554,10 @@ export class Worker {
           name: "transcript.json",
           kind: "transcript",
           mime: "application/json",
-          metadata: { durationMs: result.durationMs },
+          metadata: {
+            durationMs: result.durationMs,
+            sourceAssetId: input.assetId,
+          },
           provenance,
           jobId: job.id,
         },
@@ -612,6 +662,7 @@ export class Worker {
           fontSize: input.style?.fontSize ?? 28,
           color: input.style?.color ?? "#ffffff",
           background: "#151a22",
+          ...input.style,
         },
       };
     } else throw new AppError("UNSUPPORTED", "Unsupported operation");

@@ -252,15 +252,118 @@ afterEach(async () => {
   await db.close();
   await rm(dir, { recursive: true, force: true });
 });
-const invoke = (
+// Author explicit target intent for generation tests; source observations are never prompts.
+async function invoke(
   name: Parameters<typeof callStoryboardTool>[2],
-  input: unknown,
-) => callStoryboardTool(service, c, name, input);
+  raw: any,
+): Promise<any> {
+  if (name !== "reference_storyboard_quote" || raw.preparedRequestId)
+    return callStoryboardTool(service, c, name, raw);
+  const board = await service.get(c, "storyboard", raw.storyboardId);
+  const shot = board.shots.find(
+    (s: any) => s.sourceShotId === raw.sourceShotId,
+  );
+  if (
+    !shot ||
+    board.version !== raw.expectedVersion ||
+    (raw.stage === "video" && shot.review?.decision !== "accepted") ||
+    (raw.stage === "image" &&
+      shot.review?.decision === "accepted" &&
+      !raw.regenerate)
+  )
+    return callStoryboardTool(service, c, name, raw);
+  const model = service.provider.models.find((m) => m.id === raw.model)!;
+  const mode = model.generationInput!.mode;
+  let refs: any[] =
+    raw.stage === "image"
+      ? shot.references
+      : [
+          {
+            assetId: shot.review.imageAssetId,
+            role: mode === "reference_to_video" ? "scene" : "first_frame",
+            instruction: "Keep the approved target bottle and presenter",
+          },
+          ...(mode === "reference_to_video" && shot.motion
+            ? [
+                {
+                  assetId: shot.motion.assetId,
+                  role: "motion",
+                  transfer: shot.motionPurpose,
+                  exclude: shot.motionExclusions,
+                  instruction: "Use the approved lift timing",
+                },
+              ]
+            : []),
+        ];
+  const plan: any = await callTool(service, c, "production_plan_save", {
+    plan: {
+      title: "Target bottle",
+      width: 144,
+      height: 144,
+      shots: [
+        {
+          id: "target-lift",
+          initialState: { bottle: "on the table" },
+          action: "Lift our bottle to chest height",
+          endState: { bottle: "held at chest height" },
+          durationMs: shot.durationMs,
+          references: refs,
+        },
+      ],
+    },
+  });
+  const drafts: any = await callTool(service, c, "production_shot_prompts", {
+    planId: plan.id,
+    expectedVersion: plan.version,
+    shotId: "target-lift",
+    subject: "Our presenter and bottle",
+    mode: raw.stage === "image" ? "reference_to_video" : mode,
+    ...(raw.stage === "image"
+      ? { imageModel: raw.model }
+      : { model: raw.model }),
+  });
+  const draft = raw.stage === "image" ? drafts.image : drafts.video;
+  const prepared: any = await callTool(service, c, "generation_prepare", {
+    plan: {
+      planId: plan.id,
+      expectedVersion: plan.version,
+      shotId: "target-lift",
+      stage: raw.stage === "image" ? "first_frame" : "video",
+    },
+    direction: draft.direction,
+    input: {
+      kind: "generate",
+      model: raw.model,
+      mode,
+      prompt: draft.prompt,
+      parameters: raw.parameters ?? {},
+      references: refs.map(({ assetId, role }) => ({ assetId, role })),
+      target: {
+        width: 144,
+        height: 144,
+        aspectPolicy:
+          mode === "reference_to_video" || raw.stage === "image"
+            ? "contain"
+            : "match",
+      },
+      storyboard: {
+        storyboardId: board.id,
+        version: board.version,
+        sourceShotId: shot.sourceShotId,
+        stage: raw.stage,
+      },
+    },
+  });
+  return callStoryboardTool(service, c, name, {
+    ...raw,
+    preparedRequestId: prepared.preparedRequestId,
+  });
+}
 async function prepare(extra = {}) {
   return invoke("reference_storyboard_prepare", {
     analysisAssetId: analysis.id,
     brief: "Use our own presenter and bottle",
-    shots: [{ sourceShotId: "s1" }],
+    shots: [{ sourceShotId: "s1", useSourceComposition: true }],
     ...extra,
   });
 }
@@ -276,13 +379,15 @@ async function review(plan: any, extra = {}) {
     ...extra,
   });
 }
-it("extracts a real frame and motion clip, creates reusable prompt drafts and spends nothing", async () => {
+it("extracts a real frame and motion clip, preserves source observations and spends nothing", async () => {
   const plan = await prepare({
     shots: [
       {
         sourceShotId: "s1",
         frameTimeMs: 200,
         motionRange: { startMs: 0, endMs: 2500 },
+        motionPurpose: "action",
+        motionExclusions: "source identity and setting",
       },
     ],
   });
@@ -297,8 +402,14 @@ it("extracts a real frame and motion clip, creates reusable prompt drafts and sp
     (await service.get(c, "asset", plan.shots[0].motion.assetId)).metadata
       .durationMs,
   ).toBeGreaterThanOrEqual(2400);
-  expect(plan.shots[0].imagePrompt).toContain("warm light");
-  expect(plan.shots[0].videoPrompt).toContain("Lift the bottle");
+  expect(JSON.stringify(plan.shots[0].sourceObservation)).toContain(
+    "warm light",
+  );
+  expect(plan.shots[0].readyForGeneration).toBe(false);
+  expect(plan.shots[0].imagePrompt).toBeUndefined();
+  expect(JSON.stringify(plan.shots[0].sourceObservation)).toContain(
+    "Lift the bottle",
+  );
   expect(plan.shots[0].review).toBeUndefined();
   expect(requests).toEqual([]);
   expect((await service.usage(c)).reservedCents).toBe(0);
@@ -393,7 +504,14 @@ it("requires a reviewed image, binds video quotes to it, and invalidates stale a
 });
 it("refuses silent loss of a requested motion reference or undersized video profile", async () => {
   const plan = await prepare({
-    shots: [{ sourceShotId: "s1", motionRange: { startMs: 0, endMs: 2500 } }],
+    shots: [
+      {
+        sourceShotId: "s1",
+        motionRange: { startMs: 0, endMs: 2500 },
+        motionPurpose: "action",
+        motionExclusions: "source identity and setting",
+      },
+    ],
   });
   const accepted = await review(plan);
   const req = {
@@ -445,7 +563,7 @@ it("checks ownership, media kind, bounds and read-only scope before doing work",
     callStoryboardTool(service, other, "reference_storyboard_prepare", {
       analysisAssetId: analysis.id,
       brief: "new",
-      shots: [{ sourceShotId: "s1" }],
+      shots: [{ sourceShotId: "s1", useSourceComposition: true }],
     }),
   ).rejects.toThrow();
   const readKey = await service.issueKey(c, {
@@ -458,7 +576,7 @@ it("checks ownership, media kind, bounds and read-only scope before doing work",
     callStoryboardTool(service, reader, "reference_storyboard_prepare", {
       analysisAssetId: analysis.id,
       brief: "new",
-      shots: [{ sourceShotId: "s1" }],
+      shots: [{ sourceShotId: "s1", useSourceComposition: true }],
     }),
   ).rejects.toMatchObject({ code: "FORBIDDEN" });
   expect(requests).toHaveLength(0);
@@ -618,7 +736,7 @@ it("completes reviewed image-to-video, maps its result back to the shot and rend
   expect(final.status).toBe("completed");
   expect(
     (await service.get(c, "asset", final.outputs[0])).metadata.durationMs,
-  ).toBe(2500);
+  ).toBe(5000);
 });
 
 it("honors an explicit target duration and caches repeated local preparation", async () => {
@@ -739,3 +857,17 @@ it.each(["review", "cancel"])(
     );
   },
 );
+
+it("refuses the old storyboard generation path without a target-plan preparation", async () => {
+  const board = await prepare();
+  await expect(
+    callStoryboardTool(service, c, "reference_storyboard_quote", {
+      storyboardId: board.id,
+      expectedVersion: board.version,
+      sourceShotId: "s1",
+      stage: "image",
+      model: "edit",
+    }),
+  ).rejects.toMatchObject({ code: "PRODUCTION_PLAN_REQUIRED" });
+  expect(requests).toHaveLength(0);
+});

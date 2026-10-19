@@ -1,4 +1,5 @@
 import { AppError, type Operation } from "../../contracts/src/index.js";
+import { resolveGenerationParameters } from "./generation-parameters.js";
 import {
   generationPayload,
   type ResolvedReference,
@@ -79,7 +80,10 @@ export class ReplicateProvider extends FalProvider {
         "POST",
         {
           input: {
-            ...m.parameters,
+            ...resolveGenerationParameters(
+              m,
+              input.kind === "generate" ? input.parameters : {},
+            ),
             ...referencePayload,
             [m.promptField ?? (input.kind === "tts" ? "text" : "prompt")]:
               prompt,

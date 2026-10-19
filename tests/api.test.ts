@@ -77,6 +77,21 @@ it("discovers and calls tools through the real MCP v2 client", async () => {
   );
   const client = new Client({ name: "acceptance-client", version: "1.0.0" });
   await client.connect(transport);
+  expect(client.getInstructions()).toContain("/rikoko help");
+  const capabilities = await client.callTool({
+    name: "capabilities",
+    arguments: {},
+  });
+  const catalog = (capabilities.structuredContent as any).result;
+  expect(catalog.commands.agentEntry).toBe("/rikoko");
+  expect(catalog.commands.items).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ name: "model" }),
+      expect.objectContaining({ name: "reference" }),
+    ]),
+  );
+  expect(catalog.commands.selectionIsConsent).toBe(false);
+  expect(catalog.providers).toEqual([]);
   const list = await client.listTools();
   expect(list.tools.some((t) => t.name === "job_submit")).toBe(true);
   expect(list.tools.every((t) => !t._meta)).toBe(true);
@@ -108,7 +123,7 @@ it("discovers and calls tools through the real MCP v2 client", async () => {
   expect(committed.isError).not.toBe(true);
   const command = (committed.structuredContent as any).result;
   expect(command.conversation).toBeUndefined();
-  expect(JSON.stringify(committed.content)).toContain("[打开工作台]");
+  expect(JSON.stringify(committed.content)).toContain("[Open workspace]");
   const asset = await service.registerAsset(
     (await service.authenticate(key)).accountId,
     new Uint8Array([1]),
@@ -128,7 +143,7 @@ it("discovers and calls tools through the real MCP v2 client", async () => {
     name: "workspace_result",
     arguments: { jobId: command.jobId },
   });
-  expect(delivered.content).toHaveLength(2);
+  expect(delivered.content).toHaveLength(1);
   expect(delivered.content[0].type).toBe("text");
   const output = (delivered.structuredContent as any).result;
   expect(output.workspace).toBe(command.workspace);
@@ -137,7 +152,7 @@ it("discovers and calls tools through the real MCP v2 client", async () => {
   expect(output.outputs).toEqual([
     { assetId: asset.id, name: "MCP output.mp4", mimeType: "video/mp4" },
   ]);
-  expect(delivered.content[1].type).toBe("resource_link");
+  expect(JSON.stringify(delivered.content)).toContain("Unreviewed preview");
   expect(JSON.stringify(delivered)).toContain("/delivery/");
   const snapshot = await client.callTool({
     name: "workspace_snapshot",

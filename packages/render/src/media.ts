@@ -12,6 +12,7 @@ export const probeSchema = z.object({
   height: z.number().nullable(),
   hasAudio: z.boolean(),
   codec: z.string(),
+  container: z.enum(["mp4", "mov", "webm", "other"]).optional(),
   sampleRate: z.number().nullable(),
 });
 export async function media(

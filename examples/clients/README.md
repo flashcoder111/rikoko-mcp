@@ -2,7 +2,7 @@
 
 视频创作 MCP 的产品名称和新安装配置名统一为 **rikoko**。Codex、Claude Code 和 Hermes 安装时会获得同名技能入口；Claude Desktop 使用 MCP 工具和自然语言入口。
 
-默认使用宿主原有对话：Agent 理解要求、调用普通 MCP 工具、回复状态，并在完成时交付视频附件或媒体链接，可附工作台链接。用户继续在原对话提出修改。**不自动弹出 MCP 窗口，不嵌入卡片播放器，也不另开网页对话。** 用户主动点击“打开工作台”时才进入 `/workspace` 预览、剪辑或导出。网页 `/` 保留独立使用和开发调试；多个客户端共享同一后端账户下的项目、素材、任务与版本。
+默认使用宿主原有对话：Agent 理解要求、调用普通 MCP 工具、回复状态，并在完成验收后交付视频附件或媒体链接，始终附上可点击的工作台链接。用户继续在原对话提出修改。**不自动弹出 MCP 窗口，不嵌入卡片播放器，也不另开网页对话。** 用户主动点击“打开工作台”时才进入 `/workspace` 预览、剪辑或导出。网页 `/` 保留独立使用和开发调试；多个客户端共享同一后端账户下的项目、素材、任务与版本。
 
 ## 安装和激活
 
@@ -19,6 +19,8 @@ pnpm clients install hermes
 ```
 
 macOS 安装器为每端签发 read/write、付费预算为 0 的独立 Key，保存于系统 Keychain。配置只写 Keychain 服务名称，不写凭据。已有配置先备份、再原子更新，其他 MCP 保留；同名 `rikoko` 指向不同工程时拒绝覆盖。重复安装同一配置不追加条目。安装器不会覆盖内容不同的同名用户技能。
+
+macOS Hermes 会额外允许 `~/Library/Application Support/Hermes/composer-images/`，用于导入在聊天输入框上传的图片。旧配置若仍是两个默认工程目录，重新执行 `pnpm clients install hermes` 会只升级该目录列表；其他启动设置必须一致，自定义或主动收窄的目录列表不会被自动扩展。安装后在 Hermes 执行 `/reload-mcp` 或重启应用。Linux/远程 Hermes 请配置实际宿主上的专用附件目录，不套用 macOS 路径。
 
 | 客户端                                    | 配置位置                                                          | 激活方式                                      |
 | ----------------------------------------- | ----------------------------------------------------------------- | --------------------------------------------- |
@@ -38,7 +40,34 @@ pnpm clients doctor hermes
 
 doctor 启动真实 stdio 子进程，检查初始化、工具发现、capabilities，并确认没有声明嵌入式 MCP UI。成功输出包含 `interaction: "native-conversation-media-and-content"` 和 `inlineCardResource: false`。它不购买生成任务，也不代替宿主界面验收。查看可移植模板：`pnpm clients config <客户端>`。不要把当前 Mac 的路径直接复制到远程 Hermes。
 
+存在已安装的 rikoko 配置时，doctor 使用其中的启动命令与环境；输出 `configSource` 和 `importRoots` 供核对。没有已安装条目时才使用生成的默认配置，并标记 `configSource: "generated"`。doctor 新建测试连接，不会替已经运行的宿主重载 MCP，也不代表附件已实际上传。
+
 从旧卡片版本更新后，重启后端并在 Agent 中重载 MCP 连接，让宿主重新读取工具声明。已展示的旧卡片可能保留在历史消息中；新的调用使用普通工具结果。
+
+## 三端适配与导演指引
+
+三端使用同一份公共导演流程，差异集中在 Skill 加载、附件读取、实际看图能力和结果交付。客户端名称不代表该会话一定具备视觉能力。
+
+| 宿主 | 入口与指引 | 素材与验收 | 最终交付 |
+| --- | --- | --- | --- |
+| Codex app / CLI | 当前技能目录中的 rikoko；支持时用 `$rikoko`；[适配说明](../../skills/rikoko/references/host-codex.md) | 使用可访问的真实路径；工具编排必须保留 `media_inspect` 的 image blocks | app 支持时使用返回的本地路径展示；CLI/远程可用媒体链接 |
+| Claude Code | `/rikoko`；[适配说明](../../skills/rikoko/references/host-claude.md) | 按需读取本地参考文档，核实 MCP 进程能读取附件 | 返回媒体链接；只有当前宿主支持时才使用原生附件 |
+| Claude Desktop | 自然语言或 MCP prompt；`rikoko_guide` 提供全文 | 不假定桌面附件对 MCP 可读；无需终端也能读取导演指引 | 媒体链接与工作台链接，不承诺内嵌播放器 |
+| Hermes | `/rikoko`、`skill_view` 或 `rikoko_guide`；[适配说明](../../skills/rikoko/references/host-hermes.md) | 区分 native pixels 和辅助视觉摘要；使用实际主机附件目录 | 支持的当前渠道用返回的 `MEDIA:` 路径；失败可回退到媒体链接 |
+
+所有最终视频仍需当前版本验收，交付时均包含准确的工作台链接。看不到画面的宿主保持 unreviewed，获取用户或可用视觉审核，不把文本摘要写成亲眼观察。
+
+`rikoko_guide` 是只读 MCP 工具：`overview`、`host-codex`、`host-claude`、`host-hermes`、`analysis-preflight`、`video-direction`、`directing-examples`、`image-direction`、`process-broll`、`visual-review`、`commands`、`media-operations`。它从运行时随包文档读取，与 Skill 使用同一源文件，返回内容哈希；不访问后端、不上传、不报价。HTTP MCP 同样可用，不需要开放本地文件工具或 MCP App。
+
+已有安装只更新技能内容时，在更新后的源码目录执行：
+
+```sh
+pnpm clients sync-skill codex
+pnpm clients sync-skill claude-code
+pnpm clients sync-skill hermes
+```
+
+此命令同步 SKILL.md 和完整参考目录，备份有差异的托管文件，拒绝覆盖不同的非托管同名 Skill。它不连接后端、不读写凭据、不修改 MCP 配置；不代表首次安装已完成。Claude Desktop 没有此本地技能入口，需要更新其连接的运行时并重连以获得 `rikoko_guide`。其他宿主也需重新加载 Skill；正在使用旧工具列表的会话需要重连。源码/Skill 更新不等于公共发行或云端已经上线。
 
 ## Hermes 运行在服务器时
 
@@ -48,10 +77,26 @@ doctor 启动真实 stdio 子进程，检查初始化、工具发现、capabilit
 
 ## 对话中的使用
 
-可直接说：“使用 rikoko，根据这些素材做一段视频，在当前对话告诉我进度，完成后发给我视频。”若只想看工作台链接，可明确提出。在支持技能斜杠入口的 Codex、Claude Code 和 Hermes 中，也可输入 `/rikoko` 加创作或修改要求。MCP 还提供 `rikoko_create`、`rikoko_resume` 两个 prompt。安装或更新后需重载客户端；实际斜杠菜单由各宿主显示。
+支持技能入口的 Agent 中可用以下指令，工作台输入框则省略 `rikoko`，直接输入 `/models` 等；输入 `/` 或点击输入框旁的 `/` 按钮查看菜单。Agent 的 `/model` 可能属于宿主自身，因此选择视频模型请完整写 `/rikoko model <模型 ID>`。
 
-1. `capabilities` 查看真实可用能力。宿主 Agent 直接准备 composition 或编辑动作；`workspace_plan` 可选，无需额外配置网页创作模型。
-2. 本地附件通过 `asset_import_file` 上传实际文件。默认仅允许工程的 `media-inbox/` 和 `artifacts/`；需传素材许可及 `rightsConfirmed: true`。自有附件放入 `media-inbox/`，或由操作者用 `VIDEOWORKBENCH_IMPORT_ROOTS` JSON 数组配置专用附件目录。连接器不能自动读取宿主未提供的附件，也不开放整个用户主目录。
+| Agent 示例 | 用途 |
+| --- | --- |
+| `/rikoko help` | 查看指令 |
+| `/rikoko models` | 查看当前接入的模型、规格和状态 |
+| `/rikoko model <目录中的 ID>` | 明确选择模型；`auto` 恢复自动选择，视频优先 MiniMax |
+| `/rikoko brief 咖啡店新品短片` | 补充创作要求 |
+| `/rikoko style 温暖、自然光` | 补充风格 |
+| `/rikoko reference 第一张图用于人物一致性` | 说明参考素材用途，需另附实际文件 |
+| `/rikoko video`、`image`、`speech`、`audio`、`edit` | 切换视频、图片、语音、其他音频或剪辑；各类保留独立模型选择 |
+
+工作台指令单独放在草稿的最后一行，按 Enter 应用；原描述和附件会保留，指令本身不提交任务。时长、画幅直接用自然语言，例如“做一条 15 秒、9:16 竖屏的视频，配温柔的中文女声”，Agent 分别整理视频和语音参数，匹配各自的模型规格。工作台直接生成使用所选模型的固定规格，描述本身不会覆盖规格；复杂要求交给 Agent 编排。需要结构化参考输入的档案会显示在目录中，当前工作台文字生成入口不能选择它们，请通过 Agent 的参考素材流程绑定输入。
+
+当前模型统一经 fal.ai 接入；Seedance 2 等后续模型在实际配置并启用后由模型目录提供，不预置虚构可用状态。选择模型不代表接受费用，付费生成仍需确认当前报价。此处只定义 rikoko 技能的子指令；宿主是否显示 `/rikoko` 菜单取决于客户端，普通自然语言入口始终可用。
+
+可直接说：“使用 rikoko，根据这些素材做一段视频，在当前对话告诉我进度，完成后发给我视频。”若只想看工作台链接，可明确提出。Codex 使用当前技能目录中的 `rikoko`（支持时可显式输入 `$rikoko`）；Claude Code 和 Hermes 可输入 `/rikoko` 加创作或修改要求。不要假定 Codex 的所有版本都提供同名斜杠菜单。MCP 还提供 `rikoko_create`、`rikoko_resume` 两个 prompt。安装或更新后需重载客户端；实际斜杠菜单由各宿主显示。
+
+1. `capabilities` 查看真实可用能力；读取当前宿主适配和任务所需的导演指引。无法访问本地 Skill 时，调用 `rikoko_guide {topic:"overview"}`，再按返回目录加载相关 topic。宿主 Agent 直接准备 composition 或编辑动作；`workspace_plan` 可选，无需额外配置网页创作模型。
+2. 本地附件通过 `asset_import_file` 上传实际文件。默认允许工程的 `media-inbox/` 和 `artifacts/`；macOS Hermes 安装配置还包含上面的 `composer-images/`。需传素材许可及 `rightsConfirmed: true`。其他专用附件目录由操作者通过 `VIDEOWORKBENCH_IMPORT_ROOTS` JSON 数组配置。工具描述会列出当前目录；遇到 `FORBIDDEN`，按提示将所选素材复制到可用目录后使用新路径，或更新专用目录配置并重载 MCP；不要原样反复重试。目录尚未创建不会影响其他有效目录；附件已失效时需重新附加。连接器不能自动读取宿主未提供的附件，也不开放整个用户主目录。
 3. `workspace_commit` 创建/编辑，使用稳定 `idempotencyKey`；`workspace_result` 查询状态。重试查询不再次提交生成。
 4. MCP 在任务完成后返回普通文本、结构化结果及媒体 `resource_link`，包含视频、字幕、预览图和当前画面文案。配置了导出目录的 Codex/Hermes 自动保存附件；其他宿主使用可访问的媒体链接。仍不声明 `ui.resourceUri` 或 HTML 资源。
 5. 用户继续使用宿主原有输入框修改；需要预览或精修时自行点击链接。Agent 不调用浏览器打开工具，也不要求用户切到网页聊天。工作台首次打开仍需连接自己的工作空间。

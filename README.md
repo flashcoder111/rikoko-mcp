@@ -2,6 +2,8 @@
 
 本仓库负责本地 MCP 与剪辑工作台。官网和官方云后台现由独立的 `rikoko-platform` 仓库维护。开发、Git 管理及共享运行时更新规则见[双仓库说明](docs/architecture/repository-layout.md)。
 
+TikTok 单视频和分享链接可通过现有素材导入入口交给本地 Worker 下载、校验并保存为素材。安装器准备下载工具，首次使用自动补齐缺失的锁定依赖；用户只需提供链接。平台访问限制仍可能导致失败，具体状态见任务返回。详见[安装与本地下载](docs/architecture/installation.md)。
+
 第一次使用请看[中文使用教程](docs/tutorials/使用教程.md)：从启动、首个本地样片，到 Agent 对话、工作台剪辑、声音调整与版本恢复，附实际操作截图。
 
 直接描述想做的视频，Agent 会自动检索模板和已有素材、选择合适结构并填入文案，无需先选模板或提供参考视频。本地内置 9 个模板、15 张原创插画；素材分类、标签与收藏用于辅助自动检索。修改字幕复用当前画面，详见[自动创作与素材复用](docs/tutorials/模板与素材复用.md)。
@@ -10,9 +12,9 @@
 
 支持**官方综合 API 套餐**和**config 自有模型接入**两种方式：官方套餐统一消耗额度，自有服务直接使用自己的供应商账户。图片、视频和音频共用模型目录与素材流程；自有连接只通过配置文件管理。配置示例、计费规则、当前供应商支持范围及支付边界见 [模型服务说明](docs/architecture/model-services.md)。
 
-官方测试服务已接入 **MiniMax Speech 2.8 HD 配音 + ElevenLabs Scribe v2 转写**，支持词级字幕读取、已有画面配音及定时字幕 SRT 导出。已完成中英文真实配音与转写、中文语音字幕成片验收；本地系统声音保留为显式选择。见[语音使用说明](docs/speech.md)与[真实验收记录](docs/acceptance/speech-2026-10-15.md)。
+视频优先保留生成模型原生声音；后期修改或替换配音默认采用 **ElevenLabs Eleven v3**，不提供本地系统配音。新增 **ElevenLabs Music 配乐、Sound Effects V2 音效、MiniMax Voice Clone 克隆音色及复用**的 fal 档案与本地时间线支持。新档案待核价和真实生成验收；既有 MiniMax 配音、Scribe v2 转写的历史验收保持原记录。见[声音流程说明](docs/speech.md)。
 
-rikoko 是可自部署的视频创作 MCP，提供可选剪辑工作台。用户在 Codex、Hermes 或 Claude 原对话中提出要求、查看状态和继续修改；支持的客户端安装后可使用 `/rikoko` 入口。完成时在原对话交付视频附件或媒体链接，并可附工作台链接供用户点击精修；用户也可要求只返回链接。不自动弹出 MCP 窗口、注册卡片播放器或另开网页对话。客户端适配与安装见 [三端接入](examples/clients/README.md)，交互验收见 [原对话与工作台链接](docs/acceptance/native-conversation.md)。实现计划见 [计划书](plans/框架搭建与开源整合实施计划书.md)。
+rikoko 是可自部署的视频创作 MCP，提供可选剪辑工作台。用户在 Codex、Hermes 或 Claude 原对话中提出要求、查看状态和继续修改；支持的客户端安装后可使用 rikoko Skill（Codex 支持时用 `$rikoko`，Claude Code/Hermes 用 `/rikoko`）；Claude Desktop 通过普通 MCP 工具和 `rikoko_guide` 读取同一份导演指引。完成时在原对话交付视频附件或媒体链接，并始终附上可点击的本地浏览器工作台链接，供用户自行打开修改；用户也可要求只返回链接。不自动弹出 MCP 窗口、注册卡片播放器或另开网页对话。客户端适配与安装见 [三端接入](examples/clients/README.md)，交互验收见 [原对话与工作台链接](docs/acceptance/native-conversation.md)。实现计划见 [计划书](plans/框架搭建与开源整合实施计划书.md)。
 
 本仓库新增原创实现，不复制 Hypit 的源代码、Skill 或示例。原有 `plans/`、`research/`、`outputs/` 保留。
 
@@ -24,7 +26,7 @@ rikoko 是可自部署的视频创作 MCP，提供可选剪辑工作台。用户
 curl -fsSL https://github.com/flashcoder111/video-workbench/releases/latest/download/install.sh | bash
 ```
 
-安装器从 GitHub Release 下载并校验版本包、准备依赖、注册检测到的 Codex/Claude MCP，自动启动本地服务并导出免费样片。安装后重载客户端 MCP，即可使用 `/rikoko`。指定客户端可把末尾的 `bash` 改为 `bash -s -- --client codex`、`bash -s -- --client claude-code` 或 macOS 的 `bash -s -- --client claude-desktop`。
+安装器从 GitHub Release 下载并校验版本包、准备依赖、注册检测到的 Codex/Claude MCP，自动启动本地服务并导出免费样片。安装后重载客户端 MCP，通过当前宿主的技能入口或自然语言使用 rikoko。指定客户端可把末尾的 `bash` 改为 `bash -s -- --client codex`、`bash -s -- --client claude-code` 或 macOS 的 `bash -s -- --client claude-desktop`。
 
 公开发行默认启用本地编辑与渲染，无需模型 Key；AI 生成需配置自己的供应商。尚无客户端也可以完成安装并使用本地工作台。详见 [一行安装说明](docs/architecture/installation.md)。
 
@@ -44,7 +46,7 @@ pnpm dev
 
 默认配置使用本地 PGlite（嵌入式 PostgreSQL），任务和账户均持久化到 `.data/db`，文件位于 `.data/assets`；后台 worker 随服务启动。选择该模式是为了无 PostgreSQL/Docker 的电脑也能运行。正式部署使用 PostgreSQL + pg-boss，见 [自部署](docs/architecture/self-hosting.md)。
 
-`pnpm demo` 执行 E00–E07 的本地子检查，输出 MP4、SRT、预览帧、独立配音和版本差异；路径写入 `artifacts/acceptance/latest.txt`。它不下载 AI 大模型，也不发起付费请求。中文/英文配音使用系统已安装语音；macOS 使用 `say`，Linux 需 `espeak-ng`。
+`pnpm demo` 执行 E00–E07 的本地子检查，输出 MP4、SRT、预览帧、测试音频和版本差异；路径写入 `artifacts/acceptance/latest.txt`。它不下载 AI 大模型，也不发起付费请求。演示使用明确标注的合成测试音，不合成旁白，也不自动购买云端语音。
 
 ## 双模式创作
 
@@ -70,7 +72,7 @@ pnpm dev
 
 **这不是 G0–G6 全部通过或正式商用版本。**参考视频分析、图片/视频生成与云端语音已通过记录中的真实样例验收，见[核心功能验收](docs/acceptance/core-functional-2026-10-15.md)和[语音验收](docs/acceptance/speech-2026-10-15.md)。复杂题材的模型质量、WhisperX 本地 ASR/对齐、自动人物跟踪、自动翻译/译配质量、其他真实 Agent 客户端及公众发布流程仍需独立验收。当前模板规划不声称是 LLM 创作；中心 contain/cover 不声称是人物跟踪；预置字幕不声称是 ASR。
 
-本地系统 TTS 与真实 FFmpeg 已运行。模型/费用/托管接入缺失不会阻止本地编排，相关接口返回明确错误或 `blocked_external`，不会静默换模型或伪造结果。
+真实 FFmpeg 本地处理已运行；本地系统 TTS 已移除。模型/费用/托管接入缺失不会阻止本地编排，相关接口返回明确错误或 `blocked_external`，不会静默换模型或伪造结果。
 
 ## 开发命令
 

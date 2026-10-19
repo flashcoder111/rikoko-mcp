@@ -21,8 +21,15 @@ export async function managedEnvironment(
     "LC_ALL",
     "SSL_CERT_FILE",
     "SSL_CERT_DIR",
+    "RIKOKO_DOWNLOAD_PROXY",
+    "HTTPS_PROXY",
+    "HTTP_PROXY",
+    "https_proxy",
+    "http_proxy",
   ])
     if (source[name]) env[name] = source[name];
+  if (source.RIKOKO_DOWNLOAD_PROXY !== undefined)
+    env.RIKOKO_DOWNLOAD_PROXY = source.RIKOKO_DOWNLOAD_PROXY;
   const modelFile = join(i.home, "config/models.json");
   const model = JSON.parse(await readFile(modelFile, "utf8"));
   const credentials = await readPrivateJson(

@@ -107,7 +107,15 @@ async function validateMedia(
   for (const event of composition.events)
     if (event.assetId) {
       const asset = await own(tx, c, "asset", event.assetId);
-      if (!["image", "video"].includes(asset.kind))
+      if (event.kind === "sound") {
+        if (asset.kind !== "audio" || !asset.metadata.hasAudio)
+          fail("INVALID_MEDIA", "音效需要带音轨的音频素材。");
+        if (
+          (event.audioSourceStartMs ?? 0) + event.durationMs >
+          asset.metadata.durationMs + 100
+        )
+          fail("INVALID_INTERVAL", "音效播放范围超出素材长度。");
+      } else if (!["image", "video"].includes(asset.kind))
         fail("INVALID_MEDIA", "叠加画面需要图片或视频。");
     }
   if (composition.audio?.assetId) {
@@ -213,14 +221,23 @@ export async function workspaceCommit(
       restoredContext: Entity | undefined,
       parent: Entity | null = null;
     if (input.action.type === "create") {
-      if (input.projectId || input.baseRevisionId)
+      if (input.baseRevisionId)
         fail("INVALID_EDIT", "新作品无需传入已有作品或版本。");
       composition = input.action.composition;
-      project = make(c.accountId, "project", {
-        title: composition.title,
-        brief: input.message,
-        workspaceManaged: true,
-      });
+      if (input.projectId) {
+        project = await own(tx, c, "project", input.projectId);
+        if (!project.productionScope || (await head(tx, c, project)))
+          fail(
+            "INVALID_EDIT",
+            "Only an empty production-plan project accepts an initial composition.",
+          );
+        project = { ...project, workspaceManaged: true };
+      } else
+        project = make(c.accountId, "project", {
+          title: composition.title,
+          brief: input.message,
+          workspaceManaged: true,
+        });
     } else {
       if (!input.projectId || !input.baseRevisionId)
         fail(

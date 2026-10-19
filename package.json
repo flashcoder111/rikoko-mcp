@@ -1,6 +1,6 @@
 {
   "name": "rikoko",
-  "version": "0.1.16",
+  "version": "0.1.23",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.28.2",
@@ -79,8 +79,11 @@
     "./worker/*": "./apps/worker/src/*.ts"
   },
   "files": [
+    "skills/rikoko/SKILL.md",
+    "skills/rikoko/references/*.md",
     "packages/*/src/**/*",
     "packages/contracts/schemas/*.json",
+    "packages/render/fonts/*",
     "packages/db/migrations/*.sql",
     "apps/server/src/**/*",
     "apps/worker/src/**/*",

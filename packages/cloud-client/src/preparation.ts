@@ -1,0 +1,360 @@
+import { validateRemakeEvidence } from "../../core/src/reference-handoff.js";
+import { randomUUID } from "node:crypto";
+import {
+  AppError,
+  operationSchema,
+  type Context,
+  type Entity,
+  type Operation,
+} from "../../contracts/src/index.js";
+import type { Transaction } from "../../db/src/index.js";
+import { fingerprint, type Service } from "../../core/src/index.js";
+import {
+  cloudPreparationProtocol,
+  referenceDeclaration,
+} from "../../core/src/cloud-preparation.js";
+import {
+  generationPrepareSchema,
+  generationReferenceSnapshots,
+  preparationProtocol,
+  preparationRecordHash,
+  validatePreparedGeneration,
+} from "../../core/src/generation-preparation.js";
+import {
+  validateProductionLink,
+  bindPlanProduction,
+} from "../../core/src/production-scope.js";
+import { validateStoryboardInput } from "../../core/src/storyboard-state.js";
+
+type Request = (path: string, body?: unknown) => Promise<any>;
+function invalid(message: string): never {
+  throw new AppError("CLOUD_RESPONSE_INVALID", message, 502);
+}
+function verifyRecord(record: any) {
+  if (
+    !record ||
+    record.protocol !== preparationProtocol ||
+    record.id !== record.input?.preparedRequestId ||
+    record.inputHash !== fingerprint(record.input) ||
+    record.requestHash !== preparationRecordHash(record) ||
+    record.prompt?.text !== record.input.prompt ||
+    record.providerRequest?.prompt !== record.input.prompt
+  )
+    invalid("Cloud preparation does not satisfy the frozen request contract");
+  operationSchema.parse(record.input);
+}
+export class PreparationClient {
+  private connection: string;
+  constructor(
+    private service: Service,
+    private origin: string,
+    key: string,
+    private request: Request,
+  ) {
+    this.connection = fingerprint([origin, key]);
+  }
+  async supported(c: Context) {
+    await this.service.scoped(c, "read", async () => {});
+    try {
+      return (
+        (await this.request("/v1/generation-protocol")).protocol ===
+        cloudPreparationProtocol
+      );
+    } catch {
+      return false;
+    }
+  }
+  async require(c: Context) {
+    if (!(await this.supported(c)))
+      throw new AppError(
+        "PREPARATION_PROTOCOL_UNSUPPORTED",
+        "Reconnect a cloud runtime supporting rikoko-cloud-preparation-v1. Keep preparedRequestId; do not bypass preparation.",
+        409,
+      );
+  }
+  async sync(
+    tx: Transaction,
+    c: Context,
+    kind: "plan" | "scope",
+    record: Entity,
+  ): Promise<string> {
+    const links = (await tx.list(c.accountId, "cloud-production-link")).filter(
+      (l) => l.localId === record.id && l.kind === kind,
+    );
+    if (links.some((l) => l.connection !== this.connection))
+      throw new AppError(
+        "PRODUCTION_SYNC_REQUIRED",
+        "Reconnect the original cloud account before changing its bound dependencies",
+        409,
+      );
+    const clientId = fingerprint([c.accountId, this.connection]);
+    let scope;
+    if (kind === "scope") {
+      const plan = await tx.get(
+        record.productionScope.planId,
+        c.accountId,
+        "production-plan",
+      );
+      if (!plan)
+        throw new AppError("PLAN_CONFLICT", "Formal plan is unavailable", 409);
+      const planId = await this.sync(tx, c, "plan", plan);
+      scope = { ...record.productionScope, planId };
+    }
+    const version =
+      kind === "plan" ? record.version : record.productionScope.version;
+    const remakeEvidence =
+      kind === "plan"
+        ? await validateRemakeEvidence(
+            this.service,
+            tx,
+            c.accountId,
+            record.plan,
+          )
+        : undefined;
+    const content =
+      kind === "plan"
+        ? remakeEvidence
+          ? { plan: record.plan, remakeEvidence }
+          : record.plan
+        : scope;
+    const result = await this.request("/v1/production-context", {
+      protocol: cloudPreparationProtocol,
+      clientId,
+      localId: record.id,
+      kind,
+      version,
+      ...(kind === "plan"
+        ? { plan: record.plan, ...(remakeEvidence ? { remakeEvidence } : {}) }
+        : { scope: content }),
+    });
+    const id = `context-${fingerprint(["link", c.accountId, clientId, kind, record.id])}`;
+    if (
+      typeof result.id !== "string" ||
+      result.version !== version ||
+      result.contentHash !== fingerprint(content) ||
+      (remakeEvidence &&
+        result.remakeEvidenceHash !== fingerprint(remakeEvidence))
+    )
+      invalid("Cloud context acknowledgement differs from the host version");
+    await tx.put({
+      id,
+      type: "cloud-production-link",
+      accountId: c.accountId,
+      createdAt: new Date().toISOString(),
+      kind,
+      localId: record.id,
+      remoteId: result.id,
+      connection: this.connection,
+      version,
+    });
+    return result.id;
+  }
+  async prepare(c: Context, raw: unknown) {
+    const data = generationPrepareSchema.parse(raw);
+    if (data.input.kind !== "generate" || data.input.preparedRequestId)
+      throw new AppError("INVALID_INPUT", "Prepare a fresh generation request");
+    if (data.input.storyboard && !data.plan)
+      throw new AppError(
+        "PRODUCTION_PLAN_REQUIRED",
+        "Prepare storyboard generation against a saved target plan",
+        409,
+      );
+    await this.require(c);
+    return this.service.scoped(c, "write", async (tx) => {
+      const input = await bindPlanProduction(
+        tx,
+        c.accountId,
+        data.input as Extract<Operation, { kind: "generate" }>,
+        data.plan,
+      );
+      const scope = await validateProductionLink(tx, c.accountId, input, false);
+      await validateStoryboardInput(tx, c.accountId, input);
+      const snapshots = await generationReferenceSnapshots(
+        tx,
+        c.accountId,
+        input,
+      );
+      let localPlan: Entity | null | undefined, remotePlan, remakeEvidence;
+      if (data.plan) {
+        localPlan = await tx.get(
+          data.plan.planId,
+          c.accountId,
+          "production-plan",
+        );
+        if (!localPlan || localPlan.version !== data.plan.expectedVersion)
+          throw new AppError(
+            "PLAN_CONFLICT",
+            "Read the current plan version",
+            409,
+          );
+        remakeEvidence = await validateRemakeEvidence(
+          this.service,
+          tx,
+          c.accountId,
+          localPlan.plan,
+        );
+        remotePlan = {
+          ...data.plan,
+          planId: await this.sync(tx, c, "plan", localPlan),
+        };
+      }
+      const remoteInput = { ...input };
+      delete remoteInput.storyboard;
+      if (scope)
+        remoteInput.production = {
+          ...input.production!,
+          projectId: await this.sync(tx, c, "scope", scope.project),
+        };
+      const remote = await this.request("/v1/generation-preparations", {
+        protocol: cloudPreparationProtocol,
+        request: {
+          ...data,
+          input: remoteInput,
+          ...(remotePlan ? { plan: remotePlan } : {}),
+        },
+        references: snapshots.assets.map(referenceDeclaration),
+      });
+      verifyRecord(remote);
+      if (
+        fingerprint(remote.remakeEvidence ?? null) !==
+        fingerprint(remakeEvidence ?? null)
+      )
+        invalid("Cloud preparation lost the host-validated remake evidence");
+      if (
+        remote.referenceState !== "declared" ||
+        remote.input.model !== input.model ||
+        remote.input.prompt !== input.prompt ||
+        remote.input.mode !== input.mode ||
+        fingerprint(remote.input.references ?? []) !==
+          fingerprint(input.references ?? []) ||
+        fingerprint(remote.input.production ?? null) !==
+          fingerprint(remoteInput.production ?? null) ||
+        Object.entries(input.parameters ?? {}).some(
+          ([k, v]) =>
+            fingerprint(remote.input.parameters?.[k] ?? null) !==
+            fingerprint(v),
+        )
+      )
+        invalid(
+          "Cloud preparation changed the requested model, wording, references or controls",
+        );
+      const id = randomUUID();
+      const localInput = operationSchema.parse({
+        ...remote.input,
+        preparedRequestId: id,
+        ...(input.production ? { production: input.production } : {}),
+        ...(input.storyboard ? { storyboard: input.storyboard } : {}),
+      });
+      const record = {
+        ...remote,
+        id,
+        type: "generation-preparation",
+        accountId: c.accountId,
+        createdAt: new Date().toISOString(),
+        input: localInput,
+        inputHash: fingerprint(localInput),
+        plan: localPlan
+          ? { ...data.plan, planHash: fingerprint(localPlan.plan) }
+          : undefined,
+        scopeHash: scope?.hash,
+        referenceState: "bound",
+        references: snapshots.references,
+        cloud: {
+          origin: this.origin,
+          connection: this.connection,
+          draft: remote,
+        },
+      };
+      // Transport-only reply fields must not become persisted state.
+      delete record.preparedRequestId;
+      delete record.readyForSubmission;
+      delete record.generated;
+      record.requestHash = preparationRecordHash(record);
+      await tx.put(record);
+      return {
+        ...record,
+        preparedRequestId: id,
+        generated: false,
+        readyForSubmission: true,
+        submissionRequiresQuote: true,
+      };
+    });
+  }
+  async validate(c: Context, input: Operation) {
+    return this.service.scoped(c, "write", async (tx) => {
+      const record = await validatePreparedGeneration(
+        this.service,
+        tx,
+        c.accountId,
+        input,
+        { cloudClient: true },
+      );
+      if (
+        record &&
+        (!record.cloud || record.cloud.connection !== this.connection)
+      )
+        throw new AppError(
+          "PREPARATION_ROUTE_MISMATCH",
+          "Use the original cloud connection or prepare again",
+          409,
+        );
+      return record;
+    });
+  }
+  async bind(
+    c: Context,
+    input: Operation,
+    upload: (asset: Entity) => Promise<string>,
+  ) {
+    await this.require(c);
+    const record = await this.validate(c, input);
+    if (!record) return undefined;
+    const draft = record.cloud.draft;
+    const mappings: { sourceAssetId: string; assetId: string }[] = [];
+    for (const ref of record.references)
+      mappings.push({
+        sourceAssetId: ref.assetId,
+        assetId: await upload(await this.service.get(c, "asset", ref.assetId)),
+      });
+    await this.validate(c, input);
+    const bound = await this.request(
+      `/v1/generation-preparations/${encodeURIComponent(draft.id)}/bind`,
+      { requestHash: draft.requestHash, references: mappings },
+    );
+    verifyRecord(bound);
+    const expected = {
+      ...draft.input,
+      preparedRequestId: bound.id,
+      ...(draft.input.references
+        ? {
+            references: draft.input.references.map((r: any, i: number) => ({
+              ...r,
+              assetId: mappings[i].assetId,
+            })),
+          }
+        : {}),
+    };
+    if (
+      bound.referenceState !== "bound" ||
+      bound.parentPreparation?.requestHash !== draft.requestHash ||
+      bound.parentPreparation?.id !== draft.id ||
+      fingerprint(bound.input) !== fingerprint(expected) ||
+      fingerprint(bound.prompt) !== fingerprint(draft.prompt) ||
+      bound.modelProfileVersion !== draft.modelProfileVersion ||
+      bound.scopeHash !== draft.scopeHash ||
+      fingerprint(bound.remakeEvidence ?? null) !==
+        fingerprint(draft.remakeEvidence ?? null)
+    )
+      invalid("Cloud binding changed the prepared request");
+    return { record, bound };
+  }
+  verifyQuote(remote: any, prepared: Entity) {
+    if (
+      remote.preparedRequestId !== prepared.id ||
+      remote.preparedRequestHash !== prepared.requestHash ||
+      remote.templateVersion !== prepared.prompt.templateVersion ||
+      remote.inputHash !== prepared.inputHash
+    )
+      invalid("Cloud quote is not bound to the prepared request");
+  }
+}

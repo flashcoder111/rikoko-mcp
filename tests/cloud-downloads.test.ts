@@ -42,14 +42,16 @@ it("imports completed remote media only once for concurrent polls, then uses loc
   };
   const fetcher = vi.fn(async (url: any) =>
     Response.json(
-      String(url).endsWith("/quotes")
-        ? { id: "remote-quote", maxCents: 5 }
-        : {
-            id: "remote-job",
-            status: "completed",
-            outputs: ["cloud-only-asset"],
-            result: { kind: "image", url: "https://fal.media/fixture.png" },
-          },
+      String(url).endsWith("/generation-models")
+        ? [{ id: "image", kind: "image" }]
+        : String(url).endsWith("/quotes")
+          ? { id: "remote-quote", maxCents: 5 }
+          : {
+              id: "remote-job",
+              status: "completed",
+              outputs: ["cloud-only-asset"],
+              result: { kind: "image", url: "https://fal.media/fixture.png" },
+            },
     ),
   );
   const client = new GatewayClient(
@@ -174,16 +176,18 @@ it("collects official results through the authenticated gateway when local CDN D
       });
     }
     return Response.json(
-      String(url).endsWith("/quotes")
-        ? { id: "q" }
-        : {
-            id: "remote-job",
-            status: "completed",
-            result: {
-              kind: "image",
-              downloadPath: "/v1/generations/remote-job/result",
+      String(url).endsWith("/generation-models")
+        ? [{ id: "image", kind: "image" }]
+        : String(url).endsWith("/quotes")
+          ? { id: "q" }
+          : {
+              id: "remote-job",
+              status: "completed",
+              result: {
+                kind: "image",
+                downloadPath: "/v1/generations/remote-job/result",
+              },
             },
-          },
     );
   });
   const client = new GatewayClient(

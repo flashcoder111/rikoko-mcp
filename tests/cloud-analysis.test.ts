@@ -43,6 +43,10 @@ it("routes official analysis, remaps a source-bound report, caches it and reject
             available: true,
             billingSource: "testing",
             referenceAnalysis: referenceAnalysisProtocol,
+            referenceUnderstanding: {
+              family: "gemini",
+              upstreamModel: "gemini-fixture",
+            },
           },
         ]);
       if (path === "/v1/reference-uploads")
@@ -147,7 +151,7 @@ it("routes official analysis, remaps a source-bound report, caches it and reject
         fps: null,
         mode: "provider_controlled",
         rangeControl: "prompt",
-        upstreamModel: "gemini",
+        upstreamModel: "gemini-fixture",
       },
     );
     const done = await callTool(service, c, "record_get", {

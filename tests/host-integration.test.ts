@@ -181,12 +181,14 @@ it("uploads actual bytes and exports through authenticated owned-asset endpoints
   await expect(files.materialize("../escape", [])).rejects.toThrow();
 });
 
-it("returns completed video with host-native attachment instructions and an optional workspace link", () => {
+it("returns completed video with host-native attachment instructions and a clickable workspace link", () => {
   const result = {
     jobId: "job",
     projectId: "project",
     revisionId: "revision",
     status: "completed",
+    purpose: "final",
+    quality: { status: "accepted", finalReady: true, issues: [] },
     workspace: "http://127.0.0.1:4310/workspace?project=project",
     media: [
       {
@@ -200,7 +202,7 @@ it("returns completed video with host-native attachment instructions and an opti
   };
   for (const client of ["codex", "hermes", "claude", "generic"] as const) {
     const text = resultText(result, client);
-    expect(text).toContain(`[打开工作台](<${result.workspace}>)`);
+    expect(text).toContain(`[Open workspace](<${result.workspace}>)`);
     expect(text).toContain("https://media.example/video");
     expect(text).toContain("Local attachment:");
   }

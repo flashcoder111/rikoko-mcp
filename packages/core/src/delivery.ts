@@ -4,10 +4,12 @@ import { sha256 } from "../../storage/src/index.js";
 import { Service } from "./index.js";
 import { workspaceLinks } from "./workspace.js";
 import { publicBaseUrl } from "./urls.js";
+import { validateWorkspace, validateMediaResult } from "./production-review.js";
 export async function workspaceResult(
   service: Service,
   c: Context,
   jobId: string,
+  purpose: "preview" | "final" = "preview",
 ) {
   const job = await service.get(c, "job", jobId);
   const revision = job.revisionId
@@ -22,6 +24,14 @@ export async function workspaceResult(
     phase: job.phase,
     error: job.error?.message,
     steps: job.steps,
+    purpose,
+    quality: revision
+      ? await validateWorkspace(service, c, revision.id)
+      : undefined,
+    mediaAcceptance:
+      !revision && job.status === "completed"
+        ? await validateMediaResult(service, c, job.outputs ?? [])
+        : undefined,
     ...(revision ? workspaceLinks(revision.projectId, revision.id) : {}),
     media: [] as {
       url: string;
@@ -31,6 +41,25 @@ export async function workspaceResult(
     }[],
   };
   if (job.status !== "completed" || !job.outputs.length) return result;
+  if (
+    purpose === "final" &&
+    revision &&
+    (!result.quality?.finalReady ||
+      !job.outputs.includes(result.quality.reviewAssetId))
+  )
+    throw new AppError(
+      "FINAL_REVIEW_REQUIRED",
+      "Final delivery requires resolving placeholder errors and a visual review of this exact rendered revision. Use purpose=preview to inspect it first.",
+    );
+  if (
+    purpose === "final" &&
+    result.mediaAcceptance?.media.length &&
+    !result.mediaAcceptance.finalReady
+  )
+    throw new AppError(
+      "FINAL_REVIEW_REQUIRED",
+      "Inspect and accept generated visual media before final delivery. Use purpose=preview first.",
+    );
   const textContent = revision
     ? {
         title: revision.composition.title as string,

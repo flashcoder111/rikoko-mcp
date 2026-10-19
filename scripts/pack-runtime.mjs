@@ -1,6 +1,13 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  mkdtemp,
+  mkdir,
+  readFile,
+  readdir,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -28,10 +35,18 @@ try {
       `Private files in runtime: ${forbidden.map((f) => f.path).join(", ")}`,
     );
   for (const required of [
+    "skills/rikoko/SKILL.md",
+    ...(await readdir(join(root, "skills/rikoko/references")))
+      .filter((name) => /^[a-z0-9-]+\.md$/.test(name))
+      .map((name) => `skills/rikoko/references/${name}`),
     "packages/db/migrations/001_core.sql",
     "packages/contracts/schemas/composition.v1.json",
     "apps/studio/dist/index.html",
     "python/media_core/cli.py",
+    "packages/render/fonts/NotoSansSC.ttf",
+    "packages/render/fonts/NotoSerifSC.ttf",
+    "packages/render/fonts/OFL-NotoSansSC.txt",
+    "packages/render/fonts/OFL-NotoSerifSC.txt",
   ]) {
     if (!packed.files.some((f) => f.path === required))
       throw new Error(

@@ -13,6 +13,24 @@ export const templateSchema = z
     title: z.string().min(1).max(160),
     description: z.string().max(2000).default(""),
     category: z.string().max(60).default("通用"),
+    speech: z
+      .object({
+        mode: z.literal("optional"),
+        anchors: z
+          .array(
+            z
+              .object({
+                eventId: idSchema,
+                text: z.string().min(1).max(200),
+                occurrence: z.number().int().min(1).max(500).default(1),
+              })
+              .strict(),
+          )
+          .max(100)
+          .default([]),
+      })
+      .strict()
+      .optional(),
     parameters: z
       .record(
         key,
@@ -57,6 +75,7 @@ export const templateSchema = z
       t.composition.title,
       ...t.composition.scenes.map((s) => s.text),
       ...t.composition.events.map((e) => e.text),
+      ...(t.speech?.anchors.map((a) => a.text) ?? []),
     ];
     for (const text of texts)
       for (const match of text.matchAll(/\{\{([^{}]+)\}\}/g))
@@ -65,6 +84,15 @@ export const templateSchema = z
             code: "custom",
             message: "Unknown template parameter",
           });
+    const anchors = t.speech?.anchors ?? [];
+    if (
+      new Set(anchors.map((a) => a.eventId)).size !== anchors.length ||
+      anchors.some((a) => !t.composition.events.some((e) => e.id === a.eventId))
+    )
+      ctx.addIssue({
+        code: "custom",
+        message: "Speech anchors must reference distinct template events",
+      });
   });
 export type Template = z.infer<typeof templateSchema>;
 export const applyTemplateSchema = z
@@ -73,6 +101,10 @@ export const applyTemplateSchema = z
     version: z.number().int().positive(),
     parameters: z.record(key, z.string().max(1000)).default({}),
     sceneAssets: z.record(idSchema, idSchema).default({}),
+    speech: z
+      .object({ assetId: idSchema, transcriptAssetId: idSchema })
+      .strict()
+      .optional(),
   })
   .strict();
 export function instantiate(

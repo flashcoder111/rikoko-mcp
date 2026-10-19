@@ -114,25 +114,27 @@ it.each(["codex", "hermes", "claude", "generic"])(
         arguments: { jobId: command.jobId },
       });
       expect(delivered.isError).not.toBe(true);
-      expect(delivered.content).toHaveLength(2);
+      expect(delivered.content).toHaveLength(1);
       expect(delivered.content[0].type).toBe("text");
       const result = (delivered.structuredContent as any).result;
       expect(result.workspace).toContain("/workspace?project=");
       expect(result.media[0].assetId).toBe(asset.id);
       expect(result.textContent.title).toBe("Native chat contract");
       expect(result.outputs[0].assetId).toBe(asset.id);
-      expect(delivered.content[1].type).toBe("resource_link");
+      expect(result.quality.finalReady).toBe(false);
+      expect(JSON.stringify(delivered.content)).not.toContain("MEDIA:");
       expect(JSON.stringify(delivered)).not.toContain("ui://");
-      if (["codex", "hermes"].includes(host)) {
-        expect(await readFile(result.media[0].localPath)).toEqual(bytes);
-      } else {
-        expect(await readdir(exports).catch(() => [])).toEqual([]);
-      }
+      expect(await readdir(exports).catch(() => [])).toEqual([]);
+      const final = await client.callTool({
+        name: "workspace_result",
+        arguments: { jobId: command.jobId, purpose: "final" },
+      });
+      expect(final.isError).toBe(true);
 
-      // Explicit export remains available and never creates another job.
+      // Explicit preview export saves inspection files and never creates another job.
       const downloaded = await client.callTool({
         name: "workspace_export",
-        arguments: { jobId: command.jobId },
+        arguments: { jobId: command.jobId, purpose: "preview" },
       });
       expect(downloaded.isError).not.toBe(true);
       const output = (downloaded.structuredContent as any).result;

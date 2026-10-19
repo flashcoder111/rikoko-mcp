@@ -17,6 +17,8 @@ beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "cloud-reference-"));
   db = await Database.open();
   service = new Service(db, new LocalStorage(dir));
+  // These upload/idempotency contracts exercise the explicit legacy migration mode.
+  service.allowLegacyGeneration = true;
   c = await service.authenticate((await service.createAccount("Local", 0)).key);
   asset = await service.registerAsset(c.accountId, bytes, {
     name: "reference.png",
@@ -105,48 +107,22 @@ it("rejects reference changes after quoting without purchasing", async () => {
   ).rejects.toMatchObject({ code: "REFERENCE_CHANGED" });
   expect(remote.filter((r) => r.idempotencyKey)).toHaveLength(0);
 });
-it("validates local storyboard review before upload and again before purchase", async () => {
-  const board = {
-    id: "board",
-    type: "storyboard",
-    accountId: c.accountId,
-    createdAt: new Date().toISOString(),
-    version: 1,
-    shots: [
-      {
-        sourceShotId: "shot",
-        review: {
-          decision: "accepted",
-          imageAssetId: asset.id,
-          sha256: asset.sha256,
-        },
-      },
-    ],
-  };
-  await db.transaction((tx) => tx.put(board));
-  const operation = {
-    ...input(),
-    storyboard: {
-      storyboardId: "board",
-      version: 1,
-      sourceShotId: "shot",
-      stage: "video",
-    },
-  };
-  const q = await gateway.quote(c, operation);
-  expect(remote[0].input).not.toHaveProperty("storyboard");
-  await db.transaction((tx) => tx.put({ ...board, version: 2 }));
+it("rejects an unprepared storyboard even when the legacy video switch is enabled", async () => {
   await expect(
-    gateway.submit(c, {
-      input: operation,
-      quoteId: q.id,
-      idempotencyKey: "stale",
+    gateway.quote(c, {
+      ...input(),
+      storyboard: {
+        storyboardId: "board",
+        version: 1,
+        sourceShotId: "shot",
+        stage: "video",
+      },
     }),
-  ).rejects.toMatchObject({ code: "STORYBOARD_CONFLICT" });
-  expect(remote.filter((r) => r.idempotencyKey)).toHaveLength(0);
+  ).rejects.toMatchObject({ code: "PRODUCTION_PLAN_REQUIRED" });
+  expect(fetcher).not.toHaveBeenCalled();
 });
 
-it("routes storyboard quotes through the official model catalog without a local provider", async () => {
+it("requires target-plan preparation on the official storyboard quote route", async () => {
   const { connectCloud } =
     await import("../packages/cloud-client/src/index.js");
   const { callStoryboardTool } =
@@ -189,22 +165,16 @@ it("routes storyboard quotes through the official model catalog without a local 
     "cloud-test",
     fetcher as any,
   );
-  const result = await callStoryboardTool(
-    service,
-    c,
-    "reference_storyboard_quote",
-    {
+  await expect(
+    callStoryboardTool(service, c, "reference_storyboard_quote", {
       storyboardId: "official-board",
       expectedVersion: 1,
       sourceShotId: "shot",
       stage: "video",
       model: "reference-model",
-    },
-  );
-  expect(result.status).toBe("quote_required");
-  expect(result.quote.remoteQuoteId).toBe("remote-quote");
-  expect(result.input.references[0].assetId).toBe(asset.id);
-  expect(remote[0].input.references[0].assetId).toBe("remote-asset");
+    }),
+  ).rejects.toMatchObject({ code: "PRODUCTION_PLAN_REQUIRED" });
+  expect(remote).toHaveLength(0);
 });
 it("rejects read-only callers and corrupt local bytes before uploading", async () => {
   const key = await service.issueKey(c, {

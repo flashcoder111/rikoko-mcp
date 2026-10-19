@@ -11,6 +11,8 @@ import {
   type Model,
 } from "../../../packages/providers/src/index.js";
 import { h3Models } from "../../../packages/providers/src/h3.js";
+import { klingO3Models } from "../../../packages/providers/src/kling-o3.js";
+import { audioModels } from "../../../packages/providers/src/audio.js";
 import {
   loadModelConfig,
   buildProviders,
@@ -29,7 +31,7 @@ export async function openRuntime() {
   const cloudConfig = resolveCloudConfig(config);
   const { mode } = cloudConfig;
   const plans = await loadPlans(process.env.RIKOKO_PLANS_FILE);
-  let models: Model[] = h3Models;
+  let models: Model[] = [...h3Models, ...klingO3Models, ...audioModels];
   if (!config && process.env.FAL_MODELS_FILE)
     models = JSON.parse(await readFile(process.env.FAL_MODELS_FILE, "utf8"));
   const dataDir = resolve(process.env.DATA_DIR ?? ".data");
@@ -60,6 +62,10 @@ export async function openRuntime() {
         ),
     mode === "custom" ? "external" : "credits",
   );
+  service.localVideoDownloads =
+    !process.env.DATABASE_URL &&
+    storage instanceof LocalStorage &&
+    ["127.0.0.1", "localhost", "::1"].includes(process.env.HOST ?? "127.0.0.1");
   setServiceInfo(service, {
     mode,
     plans,

@@ -27,10 +27,12 @@ type StarterDefinition = {
   isNew?: boolean;
   captionBackground?: string;
   maxLength?: number;
+  speech?: boolean;
 };
 const definitions: StarterDefinition[] = [
   {
     id: "product",
+    speech: true,
     title: "商品卖点",
     category: "产品推广",
     description: "亮相 → 卖点 → 行动邀请。换入商品图，就能制作一条新品介绍。",
@@ -55,6 +57,7 @@ const definitions: StarterDefinition[] = [
   },
   {
     id: "tutorial",
+    speech: true,
     title: "三步教程",
     category: "知识分享",
     description: "一个主题、三个步骤。适合操作指南、生活技巧和产品入门。",
@@ -70,6 +73,7 @@ const definitions: StarterDefinition[] = [
   },
   {
     id: "list",
+    speech: true,
     title: "三点清单",
     category: "知识分享",
     description: "用清晰的分点结构表达观点、推荐和注意事项。",
@@ -113,6 +117,7 @@ const definitions: StarterDefinition[] = [
   },
   {
     id: "software",
+    speech: true,
     title: "软件功能介绍",
     category: "产品推广",
     description:
@@ -167,6 +172,7 @@ const definitions: StarterDefinition[] = [
   },
   {
     id: "testimonial",
+    speech: true,
     title: "用户评价",
     category: "品牌故事",
     description: "用一条真实反馈介绍使用体验，依次交代背景、评价和来源。",
@@ -215,6 +221,7 @@ export const starterTemplates: LibraryTemplate[] = definitions.map((d) => {
       title: d.title,
       description: d.description,
       category: d.category,
+      ...(d.speech ? { speech: { mode: "optional" } } : {}),
       parameters,
       assets: [
         ...new Map(sceneArtwork.map((asset) => [asset.id, asset])).values(),

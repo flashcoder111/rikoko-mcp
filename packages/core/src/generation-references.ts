@@ -10,6 +10,7 @@ import {
 import { sha256 } from "../../storage/src/index.js";
 import { validateStoryboardInput } from "./storyboard-state.js";
 import type { Service } from "./index.js";
+import { validatePreparedGeneration } from "./generation-preparation.js";
 export async function generationReferences(
   service: Service,
   job: Entity,
@@ -17,6 +18,7 @@ export async function generationReferences(
 ): Promise<ResolvedReference[]> {
   const refs = input.references ?? [];
   const assets = await service.db.transaction(async (tx) => {
+    await validatePreparedGeneration(service, tx, job.accountId, input);
     await validateStoryboardInput(tx, job.accountId, input);
     const list: Entity[] = [];
     for (const ref of refs) {

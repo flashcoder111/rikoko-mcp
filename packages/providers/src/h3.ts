@@ -6,10 +6,10 @@ import type { Model } from "./index.js";
 export const h3Models: Model[] = ["16:9", "9:16", "1:1"].map((aspect) => ({
   id: `minimax-h3-768p-5s-${aspect.replace(":", "x")}`,
   name: `MiniMax H3 · ${aspect}`,
-  description: "5 秒 · 768P",
+  description: "5–15 seconds · 768P · selectable aspect ratio",
   endpoint: "minimax/h3/text-to-video",
   kind: "video",
-  maxCostCents: 30,
+  maxCostCents: 90,
   priceVersion: "fal-h3-2026-10-11-768p-usd0.06-per-second",
   hardBoundConfirmed: true,
   parameters: {
@@ -20,4 +20,11 @@ export const h3Models: Model[] = ["16:9", "9:16", "1:1"].map((aspect) => ({
     enable_safety_checker: true,
   },
   promptField: "prompt",
+  allowedParameters: {
+    duration: { type: "integer", min: 5, max: 15 },
+    aspect_ratio: {
+      type: "enum",
+      values: ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
+    },
+  },
 }));
