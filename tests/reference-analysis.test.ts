@@ -289,12 +289,14 @@ it("uploads private local video, returns evidence-linked structure and makes a s
   });
   expect(submissions).toBe(1);
 });
-it("returns a quote without making a model call and isolates other accounts", async () => {
+it("returns ready input without displaying a quote or making a model call and isolates other accounts", async () => {
   const preview = await callTool(svc, c, "reference_analyze", {
     assetId: source.id,
     model: profile.id,
   });
-  expect(preview.status).toBe("quote_required");
+  expect(preview.status).toBe("ready");
+  expect(preview.quote).toBeUndefined();
+  expect(preview.quoteId).toBeTruthy();
   expect(calls).toHaveLength(0);
   const other = await svc.authenticate(
     (await svc.createAccount("Other", 10)).key,

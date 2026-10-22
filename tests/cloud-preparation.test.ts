@@ -46,6 +46,8 @@ const model = {
 const fetcher: typeof fetch = async (url, init) => {
   const path = new URL(String(url)).pathname,
     body = init?.body ? JSON.parse(String(init.body)) : undefined;
+  if (path === "/v1/generation-models")
+    return Response.json(remote.provider.describe());
   requests.push({ path, body });
   try {
     let result: any;
@@ -78,7 +80,21 @@ beforeAll(async () => {
   remote = new Service(
     remoteDb,
     new LocalStorage(join(dir, "remote")),
-    new FalProvider([model], "fixture", true, providerCalls),
+    new FalProvider(
+      [
+        model,
+        {
+          ...model,
+          id: "video",
+          kind: "video",
+          endpoint: "minimax/h3/text-to-video",
+          parameters: { duration: 4, aspect_ratio: "9:16" },
+        },
+      ],
+      "fixture",
+      true,
+      providerCalls,
+    ),
   );
   c = await local.authenticate((await local.createAccount("Host", 1000)).key);
   rc = await remote.authenticate(
@@ -98,6 +114,43 @@ afterAll(async () => {
   await remoteDb.close();
   await rm(dir, { recursive: true, force: true });
 });
+it("preserves saved sceneDirection and its exact prompt across cloud preparation", async () => {
+  const sceneDirection =
+    "One continuous 4-second macro shot. A closed blue box rests on the table. Open its hinged lid by 2 seconds and hold it open. The camera stays fixed in soft side light.";
+  const saved: any = await callTool(local, c, "production_plan_save", {
+    plan: {
+      title: "Concise cloud scene",
+      width: 720,
+      height: 1280,
+      shots: [
+        {
+          id: "open",
+          initialState: { lid: "closed" },
+          action: "Open lid",
+          endState: { lid: "open" },
+          sceneDirection,
+        },
+      ],
+    },
+  });
+  const preview: any = await callTool(local, c, "production_shot_prompts", {
+    planId: saved.id,
+    expectedVersion: saved.version,
+    shotId: "open",
+    subject: "Blue box",
+    mode: "text_to_video",
+  });
+  const result = await gateway.prepare(c, {
+    input: { kind: "generate", model: "video", prompt: preview.video.prompt },
+    direction: preview.video.direction,
+    plan: { planId: saved.id, expectedVersion: saved.version, shotId: "open" },
+  });
+  expect(result.prompt.direction.sceneDirection).toBe(sceneDirection);
+  expect(result.providerRequest.prompt).toBe(preview.video.prompt);
+  expect(result.prompt.compilerVersion).toBe("rikoko-prompt-compiler-v5");
+  expect(result.prompt.overridden).toBe(false);
+  expect(providerCalls).not.toHaveBeenCalled();
+});
 async function prepare(extra: any = {}) {
   const preview: any = await callTool(
     local,
@@ -115,6 +168,9 @@ async function formal() {
   const plan: any = await callTool(local, c, "production_plan_save", {
     plan: {
       title: "Box",
+      creativeChoices: [
+        { decision: "Soft studio light", reason: "Make the lid readable" },
+      ],
       width: 320,
       height: 180,
       shots: [
@@ -127,6 +183,7 @@ async function formal() {
       ],
     },
   });
+  expect(plan.plan.creativeChoices).toHaveLength(1);
   const project = await local.createProject(c, {
     title: "Formal",
     brief: "Bound",
@@ -152,6 +209,15 @@ async function formal() {
     },
     plan: { planId: plan.id, expectedVersion: 1, shotId: "shot" },
   });
+  const sent = requests
+    .filter(
+      (request) =>
+        request.path === "/v1/production-context" &&
+        request.body.kind === "plan",
+    )
+    .at(-1)!;
+  expect(sent.body.plan.creativeChoices).toBeUndefined();
+  expect(sent.body.plan.shots).toEqual(plan.plan.shots);
   return { plan, project, p };
 }
 it("prepares on the cloud without upload, quote, provider call, or local model configuration", async () => {

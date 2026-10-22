@@ -1,3 +1,4 @@
+import { captionCss } from "./caption-style";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Play,
@@ -21,6 +22,7 @@ import { useAssetUrl } from "./media";
 import { type Job } from "./api";
 import { envelopeGain } from "../../../packages/contracts/src/audio.js";
 import { PreviewAudio } from "./preview-audio";
+import { sceneCaptionInterval } from "../../../packages/contracts/src/captions.js";
 export const timestamp = (s: number) =>
   `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 export function Filmstrip({
@@ -154,6 +156,11 @@ export default function StudioPlayer({
     return false;
   });
   const rendered = !dirty && job?.status === "completed" && !selectedAsset;
+  const captionInterval = scene ? sceneCaptionInterval(scene) : undefined;
+  const showCaption =
+    captionInterval &&
+    (time - offset) * 1000 >= captionInterval.startMs &&
+    (time - offset) * 1000 < captionInterval.endMs;
   const assetId =
     selectedAsset?.id ?? (rendered ? job.outputs[0] : scene?.assetId);
   const { url, error } = useAssetUrl(assetId);
@@ -353,16 +360,13 @@ export default function StudioPlayer({
                 : "Select a media item below to preview it here.")}
           </div>
         )}
-        {!rendered && !selectedAsset && scene?.text && (
+        {!rendered && !selectedAsset && scene?.text && showCaption && (
           <div
             className="live-caption"
             style={{
-              color: composition?.captionStyle.color,
-              background: composition?.captionStyle.background,
-              fontSize: Math.max(
-                8,
-                ((composition?.captionStyle.fontSize ?? 28) * frameWidth) /
-                  (composition?.width ?? 768),
+              ...captionCss(
+                composition!.captionStyle,
+                frameWidth / composition!.width,
               ),
               width: frameWidth * 0.94,
               bottom: (size.height - frameHeight) / 2 + frameHeight * 0.1,

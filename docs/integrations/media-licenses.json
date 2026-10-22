@@ -1,0 +1,221 @@
+{
+  "schemaVersion": 1,
+  "scope": "source-installer",
+  "files": [
+    {
+      "path": "packages/render/fonts/NotoSansSC.ttf",
+      "sha256": "a3041811a78c361b1de50f953c805e0244951c21c5bd412f7232ef0d899af0da",
+      "license": "OFL-1.1",
+      "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanssc/NotoSansSC%5Bwght%5D.ttf",
+      "notice": "packages/render/fonts/OFL-NotoSansSC.txt"
+    },
+    {
+      "path": "packages/render/fonts/NotoSerifSC.ttf",
+      "sha256": "050080d9255a86808f2945bffac582b31ef32bc36411ce29563b4961670c66f9",
+      "license": "OFL-1.1",
+      "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/notoserifsc/NotoSerifSC%5Bwght%5D.ttf",
+      "notice": "packages/render/fonts/OFL-NotoSerifSC.txt"
+    },
+    {
+      "path": "packages/templates/src/bundled/product-stage.png",
+      "sha256": "9ae3211b50087b809a661ff097a61878a6c0778257d2ae56a3e86bfd039ee14e",
+      "license": "Apache-2.0",
+      "source": "scripts/build-starter-art.py",
+      "font": "packages/render/fonts/NotoSansSC.ttf"
+    },
+    {
+      "path": "packages/templates/src/bundled/coffee-corner.png",
+      "sha256": "721b64bbaf13801d309ec33ca9c55b73fb3f2fbd903bff1605eacffc140862c7",
+      "license": "Apache-2.0",
+      "source": "scripts/build-starter-art.py",
+      "font": "packages/render/fonts/NotoSansSC.ttf"
+    },
+    {
+      "path": "packages/templates/src/bundled/paper-notes.png",
+      "sha256": "bc32b6e0675f772740a810269f1db83f3cb504f148888c75875a5be310f80c5b",
+      "license": "Apache-2.0",
+      "source": "scripts/build-starter-art.py",
+      "font": "packages/render/fonts/NotoSansSC.ttf"
+    },
+    {
+      "path": "packages/templates/src/bundled/ranking-blocks.png",
+      "sha256": "6a4ce43ab76fed878ac736f618da57be769f85e98334f0690a6761645fae60bf",
+      "license": "Apache-2.0",
+      "source": "scripts/build-starter-art.py",
+      "font": "packages/render/fonts/NotoSansSC.ttf"
+    },
+    {
+      "path": "packages/templates/src/bundled/event-sunset.png",
+      "sha256": "949eb5a10d646f3235e2012cdd9a5ee46b549ca35f63b474a2e0ac244ad4a066",
+      "license": "Apache-2.0",
+      "source": "scripts/build-starter-art.py",
+      "font": "packages/render/fonts/NotoSansSC.ttf"
+    },
+    {
+      "path": "packages/templates/src/bundled/brand-orbit.png",
+      "sha256": "b4f5e4b9bef09d9e6dd4f1ed8fd220ac41d4498e9b6b0bac84c6138310a78b8c",
+      "license": "Apache-2.0",
+      "source": "scripts/build-starter-art.py",
+      "font": "packages/render/fonts/NotoSansSC.ttf"
+    },
+    {
+      "path": "packages/templates/src/bundled/software-overview.png",
+      "sha256": "0c3c6365e6e8c32240265041c63e374605607b4e71752d1d14b3b7e240e4a7c7",
+      "license": "Apache-2.0",
+      "source": "scripts/build-starter-art.py",
+      "font": "packages/render/fonts/NotoSansSC.ttf"
+    },
+    {
+      "path": "packages/templates/src/bundled/software-focus.png",
+      "sha256": "7dd92edb17e32047a2a0a9b99733bac0f2d2b9e32de648728eb07c2d82d02a86",
+      "license": "Apache-2.0",
+      "source": "scripts/build-starter-art.py",
+      "font": "packages/render/fonts/NotoSansSC.ttf"
+    },
+    {
+      "path": "packages/templates/src/bundled/software-ready.png",
+      "sha256": "0f54903886b6a959ca00672e293067593443728f83c81589354ecbfe1bee5b1f",
+      "license": "Apache-2.0",
+      "source": "scripts/build-starter-art.py",
+      "font": "packages/render/fonts/NotoSansSC.ttf"
+    },
+    {
+      "path": "packages/templates/src/bundled/change-before.png",
+      "sha256": "4e5a778aba95509bf3fe5399fa52d0344947e06f6bf10ce73959c6b9d6a83daa",
+      "license": "Apache-2.0",
+      "source": "scripts/build-starter-art.py",
+      "font": "packages/render/fonts/NotoSansSC.ttf"
+    },
+    {
+      "path": "packages/templates/src/bundled/change-after.png",
+      "sha256": "2c612e4d9ed759dafdbd5f08e8fee663fc46325e8e0e925c95796d223ed43b48",
+      "license": "Apache-2.0",
+      "source": "scripts/build-starter-art.py",
+      "font": "packages/render/fonts/NotoSansSC.ttf"
+    },
+    {
+      "path": "packages/templates/src/bundled/change-summary.png",
+      "sha256": "6a4840a96b525e7e49b16ce35e9a61e6e8f4cbbb594afe7a8353f17f9733a786",
+      "license": "Apache-2.0",
+      "source": "scripts/build-starter-art.py",
+      "font": "packages/render/fonts/NotoSansSC.ttf"
+    },
+    {
+      "path": "packages/templates/src/bundled/feedback-intro.png",
+      "sha256": "f9914bd5d03d97776c3d6fac6895ef6311f63074fcebba984dec0dd89952cb51",
+      "license": "Apache-2.0",
+      "source": "scripts/build-starter-art.py",
+      "font": "packages/render/fonts/NotoSansSC.ttf"
+    },
+    {
+      "path": "packages/templates/src/bundled/feedback-quote.png",
+      "sha256": "4e78867dfbbaf56d53846dddf7969c6ef79975666f6841552557a98559628247",
+      "license": "Apache-2.0",
+      "source": "scripts/build-starter-art.py",
+      "font": "packages/render/fonts/NotoSansSC.ttf"
+    },
+    {
+      "path": "packages/templates/src/bundled/feedback-source.png",
+      "sha256": "0eda0ee2e87768efb754963b154157d6792c495f5d231bad278cde37e0e4734a",
+      "license": "Apache-2.0",
+      "source": "scripts/build-starter-art.py",
+      "font": "packages/render/fonts/NotoSansSC.ttf"
+    },
+    {
+      "path": "packages/templates/src/bundled/previews/rikoko-starter-product.mp4",
+      "sha256": "2aefcebd63581a7dbcbb150f0eaa71e191a076bbaedcbcee4436528ce83e0f78",
+      "license": "Apache-2.0",
+      "source": "scripts/build-starter-previews.ts",
+      "font": "packages/render/fonts/NotoSansSC.ttf",
+      "audio": "none"
+    },
+    {
+      "path": "packages/templates/src/bundled/previews/rikoko-starter-store.mp4",
+      "sha256": "2519c79ddaa740ca79c2f00c91dce10e3a630705642619f60f307280aea28e62",
+      "license": "Apache-2.0",
+      "source": "scripts/build-starter-previews.ts",
+      "font": "packages/render/fonts/NotoSansSC.ttf",
+      "audio": "none"
+    },
+    {
+      "path": "packages/templates/src/bundled/previews/rikoko-starter-tutorial.mp4",
+      "sha256": "afb8feb67c4ef75a55b6229fef6a8c38fdd9b47838d79f0654a08843de3bbc97",
+      "license": "Apache-2.0",
+      "source": "scripts/build-starter-previews.ts",
+      "font": "packages/render/fonts/NotoSansSC.ttf",
+      "audio": "none"
+    },
+    {
+      "path": "packages/templates/src/bundled/previews/rikoko-starter-list.mp4",
+      "sha256": "3bc8d4c03f312e299a3150785d7e9b065355f6042ac91a101042bd0299c9a31e",
+      "license": "Apache-2.0",
+      "source": "scripts/build-starter-previews.ts",
+      "font": "packages/render/fonts/NotoSansSC.ttf",
+      "audio": "none"
+    },
+    {
+      "path": "packages/templates/src/bundled/previews/rikoko-starter-event.mp4",
+      "sha256": "3185b9cbebd0710172cae4b710681d005e5a372ca76c989f21264a6a1ee951e3",
+      "license": "Apache-2.0",
+      "source": "scripts/build-starter-previews.ts",
+      "font": "packages/render/fonts/NotoSansSC.ttf",
+      "audio": "none"
+    },
+    {
+      "path": "packages/templates/src/bundled/previews/rikoko-starter-brand.mp4",
+      "sha256": "abc5335d095f4d61cf2d5851b599347f615d1b339301c824cffb251b850dd442",
+      "license": "Apache-2.0",
+      "source": "scripts/build-starter-previews.ts",
+      "font": "packages/render/fonts/NotoSansSC.ttf",
+      "audio": "none"
+    },
+    {
+      "path": "packages/templates/src/bundled/previews/rikoko-starter-software.mp4",
+      "sha256": "b2fefd370ad58583cdbc07326cc59dc342d53dbb94dc9141d2d62f06980d21c0",
+      "license": "Apache-2.0",
+      "source": "scripts/build-starter-previews.ts",
+      "font": "packages/render/fonts/NotoSansSC.ttf",
+      "audio": "none"
+    },
+    {
+      "path": "packages/templates/src/bundled/previews/rikoko-starter-before-after.mp4",
+      "sha256": "09e394294829c8bd8aad35cd40193d1b325ef05ae2d9a240be41a9c8590e42e3",
+      "license": "Apache-2.0",
+      "source": "scripts/build-starter-previews.ts",
+      "font": "packages/render/fonts/NotoSansSC.ttf",
+      "audio": "none"
+    },
+    {
+      "path": "packages/templates/src/bundled/previews/rikoko-starter-testimonial.mp4",
+      "sha256": "fdedbd810f7e860b8228e9fff185c330d1e4b66ddce127e9cc43c45eacaf2513",
+      "license": "Apache-2.0",
+      "source": "scripts/build-starter-previews.ts",
+      "font": "packages/render/fonts/NotoSansSC.ttf",
+      "audio": "none"
+    },
+    {
+      "path": "docs/tutorials/images/01-start.png",
+      "sha256": "db8d1204cea206d0d057f05c81a744abe3b01d2254b654c18a9d8cb5bd7f0ef2",
+      "license": "Apache-2.0",
+      "source": "2026-10-21 actual local rikoko UI capture; synthetic host acceptance project using original product-stage.png; no user media"
+    },
+    {
+      "path": "docs/tutorials/images/02-result.png",
+      "sha256": "b53d836937ac0a7f02245f61156f8d7ec2beb5e956e0b9823047601737f52e06",
+      "license": "Apache-2.0",
+      "source": "2026-10-21 actual local rikoko UI capture; synthetic host acceptance project using original product-stage.png; no user media"
+    },
+    {
+      "path": "docs/tutorials/images/03-editor.png",
+      "sha256": "371ed0895b3c6f3ebf431f380c6f3e811a4903d5f250617037256981b5d78323",
+      "license": "Apache-2.0",
+      "source": "2026-10-21 actual local rikoko UI capture; synthetic host acceptance project using original product-stage.png; no user media"
+    },
+    {
+      "path": "docs/tutorials/images/04-versions.png",
+      "sha256": "6bffd977cc9292db67b9b9569369be421e92fde184e88fe26d4d16e9a22160e1",
+      "license": "Apache-2.0",
+      "source": "2026-10-21 actual local rikoko UI capture; synthetic host acceptance project using original product-stage.png; no user media"
+    }
+  ]
+}

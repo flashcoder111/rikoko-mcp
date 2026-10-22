@@ -60,6 +60,18 @@ export function checkGenerationTarget(
     ratio = w / h;
   } else if (parameters.width && parameters.height)
     ratio = Number(parameters.width) / Number(parameters.height);
+  else if (parameters.image_size && typeof parameters.image_size === "object") {
+    const size = parameters.image_size as Record<string, unknown>;
+    if (
+      typeof size.width === "number" &&
+      typeof size.height === "number" &&
+      Number.isFinite(size.width) &&
+      Number.isFinite(size.height) &&
+      size.width > 0 &&
+      size.height > 0
+    )
+      ratio = size.width / size.height;
+  }
   let durationMs = generationDurationMs(model, input.parameters);
   if (model.generationInput?.outputDurationSource === "source_video") {
     const source = assets.find((a) =>
@@ -68,6 +80,10 @@ export function checkGenerationTarget(
       ),
     );
     durationMs = source?.metadata?.durationMs;
+    if (input.mode === "video_to_video" && ratio === undefined && source) {
+      ratio = source.metadata?.width / source.metadata?.height;
+      aspectSource = "source_video";
+    }
   }
   const target = input.target;
   if (

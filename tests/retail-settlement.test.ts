@@ -46,15 +46,39 @@ afterEach(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 async function start() {
-  const q = await service.quote(c, input);
   const job = await service.submit(c, {
     input,
-    quoteId: q.id,
     idempotencyKey: "purchase",
   });
   const claimed = await service.claim("test");
   return { job, lease: claimed!.leaseToken };
 }
+it("direct submission still enforces balance and key budgets without leaving a reservation", async () => {
+  const poor = await service.authenticate(
+    (await service.createAccount("No balance", 0)).key,
+  );
+  await expect(
+    service.submit(poor, { input, idempotencyKey: "direct-poor" }),
+  ).rejects.toMatchObject({ code: "INSUFFICIENT_BALANCE" });
+  const limited = await service.authenticate(
+    (
+      await service.issueKey(c, {
+        name: "Limited",
+        scopes: ["read", "write"],
+        budgetCents: 1,
+      })
+    ).key,
+  );
+  await expect(
+    service.submit(limited, { input, idempotencyKey: "direct-limit" }),
+  ).rejects.toMatchObject({ code: "KEY_BUDGET_EXCEEDED" });
+  expect(await service.list(c, "job")).toHaveLength(0);
+  expect(await service.list(c, "quote")).toHaveLength(0);
+  expect(await service.usage(c)).toMatchObject({
+    balanceCents: 100,
+    reservedCents: 0,
+  });
+});
 it("charges the retail snapshot, retains unknown supplier cost, and can reconcile cost without another debit", async () => {
   const { job, lease } = await start();
   await service.finish(

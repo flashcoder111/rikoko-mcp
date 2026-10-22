@@ -71,13 +71,9 @@ DETAILS = [
     ("feedback-quote", "评价卡片插画", "品牌", ["评价", "卡片", "口碑"], "#f1edf8", "#4d3d68", "真实体验", "02"),
     ("feedback-source", "评价来源插画", "品牌", ["评价", "来源", "品牌"], "#f1edf8", "#4d3d68", "分享体验", "03"),
 ]
-font_paths = [Path("/System/Library/Fonts/PingFang.ttc"),
-              Path("/System/Library/Fonts/STHeiti Light.ttc"),
-              Path("/Library/Fonts/Arial Unicode.ttf"),
-              Path("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc")]
-font_path = next((p for p in font_paths if p.is_file()), None)
-if font_path is None:
-    raise RuntimeError("Install a Chinese font (PingFang or Noto Sans CJK) to build starter artwork")
+font_path = Path(__file__).resolve().parents[1] / "packages/render/fonts/NotoSansSC.ttf"
+if not font_path.is_file():
+    raise RuntimeError("Bundled OFL Noto Sans SC is required to build redistributable starter artwork")
 title_font = ImageFont.truetype(str(font_path), 48)
 small_font = ImageFont.truetype(str(font_path), 22)
 number_font = ImageFont.truetype(str(font_path), 96)

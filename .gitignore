@@ -23,3 +23,6 @@ outputs/
 research/
 plans/
 *.log
+
+# Local media audits and browser evidence.
+output/

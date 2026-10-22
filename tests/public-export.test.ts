@@ -1,3 +1,4 @@
+import { validateGuideBundle } from "../packages/guidance/src/reader.js";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import {
   mkdtemp,
@@ -94,4 +95,13 @@ it("refuses a new destination inside an exported source directory", async () => 
   await expect(
     exportPublicSource(root, join(root, "src/export")),
   ).rejects.toThrow(/overlap/i);
+});
+
+it("ships every director guide in the actual public export", async () => {
+  const out = join(root, "export");
+  await exportPublicSource(process.cwd(), out);
+  await validateGuideBundle(join(out, "packages/guidance"));
+  expect(
+    JSON.parse(await readFile(join(out, "package.json"), "utf8")).scripts.build,
+  ).toContain("guides:check");
 });

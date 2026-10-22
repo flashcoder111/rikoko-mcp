@@ -46,28 +46,22 @@ doctor 启动真实 stdio 子进程，检查初始化、工具发现、capabilit
 
 ## 三端适配与导演指引
 
-三端使用同一份公共导演流程，差异集中在 Skill 加载、附件读取、实际看图能力和结果交付。客户端名称不代表该会话一定具备视觉能力。
+三端使用同一份公共导演流程，差异集中在宿主上下文、附件读取、实际看图能力和结果交付。客户端名称不代表该会话一定具备视觉能力。
 
 | 宿主 | 入口与指引 | 素材与验收 | 最终交付 |
 | --- | --- | --- | --- |
-| Codex app / CLI | 当前技能目录中的 rikoko；支持时用 `$rikoko`；[适配说明](../../skills/rikoko/references/host-codex.md) | 使用可访问的真实路径；工具编排必须保留 `media_inspect` 的 image blocks | app 支持时使用返回的本地路径展示；CLI/远程可用媒体链接 |
-| Claude Code | `/rikoko`；[适配说明](../../skills/rikoko/references/host-claude.md) | 按需读取本地参考文档，核实 MCP 进程能读取附件 | 返回媒体链接；只有当前宿主支持时才使用原生附件 |
+| Codex app / CLI | 自然语言与 `rikoko_guide`；[适配说明](../../packages/guidance/content/host-codex.md) | 使用可访问的真实路径；工具编排必须保留 `media_inspect` 的 image blocks | app 支持时使用返回的本地路径展示；CLI/远程可用媒体链接 |
+| Claude Code | 自然语言与 `rikoko_guide`；[适配说明](../../packages/guidance/content/host-claude.md) | 按需读取 MCP 指南，核实 MCP 进程能读取附件 | 返回媒体链接；只有当前宿主支持时才使用原生附件 |
 | Claude Desktop | 自然语言或 MCP prompt；`rikoko_guide` 提供全文 | 不假定桌面附件对 MCP 可读；无需终端也能读取导演指引 | 媒体链接与工作台链接，不承诺内嵌播放器 |
-| Hermes | `/rikoko`、`skill_view` 或 `rikoko_guide`；[适配说明](../../skills/rikoko/references/host-hermes.md) | 区分 native pixels 和辅助视觉摘要；使用实际主机附件目录 | 支持的当前渠道用返回的 `MEDIA:` 路径；失败可回退到媒体链接 |
+| Hermes | 自然语言与 `rikoko_guide`；[适配说明](../../packages/guidance/content/host-hermes.md) | 区分 native pixels 和辅助视觉摘要；使用实际主机附件目录 | 支持的当前渠道用返回的 `MEDIA:` 路径；失败可回退到媒体链接 |
 
 所有最终视频仍需当前版本验收，交付时均包含准确的工作台链接。看不到画面的宿主保持 unreviewed，获取用户或可用视觉审核，不把文本摘要写成亲眼观察。
 
-`rikoko_guide` 是只读 MCP 工具：`overview`、`host-codex`、`host-claude`、`host-hermes`、`analysis-preflight`、`video-direction`、`directing-examples`、`image-direction`、`process-broll`、`visual-review`、`commands`、`media-operations`。它从运行时随包文档读取，与 Skill 使用同一源文件，返回内容哈希；不访问后端、不上传、不报价。HTTP MCP 同样可用，不需要开放本地文件工具或 MCP App。
+`rikoko_guide` 是只读 MCP 工具，通过已配置连接读取执行后端的版本化导演指南，返回内容哈希和所需合同。不上传素材、不定价、不调用模型。所有宿主均使用此入口，无需独立 Skill、本地 Markdown 文件权限或 MCP App。宿主负责创意、计划和后续选择，模板/套件建议可以不采用。
 
-已有安装只更新技能内容时，在更新后的源码目录执行：
+安装仅配置 MCP。更新后执行 `pnpm clients doctor codex`（或其他客户端）检查全部主题、工具兼容性及旧 Skill 残留。指南内容随后端发布；新工具结构需要更新桥接器和重连，不能仅升级云端就假定所有本机会话已更新。
 
-```sh
-pnpm clients sync-skill codex
-pnpm clients sync-skill claude-code
-pnpm clients sync-skill hermes
-```
-
-此命令同步 SKILL.md 和完整参考目录，备份有差异的托管文件，拒绝覆盖不同的非托管同名 Skill。它不连接后端、不读写凭据、不修改 MCP 配置；不代表首次安装已完成。Claude Desktop 没有此本地技能入口，需要更新其连接的运行时并重连以获得 `rikoko_guide`。其他宿主也需重新加载 Skill；正在使用旧工具列表的会话需要重连。源码/Skill 更新不等于公共发行或云端已经上线。
+旧安装先执行 `pnpm clients migrate-skill codex` 预览，确认后加 `--apply`。只归档哈希完整匹配的官方副本；有修改、额外文件或符号链接时返回 `needs_review` 并保留原文件。备份在宿主扫描目录外，可用 `pnpm clients restore-skill codex --backup <id>` 恢复。审阅过定制内容后可显式使用 `--apply --accept-fingerprint <预览指纹>` 归档这份精确副本；共享链接仍需人工处理。中断留下的锁可用 `--recover-lock` 检查并恢复，仅当其记录的进程已退出。其他宿主替换客户端名；Claude Desktop 无本地 Skill 迁移目标。`sync-skill` 已弃用，不再修改文件。
 
 ## Hermes 运行在服务器时
 
@@ -77,7 +71,7 @@ pnpm clients sync-skill hermes
 
 ## 对话中的使用
 
-支持技能入口的 Agent 中可用以下指令，工作台输入框则省略 `rikoko`，直接输入 `/models` 等；输入 `/` 或点击输入框旁的 `/` 按钮查看菜单。Agent 的 `/model` 可能属于宿主自身，因此选择视频模型请完整写 `/rikoko model <模型 ID>`。
+宿主可以理解以下兼容文字表达，不代表注册了技能命令；工作台输入框则省略 `rikoko`，直接输入 `/models` 等；输入 `/` 或点击输入框旁的 `/` 按钮查看菜单。Agent 的 `/model` 可能属于宿主自身，因此选择视频模型请完整写 `/rikoko model <模型 ID>`。
 
 | Agent 示例 | 用途 |
 | --- | --- |
@@ -91,11 +85,11 @@ pnpm clients sync-skill hermes
 
 工作台指令单独放在草稿的最后一行，按 Enter 应用；原描述和附件会保留，指令本身不提交任务。时长、画幅直接用自然语言，例如“做一条 15 秒、9:16 竖屏的视频，配温柔的中文女声”，Agent 分别整理视频和语音参数，匹配各自的模型规格。工作台直接生成使用所选模型的固定规格，描述本身不会覆盖规格；复杂要求交给 Agent 编排。需要结构化参考输入的档案会显示在目录中，当前工作台文字生成入口不能选择它们，请通过 Agent 的参考素材流程绑定输入。
 
-当前模型统一经 fal.ai 接入；Seedance 2 等后续模型在实际配置并启用后由模型目录提供，不预置虚构可用状态。选择模型不代表接受费用，付费生成仍需确认当前报价。此处只定义 rikoko 技能的子指令；宿主是否显示 `/rikoko` 菜单取决于客户端，普通自然语言入口始终可用。
+当前模型统一经 fal.ai 接入；Seedance 2 等后续模型在实际配置并启用后由模型目录提供，不预置虚构可用状态。选择模型本身不代表请求生成；只执行用户请求范围内的生成并遵守明确预算。用户询价时才展示可选报价。以下是兼容的文字表达，独立 Skill 已取消；推荐普通自然语言，不保证斜杠菜单。
 
-可直接说：“使用 rikoko，根据这些素材做一段视频，在当前对话告诉我进度，完成后发给我视频。”若只想看工作台链接，可明确提出。Codex 使用当前技能目录中的 `rikoko`（支持时可显式输入 `$rikoko`）；Claude Code 和 Hermes 可输入 `/rikoko` 加创作或修改要求。不要假定 Codex 的所有版本都提供同名斜杠菜单。MCP 还提供 `rikoko_create`、`rikoko_resume` 两个 prompt。安装或更新后需重载客户端；实际斜杠菜单由各宿主显示。
+可直接说：“使用 rikoko，根据这些素材做一段视频，在当前对话告诉我进度，完成后发给我视频。”若只想看工作台链接，可明确提出。所有宿主均可使用自然语言。MCP 还提供可选的 `rikoko_create`、`rikoko_resume` prompt，展示方式取决于客户端。安装或更新后需重载 MCP；不依赖技能或斜杠菜单。
 
-1. `capabilities` 查看真实可用能力；读取当前宿主适配和任务所需的导演指引。无法访问本地 Skill 时，调用 `rikoko_guide {topic:"overview"}`，再按返回目录加载相关 topic。宿主 Agent 直接准备 composition 或编辑动作；`workspace_plan` 可选，无需额外配置网页创作模型。
+1. `capabilities` 查看真实可用能力；读取当前宿主适配和任务所需的导演指引。调用 `rikoko_guide {topic:"overview"}`，再按返回目录加载相关 topic。宿主 Agent 直接准备 composition 或编辑动作；`workspace_plan` 可选，无需额外配置网页创作模型。
 2. 本地附件通过 `asset_import_file` 上传实际文件。默认允许工程的 `media-inbox/` 和 `artifacts/`；macOS Hermes 安装配置还包含上面的 `composer-images/`。需传素材许可及 `rightsConfirmed: true`。其他专用附件目录由操作者通过 `VIDEOWORKBENCH_IMPORT_ROOTS` JSON 数组配置。工具描述会列出当前目录；遇到 `FORBIDDEN`，按提示将所选素材复制到可用目录后使用新路径，或更新专用目录配置并重载 MCP；不要原样反复重试。目录尚未创建不会影响其他有效目录；附件已失效时需重新附加。连接器不能自动读取宿主未提供的附件，也不开放整个用户主目录。
 3. `workspace_commit` 创建/编辑，使用稳定 `idempotencyKey`；`workspace_result` 查询状态。重试查询不再次提交生成。
 4. MCP 在任务完成后返回普通文本、结构化结果及媒体 `resource_link`，包含视频、字幕、预览图和当前画面文案。配置了导出目录的 Codex/Hermes 自动保存附件；其他宿主使用可访问的媒体链接。仍不声明 `ui.resourceUri` 或 HTML 资源。
@@ -104,7 +98,7 @@ pnpm clients sync-skill hermes
 
 需要手动保存或重试附件下载时调用 `workspace_export {jobId}`，将结果保存到本机 `.data/host-media/<客户端>/` 或指定目录；它可重试保存，不重渲染。每个导出/导入文件上限 100 MiB。仅通过认证的后端资产端点读取输出，下载时不跟随供应商或返回值里的任意 URL。导出目录权限 0700、文件 0600。
 
-付费生成仍要求报价、用户确认价格、供应商启用和足够预算。自有供应商不要求官方额度。安装器默认零付费预算不会让普通剪辑误触发购买。本地演示使用合成素材，不发起付费生成。
+生成仍要求供应商启用、足够预算和用户请求范围；计费由内部提交协议处理，不额外要求每步询价确认。自有供应商不要求官方额度。安装器默认零付费预算不会让普通剪辑误触发购买。本地演示使用合成素材，不发起付费生成。
 
 ## 手机、远程与能力边界
 
@@ -121,3 +115,10 @@ Streamable HTTP 端点为 `/mcp`，用 Bearer Key 认证。HTTP 与 stdio 都不
 - [Claude Desktop 本地 MCP](https://support.claude.com/en/articles/10949351-getting-started-with-local-mcp-servers-on-claude-desktop)
 - [Hermes MCP 配置](https://github.com/NousResearch/hermes-agent/blob/main/website/docs/reference/mcp-config-reference.md)
 - [Hermes 原生媒体路径处理](https://github.com/NousResearch/hermes-agent/blob/main/gateway/platforms/base.py)
+
+
+### Windows native preview
+
+The 0.1.31 PowerShell installer is implemented locally but unpublished and not validated on Windows. It targets Windows 10/11 x64. It keeps Codex under `%USERPROFILE%\.codex`, Claude Code at `%USERPROFILE%\.claude.json`, and Claude Desktop at `%APPDATA%\Claude\claude_desktop_config.json`. If Desktop's Edit Config opens a different location, set `RIKOKO_CLAUDE_DESKTOP_CONFIG` to that absolute file path. Existing entries are preserved and conflicting rikoko entries are rejected. See [Windows installation preview](../../docs/architecture/installation.md#windows-原生安装预览0131).
+
+The public WSL installer configures clients inside WSL; it does not register a Windows desktop client. Native Windows downloads must not be advertised until the matching release is published.

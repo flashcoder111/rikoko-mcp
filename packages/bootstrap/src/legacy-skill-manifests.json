@@ -1,0 +1,20 @@
+[
+  {
+    "revision": "457cfc9e5586f8053386d83202570b7c6065f983",
+    "files": {
+      "SKILL.md": "593f620704a04b02a68b02842fecd443f60473fae58c9f59d8a2920aa933928e",
+      "references/analysis-preflight.md": "5a3ba74efbf3b9b8b2094e7ca5bab4ac5497a17792be3e91bb3ab382cc1348ea",
+      "references/commands.md": "3ec4e498592d18609140582ac5dcf3590c1124ca4f11a9a33fc9fc022082359d",
+      "references/directing-examples.md": "b942f7d68523b4d190e920ea8b8b022cd457aff194d73cc05eeefe14c8bbaef9",
+      "references/host-claude.md": "82687107296ba154473b192546bc17ccdf74599e0113a6aa4a4e71315d54c7c1",
+      "references/host-codex.md": "483fc69a4530d54f0044856c97a38931ab90c06b96476335e1f8eb67096f843a",
+      "references/host-hermes.md": "a5e2fb7f808c51af5beaeff0949350f270b924a43e1e74ffa1a3155822dd2540",
+      "references/image-direction.md": "d652c94887488fec5eb1eafc76f533fe3ceb894157e8c50bfc5621fae6123be4",
+      "references/media-operations.md": "af5132312beffdddc0489cb787d0aaa6819ef3aa28663903db2647c519c3ac9b",
+      "references/process-broll.md": "30ae1010bf65f919353a9067f14c02ace0b0a116aae4c58fe9501e5ce29de79c",
+      "references/production-quality.md": "e62fe4554e4602190b7fb47d0e97caae2337ed15d602db3eb1b782e23e385a01",
+      "references/video-direction.md": "7e5a93716692362e800a49790796cae2d1bfb6a51815e1ae1b4ee7bfeb2ace4c",
+      "references/visual-review.md": "2c51a393a2c55d7f9020afa3ceddcac399e7e5ee48a5a96d14f2ba984927e3fb"
+    }
+  }
+]

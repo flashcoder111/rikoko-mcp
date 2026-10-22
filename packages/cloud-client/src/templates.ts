@@ -18,9 +18,16 @@ import {
   prepareTemplateSpeech,
   validateSpeechVisuals,
 } from "../../templates/src/speech.js";
+import { promptTemplateSchema } from "../../templates/src/prompt-schema.js";
 const snapshotSchema = z.object({
   schemaVersion: z.literal(1),
   revision: z.number().int().nonnegative(),
+  promptTemplates: z
+    .array(
+      promptTemplateSchema.extend({ hash: z.string().regex(/^[a-f0-9]{64}$/) }),
+    )
+    .max(1000)
+    .default([]),
   templates: z
     .array(templateSchema.extend({ hash: z.string().regex(/^[a-f0-9]{64}$/) }))
     .max(1000),
@@ -46,6 +53,9 @@ export class TemplateClient {
           schemaVersion: 1,
           revision: 0,
           templates: [],
+          promptTemplates: [],
+          history: [],
+          promptHistory: [],
           syncedAt: null,
           source: this.origin,
           etag: undefined,
@@ -76,6 +86,33 @@ export class TemplateClient {
       if (fingerprint(templateSchema.parse(definition)) !== hash)
         throw new AppError("TEMPLATE_HASH_MISMATCH", "模板校验失败", 502);
     }
+    for (const item of snapshot.promptTemplates ?? []) {
+      const { hash, ...definition } = item;
+      if (fingerprint(promptTemplateSchema.parse(definition)) !== hash)
+        throw new AppError("TEMPLATE_HASH_MISMATCH", "提示词模板校验失败", 502);
+    }
+    const merge = (history: any[], entries: any[]) => {
+      const versions = new Map(history.map((t) => [`${t.id}:${t.version}`, t]));
+      for (const t of entries) {
+        const previous = versions.get(`${t.id}:${t.version}`);
+        if (previous && previous.hash !== t.hash)
+          throw new AppError(
+            "TEMPLATE_VERSION_MUTATED",
+            "已发布版本不可改写，请发布新版本",
+            502,
+          );
+        versions.set(`${t.id}:${t.version}`, t);
+      }
+      return [...versions.values()];
+    };
+    const history = merge(
+      [...(old.history ?? []), ...old.templates],
+      snapshot.templates,
+    );
+    const promptHistory = merge(
+      [...(old.promptHistory ?? []), ...(old.promptTemplates ?? [])],
+      snapshot.promptTemplates ?? [],
+    );
     return this.service.scoped(c, "write", async (tx) =>
       tx.put({
         id: this.cacheId(c),
@@ -85,6 +122,9 @@ export class TemplateClient {
         schemaVersion: 1,
         revision: snapshot.revision,
         templates: snapshot.templates,
+        promptTemplates: snapshot.promptTemplates ?? [],
+        history,
+        promptHistory,
         source: this.origin,
         etag: response.headers.get("etag") ?? old.etag,
         syncedAt: new Date().toISOString(),
@@ -95,7 +135,7 @@ export class TemplateClient {
     await this.service.scoped(c, "write", async () => {});
     const p = applyTemplateSchema.parse(raw),
       snapshot = await this.list(c);
-    const entry = snapshot.templates.find(
+    const entry = [...snapshot.templates, ...(snapshot.history ?? [])].find(
       (t: any) => t.id === p.id && t.version === p.version,
     );
     if (!entry)
@@ -130,7 +170,12 @@ export class TemplateClient {
     );
     validateSpeechVisuals(draft, bindings);
     const needed = new Set([
-      ...draft.scenes.flatMap((s) => [s.assetId, s.audioAssetId]),
+      ...draft.scenes.flatMap((s) => [
+        s.assetId,
+        s.audioAssetId,
+        s.speechAlignment?.sourceAssetId,
+        s.speechAlignment?.transcriptAssetId,
+      ]),
       ...draft.events.map((e) => e.assetId),
       draft.audio?.assetId,
     ]);

@@ -110,9 +110,19 @@ export function validateGenerationAssets(
     )
       throw new AppError(
         "REFERENCE_LIMIT",
-        "Reference dimensions exceed the configured limits or are unknown",
+        `Reference ${i + 1} dimensions are outside the configured limits or unknown: each side must be minimum ${b.minDimension ?? 1}px and maximum ${b.maxDimension ?? 4096}px. Resize a copy of the reference and import it before retrying.`,
       );
     bytes += a.bytes;
+    if (
+      b.kind === "video" &&
+      b.maxPixels &&
+      (!Number.isFinite(a.metadata?.width * a.metadata?.height) ||
+        a.metadata.width * a.metadata.height > b.maxPixels)
+    )
+      throw new AppError(
+        "REFERENCE_LIMIT",
+        "Reference video resolution exceeds the configured pixel limit or is unknown",
+      );
     if (a.bytes > b.maxBytes || bytes > p.maxTotalBytes)
       throw new AppError(
         "REFERENCE_LIMIT",

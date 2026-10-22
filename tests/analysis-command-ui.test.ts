@@ -63,7 +63,7 @@ it("switches or reads analysis defaults without submitting a draft or dropping a
       detail: "recreate",
     });
     expect(input.setDraft).toHaveBeenLastCalledWith("原有要求");
-    expect(container.textContent).toContain("复刻");
+    expect(container.textContent).toContain("Recreation");
     expect(input.onSend).not.toHaveBeenCalled();
     expect(input.removeAttachment).not.toHaveBeenCalled();
     input.draft = "/analysis";

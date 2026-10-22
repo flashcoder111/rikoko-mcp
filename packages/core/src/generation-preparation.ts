@@ -1,4 +1,11 @@
 import { validateRemakeEvidence } from "./reference-handoff.js";
+import { assertVideoPolicy } from "../../providers/src/video-policy.js";
+import {
+  assertMethodMode,
+  assertMethodSource,
+  assertMethodSegment,
+} from "./production-method.js";
+import { assertDirectorAudio } from "./director-kits.js";
 import { requireGenerationPreparation } from "./generation-policy.js";
 import {
   promptReferenceSyntax,
@@ -23,8 +30,12 @@ import {
   productionPlanSchema,
   productionShotDirection,
   validateProductionPlan,
+  assertEditorialSeparation,
 } from "./production-plan.js";
 import { validateStoryboardInput } from "./storyboard-state.js";
+import { assertCriticalImageReviews } from "./critical-image-review.js";
+import { assertShotReferenceChoice } from "./shot-reference-choice.js";
+import { assertPreviousEndAnchor } from "./production-continuity.js";
 import {
   validateProductionLink,
   bindPlanProduction,
@@ -33,7 +44,7 @@ import { fingerprint, type Service } from "./index.js";
 
 export const preparationProtocol = "rikoko-prepared-generation-v1";
 // Bump when the provider request construction/binding contract changes.
-const adapterContractVersion = "generation-payload-v2";
+const adapterContractVersion = "generation-payload-v3-face-policy";
 export const generationPrepareSchema = z
   .object({
     input: operationSchema,
@@ -170,6 +181,7 @@ export async function prepareGeneration(
         "Bind this generation to the scope's exact plan version and shot",
       );
     let plan: Record<string, unknown> | undefined;
+    let sourceEdit = false;
     let remakeEvidence;
     if (data.plan) {
       const saved = await tx.get(
@@ -180,6 +192,20 @@ export async function prepareGeneration(
       if (!saved || saved.version !== data.plan.expectedVersion)
         fail("PLAN_CONFLICT", "Read the current plan and use its version");
       const parsed = productionPlanSchema.parse(saved.plan);
+      sourceEdit = parsed.method?.kind === "source_edit";
+      if (parsed.method?.source && !declaredAssets) {
+        const source = await tx.get(
+          parsed.method.source.assetId,
+          c.accountId,
+          "asset",
+        );
+        assertMethodSource(parsed, source);
+      }
+      assertMethodMode(
+        parsed,
+        data.direction?.mode ?? input.mode,
+        data.plan.stage ?? "video",
+      );
       if (!validateProductionPlan(parsed).valid)
         fail(
           "INVALID_PRODUCTION_PLAN",
@@ -194,6 +220,32 @@ export async function prepareGeneration(
       );
       const shot = parsed.shots.find((s) => s.id === data.plan!.shotId);
       if (!shot) fail("INVALID_SHOT", "Choose a shot from this plan");
+      if ((data.plan.stage ?? "video") === "video") {
+        const assets =
+          declaredAssets ??
+          (await Promise.all(
+            (input.references ?? []).map((r) =>
+              tx.get(r.assetId, c.accountId, "asset"),
+            ),
+          ));
+        assertMethodSegment(
+          parsed,
+          shot.id,
+          assets.filter((a): a is Entity => !!a),
+        );
+      }
+      if ((data.plan.stage ?? "video") === "video")
+        assertShotReferenceChoice(shot, input.mode ?? data.direction?.mode);
+      if (!declaredAssets && (data.plan.stage ?? "video") === "video")
+        await assertPreviousEndAnchor(
+          tx,
+          c.accountId,
+          parsed,
+          shot.id,
+          input.production?.projectId,
+        );
+      if ((data.plan.stage ?? "video") === "video")
+        assertEditorialSeparation(parsed, shot.id, input.prompt);
       const expectedDirection = productionShotDirection(
         parsed,
         shot,
@@ -243,6 +295,10 @@ export async function prepareGeneration(
       plan = { ...data.plan, planHash: fingerprint(saved.plan) };
     }
     const model = service.provider.validate(input);
+    assertDirectorAudio(data.direction?.directorKit, {
+      ...model.parameters,
+      ...input.parameters,
+    });
     const syntax = promptReferenceSyntax(model);
     const compiled = data.direction
       ? compilePrompt(data.direction, syntax)
@@ -263,7 +319,10 @@ export async function prepareGeneration(
       service.allowLegacyGeneration,
       true,
     );
-    if (remakeEvidence && (!compiled || compiled.prompt !== input.prompt))
+    if (
+      (remakeEvidence || sourceEdit) &&
+      (!compiled || compiled.prompt !== input.prompt)
+    )
       fail(
         "REMAKE_PROMPT_OVERRIDE",
         "Revise the target plan and compile again; a remake prompt must preserve the compiled direction",
@@ -333,8 +392,12 @@ export async function prepareGeneration(
         }
       : await generationReferenceSnapshots(tx, c.accountId, input);
     validateGenerationAssets(model, input, assets);
-    await validateStoryboardInput(tx, c.accountId, input);
+    assertVideoPolicy(model, input, assets);
     const expectedOutput = checkGenerationTarget(model, input, assets);
+    await validateStoryboardInput(tx, c.accountId, input, expectedOutput);
+    // Cloud declarations are checked in the originating host workspace before transport.
+    if (!declaredAssets)
+      await assertCriticalImageReviews(tx, c.accountId, input);
     const providerBindings = (input.references ?? []).map((ref, inputIndex) => {
       const binding = model.generationInput!.bindings.find((b) =>
         b.roles.includes(ref.role),
@@ -514,6 +577,24 @@ export async function validatePreparedGeneration(
       productionPlanSchema.parse(plan.plan),
       plan.hostRemakeEvidence,
     );
+    if ((record.plan.stage ?? "video") === "video")
+      assertEditorialSeparation(
+        plan.plan,
+        record.plan.shotId,
+        operation.prompt,
+      );
+    if (
+      !record.parentPreparation &&
+      record.referenceState !== "declared" &&
+      (record.plan.stage ?? "video") === "video"
+    )
+      await assertPreviousEndAnchor(
+        tx,
+        accountId,
+        plan.plan,
+        record.plan.shotId,
+        operation.production?.projectId,
+      );
     if (
       fingerprint(evidence ?? null) !==
       fingerprint(record.remakeEvidence ?? null)
@@ -540,11 +621,26 @@ export async function validatePreparedGeneration(
       "Reference bytes or metadata changed; inspect and prepare again",
     );
   if (!record.cloud)
+    assertVideoPolicy(
+      service.provider.validate(operation),
+      operation,
+      current.assets,
+    );
+  if (!record.cloud)
     validateGenerationAssets(
       service.provider.validate(operation),
       operation,
       current.assets,
     );
-  await validateStoryboardInput(tx, accountId, operation);
+  await validateStoryboardInput(
+    tx,
+    accountId,
+    operation,
+    record.expectedOutput ?? {},
+  );
+  // A server-created cloud binding delegates review authority to the host workspace,
+  // just like storyboard review. Local/cloud-client requests are rechecked before purchase.
+  if (!record.parentPreparation)
+    await assertCriticalImageReviews(tx, accountId, operation);
   return record;
 }

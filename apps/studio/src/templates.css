@@ -58,7 +58,8 @@
   gap: 8px;
   margin: 14px 0;
 }
-.template-form input {
+.template-form input,
+.template-form select {
   padding: 10px;
   border: 1px solid #d7ded5;
   border-radius: 8px;
@@ -256,11 +257,22 @@
 .template-form h2:not(:first-child) {
   margin-top: 32px;
 }
-.template-form input {
+.template-form input,
+.template-form select {
   font: inherit;
   color: #202822;
   background: white;
   min-width: 0;
+}
+.template-speech {
+  margin-top: 24px;
+  padding: 16px;
+  border: 1px solid #d7ded5;
+  border-radius: 12px;
+}
+.template-speech summary {
+  cursor: pointer;
+  font-weight: 600;
 }
 .template-slot {
   display: flex;

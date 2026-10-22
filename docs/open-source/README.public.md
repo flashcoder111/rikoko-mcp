@@ -4,7 +4,7 @@
 
 rikoko 是可自部署的视频创作 MCP。在本地通过 Agent 对话创建、修改视频，在时间线中继续精修。项目、素材、版本和 FFmpeg 渲染保留在本地。官方云服务只承担模板更新分发和统一模型 API 收费。
 
-所有要求和后续修改都在原 Agent 对话中完成。缺少必需素材时在原对话请求补充，并保留创作要求继续处理。完成后交付视频附件或媒体链接、相关文案和可选工作台链接；不自动弹出 MCP 窗口或另开网页。用户可要求只返回链接。
+所有要求和后续修改都在原 Agent 对话中完成。缺少必需素材时在原对话请求补充，并保留创作要求继续处理。完成后交付视频附件或媒体链接、相关文案，并始终附上可点击的本地浏览器工作台链接，供用户自行打开修改；不自动打开浏览器、弹出 MCP 窗口或另开网页。用户可要求只返回链接，回复中仍附工作台链接。
 
 本地剪辑、字幕编排、渲染和模板同步不消耗官方 API 额度。外部模型调用及宿主 Agent 的服务费用分别计算。无需开通官方 API，即可使用已有素材完成编辑和导出。
 
@@ -13,10 +13,12 @@ rikoko 是可自部署的视频创作 MCP。在本地通过 Agent 对话创建�
 在 macOS 或 Linux/WSL 的终端执行：
 
 ```sh
-curl -fsSL https://github.com/flashcoder111/video-workbench/releases/latest/download/install.sh | bash
+curl -fsSL https://github.com/flashcoder111/rikoko-mcp/releases/latest/download/install.sh | bash
 ```
 
-自动下载并校验 GitHub 版本包、准备环境、注册检测到的 Codex/Claude MCP、启动本地服务并导出免费样片。随后重载客户端 MCP，即可使用 `/rikoko`。指定客户端时，将末尾改为 `bash -s -- --client codex`、`bash -s -- --client claude-code` 或 macOS 的 `bash -s -- --client claude-desktop`。
+自动下载并校验 GitHub 版本包、准备环境、注册检测到的 Codex/Claude MCP、启动本地服务并导出免费样片。随后重载客户端 MCP，在原对话中要求使用 rikoko。指定客户端时，将末尾改为 `bash -s -- --client codex`、`bash -s -- --client claude-code` 或 macOS 的 `bash -s -- --client claude-desktop`。
+
+新版安装器可在原目录备份数据后升级，自检失败自动恢复旧版本；中断恢复使用 `--recover`。升级前关闭客户端并结束任务，详见安装说明。
 
 默认使用本地编辑与渲染，无需模型 Key；AI 生成通过 config 配置自己的供应商。未检测到客户端时仍可安装和使用本地工作台。自定义目录与服务管理见[安装说明](docs/architecture/installation.md)。
 
@@ -34,7 +36,7 @@ pnpm dev
 
 打开 `http://127.0.0.1:4310`，使用启动时生成的 `.data/local-admin.key` 登录自己的工作空间。演示与开发服务分开运行，不要让两个进程同时打开同一数据库目录。不要共享或提交本地 Key。
 
-本地演示不调用付费模型。中文/英文系统配音需要已安装语音，Linux 可使用 espeak-ng。
+本地演示不调用付费模型，仅使用明确标注的测试音。独立配音默认通过 fal 使用 ElevenLabs Eleven v3；不提供本地系统配音。
 
 ## 模板与 API 分开配置
 
@@ -66,3 +68,7 @@ pnpm build
 见 [贡献说明](CONTRIBUTING.md)、[开源边界](docs/open-source/boundaries.md) 与 [第三方说明](THIRD_PARTY_NOTICES.md)。此源码快照不包含官方云后台、运行数据、供应商密钥、研究资料或开发样片。
 
 源码内包含 Apache-2.0 许可文本，第三方组件仍遵循各自条款。模型权重与第三方媒体不随源码自动获得许可。当前发行物为本地整理与验证的快照，真实付费生成、在线支付和生产部署不因源码可构建而视为已验收。
+
+## MCP director guides
+
+No separate Skill installation is required. Ask the host Agent to use rikoko; it reads `rikoko_guide` from the execution backend and retains creative decisions. `capabilities` reports the guide version. See the client installation guide for legacy Skill migration and backend/bridge compatibility checks.

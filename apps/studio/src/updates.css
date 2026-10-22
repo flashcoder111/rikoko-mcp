@@ -1,0 +1,73 @@
+.rikoko-updates {
+  margin: 20px 32px 0;
+  padding: 14px 18px;
+  border: 1px solid #dedbe0;
+  border-radius: 12px;
+  background: #faf9fb;
+  color: #37313e;
+  font-size: 13px;
+}
+.rikoko-updates.has-update {
+  border-color: #ac93d2;
+  background: #f7f2ff;
+}
+.rikoko-updates-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.rikoko-updates p {
+  margin: 0;
+  line-height: 1.6;
+}
+.rikoko-updates small {
+  display: block;
+  color: #6b6373;
+  margin-top: 5px;
+}
+.rikoko-updates button {
+  flex-shrink: 0;
+  padding: 7px 11px;
+  border: 1px solid #cfc7d9;
+  border-radius: 7px;
+  background: #fff;
+  color: #453155;
+  cursor: pointer;
+}
+.rikoko-updates button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+.rikoko-update-details {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+.rikoko-release-notes {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.rikoko-update-details code {
+  display: block;
+  padding: 12px;
+  background: #fff;
+  border-radius: 7px;
+  user-select: all;
+  overflow-wrap: anywhere;
+}
+.rikoko-update-details > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+@media (max-width: 640px) {
+  .rikoko-updates {
+    margin: 14px 16px 0;
+    padding: 12px;
+  }
+  .rikoko-updates-summary {
+    align-items: flex-start;
+  }
+}

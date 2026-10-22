@@ -142,6 +142,11 @@ export class HostFiles {
     const root = await realpath(this.outputDir);
     const delivered: DeliveredMedia[] = [];
     for (const item of media) {
+      // A render without captions has a legitimate zero-byte SRT output.
+      // Empty binary media must still fail instead of appearing delivered.
+      const emptySubtitleAllowed =
+        item.mimeType === "application/x-subrip" ||
+        (item.mimeType === "text/plain" && /\.srt$/i.test(item.name));
       const suffix =
         item.mimeType === "text/plain" && /\.srt$/i.test(item.name)
           ? ".srt"
@@ -161,8 +166,9 @@ export class HostFiles {
       const handle = await open(tmp, "wx", 0o600);
       try {
         let size = 0;
-        if (!response.body) throw Error("Empty media response");
-        for await (const chunk of response.body) {
+        if (!response.body && !emptySubtitleAllowed)
+          throw Error("Empty media response");
+        for await (const chunk of response.body ?? []) {
           size += chunk.byteLength;
           if (size > maxBytes)
             throw new AppError(
@@ -171,7 +177,7 @@ export class HostFiles {
             );
           await handle.writeFile(chunk);
         }
-        if (!size) throw Error("Empty media response");
+        if (!size && !emptySubtitleAllowed) throw Error("Empty media response");
         await handle.close();
         await rename(tmp, path);
       } catch (error) {

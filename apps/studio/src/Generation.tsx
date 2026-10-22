@@ -7,17 +7,47 @@ import {
   LoaderCircle,
 } from "lucide-react";
 import type { Entity } from "../../../packages/contracts/src/index.js";
+import type {
+  FaceStatus,
+  VideoPolicy,
+} from "../../../packages/contracts/src/video-policy.js";
+import { videoModelFamily } from "../../../packages/contracts/src/video-policy.js";
+import type { resolveVideoModel } from "../../../packages/core/src/video-model-selection.js";
 import { api, type Job, statusLabels } from "./api";
 import { VideoPreview } from "./media";
+import {
+  summarizeTaskUsage,
+  usageText,
+} from "../../../packages/core/src/task-usage.js";
 export type GenerationRequest = {
   prompt: string;
   model: string;
   modelName: string;
+  modelExplicit?: boolean;
   description: string;
   mediaKind: "image" | "video" | "audio";
   billingSource: "credits" | "external" | "testing";
   nonce: string;
+  speech?: { language: string; voice: string };
+  videoPolicy?: VideoPolicy;
 };
+function operation(request: GenerationRequest) {
+  return request.speech
+    ? {
+        kind: "tts",
+        engine: "fal",
+        model: request.model,
+        text: request.prompt,
+        ...request.speech,
+      }
+    : {
+        kind: "generate",
+        model: request.model,
+        prompt: request.prompt,
+        parameters: {},
+        ...(request.videoPolicy ? { videoPolicy: request.videoPolicy } : {}),
+      };
+}
 export default function Generation({
   scope,
   request,
@@ -33,21 +63,15 @@ export default function Generation({
     kind?: "image" | "video" | "audio",
   ) => void;
 }) {
-  const [quote, setQuote] = useState<{
-    id: string;
-    maxCostCents?: number;
-    maxCents?: number;
-    maxChargeCents?: number;
-    fixedChargeCents?: number;
-    billingSource?: "credits" | "external" | "testing";
-  }>();
   const [job, setJob] = useState<Job>();
   const [asset, setAsset] = useState<Entity>();
   const [details, setDetails] = useState<GenerationRequest>();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [prompt, setPrompt] = useState("");
-  const attempt = useRef("");
+  const [faceStatus, setFaceStatus] = useState<FaceStatus>();
+  const [selection, setSelection] =
+    useState<ReturnType<typeof resolveVideoModel>>();
   const sequence = useRef(0);
   const storageKey = `rikoko-generation:${scope}`;
   useEffect(() => {
@@ -87,34 +111,14 @@ export default function Generation({
     const seq = ++sequence.current;
     setBusy(true);
     setError("");
-    setQuote(undefined);
     setJob(undefined);
     setPrompt(request.prompt);
     setDetails(request);
     setAsset(undefined);
-    attempt.current = request.nonce;
-    void api<typeof quote>("quote_create", {
-      input: {
-        kind: "generate",
-        model: request.model,
-        prompt: request.prompt,
-        parameters: {},
-      },
-    })
-      .then((q) => {
-        if (seq === sequence.current) setQuote(q);
-      })
-      .catch((e) => {
-        if (seq === sequence.current)
-          setError(
-            e.code === "CAPABILITY_UNAVAILABLE"
-              ? "所选模型暂不可用，请刷新模型目录或查看当前连接状态。"
-              : e.message,
-          );
-      })
-      .finally(() => {
-        if (seq === sequence.current) setBusy(false);
-      });
+    setFaceStatus(undefined);
+    setSelection(undefined);
+    if (request.mediaKind === "video") setBusy(false);
+    else void generate(request, seq);
   }, [request]);
   useEffect(() => {
     if (!job || !["queued", "running"].includes(job.status)) return;
@@ -153,29 +157,76 @@ export default function Generation({
       live = false;
     };
   }, [job?.id, job?.status, job?.outputs[0]]);
-  async function generate() {
-    if (!request || !quote || busy) return;
+  async function resolveVideo(faces: FaceStatus, chosenModel?: string) {
+    if (!request) return;
+    const seq = sequence.current;
     setBusy(true);
     setError("");
-    const seq = sequence.current;
+    setFaceStatus(faces);
+    try {
+      const family = videoModelFamily({
+        id: request.model,
+        name: request.modelName,
+      });
+      const priorChoice =
+        request.modelExplicit && ["minimax", "kling"].includes(family)
+          ? request.model
+          : undefined;
+      const confirmedModel = chosenModel ?? priorChoice;
+      const result = await api<ReturnType<typeof resolveVideoModel>>(
+        "video_model_resolve",
+        {
+          faces,
+          reason:
+            "User assessment of the requested scene in the video composer",
+          references: [],
+          ...(faces === "absent" && request.modelExplicit
+            ? { model: request.model }
+            : {}),
+          ...(confirmedModel
+            ? { userChoice: { model: confirmedModel, confirmed: true } }
+            : {}),
+        },
+      );
+      if (seq !== sequence.current) return;
+      setSelection(result);
+      if (result.status === "ready" && result.selectedModel) {
+        const selected = result.candidates.find(
+          (m) => m.modelId === result.selectedModel,
+        )!;
+        const confirmedRequest = {
+          ...request,
+          model: selected.modelId,
+          modelName: selected.name,
+          videoPolicy: result.videoPolicy,
+        };
+        setDetails(confirmedRequest);
+        await generate(confirmedRequest, seq);
+      }
+    } catch (e) {
+      if (seq === sequence.current) setError((e as Error).message);
+    } finally {
+      if (seq === sequence.current) setBusy(false);
+    }
+  }
+  async function generate(request: GenerationRequest, seq: number) {
+    setBusy(true);
+    setError("");
     try {
       const j = await api<Job>("job_submit", {
-        quoteId: quote.id,
-        idempotencyKey: attempt.current,
-        input: {
-          kind: "generate",
-          model: request.model,
-          prompt: request.prompt,
-          parameters: {},
-        },
+        idempotencyKey: request.nonce,
+        input: operation(request),
       });
-      sessionStorage.setItem(
-        storageKey,
-        JSON.stringify({ id: j.id, prompt: request.prompt, details: request }),
-      );
       if (seq === sequence.current) {
+        sessionStorage.setItem(
+          storageKey,
+          JSON.stringify({
+            id: j.id,
+            prompt: request.prompt,
+            details: request,
+          }),
+        );
         setJob(j);
-        setQuote(undefined);
       }
     } catch (e) {
       if (seq === sequence.current) setError((e as Error).message);
@@ -205,9 +256,6 @@ export default function Generation({
       : mediaKind === "audio"
         ? "音频生成"
         : "视频生成";
-  const cents = quote?.maxChargeCents ?? quote?.maxCents ?? quote?.maxCostCents;
-  const external =
-    (quote?.billingSource ?? details?.billingSource) === "external";
   return (
     <article className="generation-turn">
       {prompt && <div className="user-bubble">{prompt}</div>}
@@ -260,49 +308,90 @@ export default function Generation({
             ·{" "}
             {details?.modelName ?? job.input?.model ?? job.model ?? "生成模型"}
           </p>
+          <p className="generation-usage" aria-label="本次生成用量">
+            {usageText(summarizeTaskUsage([job]))}
+          </p>
         </>
+      ) : request?.mediaKind === "video" && !details?.videoPolicy ? (
+        <div className="pollo-pending">
+          {!selection ? (
+            <>
+              <p>
+                视频内容是否涉及人脸？无人脸默认使用 Seedance
+                Mini；涉及人脸则推荐 MiniMax，也可选择 Kling。
+              </p>
+              <div className="inline-result-actions">
+                <button
+                  disabled={busy}
+                  onClick={() => void resolveVideo("absent")}
+                >
+                  不涉及人脸
+                </button>
+                <button
+                  disabled={busy}
+                  onClick={() => void resolveVideo("present")}
+                >
+                  涉及人脸
+                </button>
+                <button
+                  disabled={busy}
+                  onClick={() => void resolveVideo("unknown")}
+                >
+                  不确定
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p>{selection.userInteraction.message}</p>
+              {selection.status === "capability_gap" && (
+                <p>当前没有兼容且可用的模型，请检查模型配置。</p>
+              )}
+              <div className="inline-result-actions">
+                {selection.candidates.map((m) => (
+                  <button
+                    key={m.modelId}
+                    disabled={busy}
+                    onClick={() => void resolveVideo(faceStatus!, m.modelId)}
+                  >
+                    使用 {m.name}
+                    {m.modelId === selection.recommendedModel ? "（推荐）" : ""}
+                  </button>
+                ))}
+                <button
+                  disabled={busy}
+                  onClick={() => {
+                    setSelection(undefined);
+                    setFaceStatus(undefined);
+                  }}
+                >
+                  重新选择人脸状态
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       ) : (
         <div className="pollo-pending">
           <Sparkles size={28} />
-          <span>
-            {busy ? "正在获取报价" : error ? "暂时无法生成" : "生成前确认"}
-          </span>
-          {quote && (
-            <>
-              <p>
-                {details?.modelName} {details?.description}
-                <br />
-                {quote.billingSource === "testing"
-                  ? "上线前测试模式"
-                  : external
-                    ? "供应商费用上限"
-                    : quote.fixedChargeCents !== undefined
-                      ? "本次消耗官方套餐额度"
-                      : "官方套餐额度预留上限"}{" "}
-                {quote.billingSource === "testing"
-                  ? ""
-                  : typeof cents === "number"
-                    ? `US$${(cents / 100).toFixed(2)}`
-                    : "尚未取得"}
-                <br />
-                {quote.billingSource === "testing"
-                  ? "测试不检查本地余额或额度；上游服务费用由测试账户承担。"
-                  : external
-                    ? "由你的供应商账户付费，不扣官方套餐额度。"
-                    : quote.fixedChargeCents !== undefined
-                      ? "成功生成按本次报价扣费，可在 API 调用账单查看。"
-                      : "先预留额度，费用核对后结算，可在 API 调用账单查看。"}
-              </p>
+          <span>{busy ? "正在提交生成" : "暂时无法生成"}</span>
+          <p>
+            {details?.modelName} {details?.description}
+          </p>
+          {busy ? (
+            <LoaderCircle className="spin" size={16} />
+          ) : (
+            request && (
               <button
                 className="primary"
-                disabled={busy || typeof cents !== "number"}
-                onClick={() => void generate()}
+                onClick={() =>
+                  void generate(details ?? request, sequence.current)
+                }
               >
-                确认并生成
+                重试提交
               </button>
-            </>
+            )
           )}
-          {busy && <LoaderCircle className="spin" size={18} />}
         </div>
       )}
       {error && (

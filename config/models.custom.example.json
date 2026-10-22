@@ -9,9 +9,340 @@
       "enabled": false,
       "models": [
         {
+          "id": "seedance-mini-text",
+          "name": "Seedance 2.0 Mini · Text to video",
+          "description": "Face-free tasks only. Verify the account's pricing/cost bound before enabling.",
+          "endpoint": "bytedance/seedance-2.0/mini/text-to-video",
+          "kind": "video",
+          "maxCostCents": 300,
+          "priceVersion": "EXAMPLE-REPLACE-AFTER-PRICING-REVIEW",
+          "hardBoundConfirmed": false,
+          "parameters": {
+            "duration": "5",
+            "resolution": "720p",
+            "aspect_ratio": "16:9",
+            "generate_audio": true,
+            "codec": "H264"
+          },
+          "allowedParameters": {
+            "duration": {
+              "type": "enum",
+              "values": [
+                "4",
+                "5",
+                "6",
+                "7",
+                "8",
+                "9",
+                "10",
+                "11",
+                "12",
+                "13",
+                "14",
+                "15"
+              ]
+            },
+            "resolution": {
+              "type": "enum",
+              "values": [
+                "480p",
+                "720p"
+              ]
+            },
+            "aspect_ratio": {
+              "type": "enum",
+              "values": [
+                "21:9",
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16"
+              ]
+            }
+          }
+        },
+        {
+          "id": "seedance-mini-first-frame",
+          "name": "Seedance 2.0 Mini · First frame",
+          "description": "Face-free tasks only. Verify the account's pricing/cost bound before enabling.",
+          "endpoint": "bytedance/seedance-2.0/mini/image-to-video",
+          "kind": "video",
+          "maxCostCents": 300,
+          "priceVersion": "EXAMPLE-REPLACE-AFTER-PRICING-REVIEW",
+          "hardBoundConfirmed": false,
+          "parameters": {
+            "duration": "5",
+            "resolution": "720p",
+            "aspect_ratio": "16:9",
+            "generate_audio": true,
+            "codec": "H264"
+          },
+          "allowedParameters": {
+            "duration": {
+              "type": "enum",
+              "values": [
+                "4",
+                "5",
+                "6",
+                "7",
+                "8",
+                "9",
+                "10",
+                "11",
+                "12",
+                "13",
+                "14",
+                "15"
+              ]
+            },
+            "resolution": {
+              "type": "enum",
+              "values": [
+                "480p",
+                "720p"
+              ]
+            },
+            "aspect_ratio": {
+              "type": "enum",
+              "values": [
+                "21:9",
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16"
+              ]
+            }
+          },
+          "generationInput": {
+            "mode": "image_to_video",
+            "outputDurationMs": 5000,
+            "maxTotalBytes": 41943040,
+            "bindings": [
+              {
+                "kind": "image",
+                "min": 1,
+                "max": 1,
+                "array": false,
+                "maxBytes": 20971520,
+                "mimeTypes": [
+                  "image/jpeg",
+                  "image/png",
+                  "image/webp"
+                ],
+                "field": "image_url",
+                "roles": [
+                  "first_frame"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "seedance-mini-first-last",
+          "name": "Seedance 2.0 Mini · First and last frames",
+          "description": "Face-free tasks only. Verify the account's pricing/cost bound before enabling.",
+          "endpoint": "bytedance/seedance-2.0/mini/image-to-video",
+          "kind": "video",
+          "maxCostCents": 300,
+          "priceVersion": "EXAMPLE-REPLACE-AFTER-PRICING-REVIEW",
+          "hardBoundConfirmed": false,
+          "parameters": {
+            "duration": "5",
+            "resolution": "720p",
+            "aspect_ratio": "16:9",
+            "generate_audio": true,
+            "codec": "H264"
+          },
+          "allowedParameters": {
+            "duration": {
+              "type": "enum",
+              "values": [
+                "4",
+                "5",
+                "6",
+                "7",
+                "8",
+                "9",
+                "10",
+                "11",
+                "12",
+                "13",
+                "14",
+                "15"
+              ]
+            },
+            "resolution": {
+              "type": "enum",
+              "values": [
+                "480p",
+                "720p"
+              ]
+            },
+            "aspect_ratio": {
+              "type": "enum",
+              "values": [
+                "21:9",
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16"
+              ]
+            }
+          },
+          "generationInput": {
+            "mode": "first_last_frame",
+            "outputDurationMs": 5000,
+            "maxTotalBytes": 41943040,
+            "bindings": [
+              {
+                "kind": "image",
+                "min": 1,
+                "max": 1,
+                "array": false,
+                "maxBytes": 20971520,
+                "mimeTypes": [
+                  "image/jpeg",
+                  "image/png",
+                  "image/webp"
+                ],
+                "field": "image_url",
+                "roles": [
+                  "first_frame"
+                ]
+              },
+              {
+                "kind": "image",
+                "min": 1,
+                "max": 1,
+                "array": false,
+                "maxBytes": 20971520,
+                "mimeTypes": [
+                  "image/jpeg",
+                  "image/png",
+                  "image/webp"
+                ],
+                "field": "end_image_url",
+                "roles": [
+                  "last_frame"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "seedance-mini-references",
+          "name": "Seedance 2.0 Mini · Image and video references",
+          "description": "Face-free tasks only. Verify the account's pricing/cost bound before enabling.",
+          "endpoint": "bytedance/seedance-2.0/mini/reference-to-video",
+          "kind": "video",
+          "maxCostCents": 300,
+          "priceVersion": "EXAMPLE-REPLACE-AFTER-PRICING-REVIEW",
+          "hardBoundConfirmed": false,
+          "parameters": {
+            "duration": "5",
+            "resolution": "720p",
+            "aspect_ratio": "16:9",
+            "generate_audio": true,
+            "codec": "H264"
+          },
+          "allowedParameters": {
+            "duration": {
+              "type": "enum",
+              "values": [
+                "4",
+                "5",
+                "6",
+                "7",
+                "8",
+                "9",
+                "10",
+                "11",
+                "12",
+                "13",
+                "14",
+                "15"
+              ]
+            },
+            "resolution": {
+              "type": "enum",
+              "values": [
+                "480p",
+                "720p"
+              ]
+            },
+            "aspect_ratio": {
+              "type": "enum",
+              "values": [
+                "21:9",
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16"
+              ]
+            }
+          },
+          "generationInput": {
+            "mode": "reference_to_video",
+            "referenceSyntax": "seedance",
+            "outputDurationMs": 5000,
+            "maxTotalBytes": 41943040,
+            "bindings": [
+              {
+                "kind": "image",
+                "min": 0,
+                "max": 9,
+                "array": true,
+                "maxBytes": 20971520,
+                "mimeTypes": [
+                  "image/jpeg",
+                  "image/png",
+                  "image/webp"
+                ],
+                "field": "image_urls",
+                "roles": [
+                  "character",
+                  "product",
+                  "scene",
+                  "style",
+                  "composition"
+                ]
+              },
+              {
+                "field": "video_urls",
+                "roles": [
+                  "motion"
+                ],
+                "kind": "video",
+                "array": true,
+                "min": 0,
+                "max": 3,
+                "maxBytes": 20971520,
+                "mimeTypes": [
+                  "video/mp4",
+                  "video/quicktime"
+                ],
+                "containers": [
+                  "mp4",
+                  "mov"
+                ],
+                "minDurationMs": 2000,
+                "maxDurationMs": 15000,
+                "maxTotalDurationMs": 15000,
+                "minDimension": 640,
+                "maxDimension": 1112,
+                "maxPixels": 927408
+              }
+            ]
+          }
+        },
+        {
           "id": "nano-banana-image",
-          "name": "Nano Banana 2 · 图片",
-          "description": "示例档案：启用前核对参数和费用",
+          "name": "Nano Banana 2 · Image generation",
+          "description": "Example profile: verify parameters and pricing before enabling",
           "endpoint": "fal-ai/nano-banana-2",
           "kind": "image",
           "maxCostCents": 100,
@@ -27,11 +358,11 @@
         },
         {
           "id": "minimax-video",
-          "name": "MiniMax H3 · 视频",
-          "description": "示例档案：启用前核对参数和费用",
+          "name": "MiniMax H3 · Video generation",
+          "description": "Example profile: verify parameters and pricing before enabling",
           "endpoint": "minimax/h3/text-to-video",
           "kind": "video",
-          "maxCostCents": 100,
+          "maxCostCents": 300,
           "priceVersion": "EXAMPLE-REPLACE-AFTER-PRICING-REVIEW",
           "hardBoundConfirmed": false,
           "parameters": {
@@ -41,22 +372,25 @@
             "prompt_expansion_mode": "disabled",
             "enable_safety_checker": true
           },
-          "promptField": "prompt"
-        },
-        {
-          "id": "elevenlabs-voice",
-          "name": "ElevenLabs · 配音",
-          "description": "示例档案：启用前核对参数和费用",
-          "endpoint": "fal-ai/elevenlabs/tts/eleven-v3",
-          "kind": "audio",
-          "maxCostCents": 100,
-          "priceVersion": "EXAMPLE-REPLACE-AFTER-PRICING-REVIEW",
-          "hardBoundConfirmed": false,
-          "parameters": {
-            "voice": "Rachel"
-          },
-          "promptField": "text",
-          "category": "speech"
+          "promptField": "prompt",
+          "allowedParameters": {
+            "duration": {
+              "type": "integer",
+              "min": 5,
+              "max": 15
+            },
+            "aspect_ratio": {
+              "type": "enum",
+              "values": [
+                "21:9",
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16"
+              ]
+            }
+          }
         },
         {
           "id": "kling-o3-video-edit",
@@ -117,30 +451,1282 @@
             ],
             "referenceSyntax": "kling"
           }
-        }
-      ]
-    },
-    {
-      "id": "my-replicate",
-      "adapter": "replicate",
-      "keyEnv": "MY_REPLICATE_TOKEN",
-      "enabled": false,
-      "models": [
+        },
         {
-          "id": "flux-image",
-          "name": "FLUX Schnell · 图片",
-          "description": "示例档案：启用前核对参数和费用",
-          "endpoint": "black-forest-labs/flux-schnell",
-          "kind": "image",
+          "kind": "audio",
           "maxCostCents": 100,
           "priceVersion": "EXAMPLE-REPLACE-AFTER-PRICING-REVIEW",
           "hardBoundConfirmed": false,
+          "id": "elevenlabs-voice",
+          "name": "ElevenLabs Eleven v3 · Post-production voiceover",
+          "description": "Default standalone voiceover for later voice changes or replacement. Preserve native video audio by default. Review pricing before enabling.",
+          "endpoint": "fal-ai/elevenlabs/tts/eleven-v3",
+          "category": "speech",
           "parameters": {
-            "num_outputs": 1,
-            "aspect_ratio": "16:9",
-            "output_format": "png"
+            "voice": "Rachel",
+            "stability": 0.5,
+            "apply_text_normalization": "auto"
           },
-          "promptField": "prompt"
+          "promptField": "text"
+        },
+        {
+          "kind": "audio",
+          "maxCostCents": 100,
+          "priceVersion": "EXAMPLE-REPLACE-AFTER-PRICING-REVIEW",
+          "hardBoundConfirmed": false,
+          "id": "elevenlabs-music-30s",
+          "name": "ElevenLabs Music · 30-second music",
+          "description": "30-second instrumental background music. Other durations require separately priced profiles.",
+          "endpoint": "fal-ai/elevenlabs/music",
+          "category": "music",
+          "parameters": {
+            "music_length_ms": 30000,
+            "force_instrumental": true,
+            "output_format": "mp3_44100_128"
+          }
+        },
+        {
+          "kind": "audio",
+          "maxCostCents": 100,
+          "priceVersion": "EXAMPLE-REPLACE-AFTER-PRICING-REVIEW",
+          "hardBoundConfirmed": false,
+          "id": "elevenlabs-sound-5s",
+          "name": "ElevenLabs Sound Effects V2 · 5-second sound effects",
+          "description": "Generate ambience, action and transition sound effects as independently timed audio overlays.",
+          "endpoint": "fal-ai/elevenlabs/sound-effects/v2",
+          "category": "sound",
+          "parameters": {
+            "duration_seconds": 5,
+            "prompt_influence": 0.3,
+            "output_format": "mp3_44100_128"
+          },
+          "promptField": "text"
+        },
+        {
+          "kind": "audio",
+          "maxCostCents": 100,
+          "priceVersion": "EXAMPLE-REPLACE-AFTER-PRICING-REVIEW",
+          "hardBoundConfirmed": false,
+          "id": "minimax-voice-clone",
+          "name": "MiniMax Voice Clone · Voice cloning",
+          "description": "Clone a voice from 10–60 seconds of reference audio and generate a preview. Save the voice ID for reuse with compatible MiniMax speech models.",
+          "endpoint": "fal-ai/minimax/voice-clone",
+          "category": "speech",
+          "parameters": {
+            "model": "speech-02-hd",
+            "noise_reduction": true,
+            "need_volume_normalization": true
+          },
+          "promptField": "text",
+          "generationInput": {
+            "mode": "voice_clone",
+            "maxTotalBytes": 20971520,
+            "bindings": [
+              {
+                "field": "audio_url",
+                "roles": [
+                  "voice"
+                ],
+                "kind": "audio",
+                "array": false,
+                "min": 1,
+                "max": 1,
+                "maxBytes": 20971520,
+                "minDurationMs": 10000,
+                "maxDurationMs": 60000
+              }
+            ]
+          }
+        },
+        {
+          "kind": "audio",
+          "maxCostCents": 100,
+          "priceVersion": "EXAMPLE-REPLACE-AFTER-PRICING-REVIEW",
+          "hardBoundConfirmed": false,
+          "id": "minimax-cloned-speech",
+          "requiresVoiceProfile": true,
+          "name": "MiniMax Speech-02 HD · Cloned-voice speech",
+          "description": "For reusing MiniMax cloned voices only; requires the clone asset and voice ID. Standard post-production voiceover defaults to Eleven v3.",
+          "endpoint": "fal-ai/minimax/speech-02-hd",
+          "category": "speech",
+          "parameters": {
+            "output_format": "url",
+            "voice_setting": {
+              "speed": 1,
+              "vol": 1
+            }
+          },
+          "promptField": "text"
+        },
+        {
+          "id": "kling-v3-pro-text",
+          "name": "Kling 3.0 Pro · Text to video",
+          "description": "3–15 seconds · native audio · selectable aspect ratio",
+          "endpoint": "fal-ai/kling-video/v3/pro/text-to-video",
+          "kind": "video",
+          "maxCostCents": 252,
+          "priceVersion": "fal-2026-10-21-kling-v3-pro-audio-usd0.168-per-second",
+          "hardBoundConfirmed": true,
+          "parameters": {
+            "duration": "5",
+            "generate_audio": true,
+            "enable_safety_checker": true,
+            "aspect_ratio": "16:9"
+          },
+          "allowedParameters": {
+            "duration": {
+              "type": "enum",
+              "values": [
+                "3",
+                "4",
+                "5",
+                "6",
+                "7",
+                "8",
+                "9",
+                "10",
+                "11",
+                "12",
+                "13",
+                "14",
+                "15"
+              ]
+            },
+            "aspect_ratio": {
+              "type": "enum",
+              "values": [
+                "16:9",
+                "9:16",
+                "1:1"
+              ]
+            }
+          }
+        },
+        {
+          "id": "kling-v3-pro-first-frame",
+          "name": "Kling 3.0 Pro · First frame",
+          "description": "3–15 seconds · native audio · aspect ratio from first frame",
+          "endpoint": "fal-ai/kling-video/v3/pro/image-to-video",
+          "kind": "video",
+          "maxCostCents": 252,
+          "priceVersion": "fal-2026-10-21-kling-v3-pro-audio-usd0.168-per-second",
+          "hardBoundConfirmed": true,
+          "parameters": {
+            "duration": "5",
+            "generate_audio": true,
+            "enable_safety_checker": true
+          },
+          "allowedParameters": {
+            "duration": {
+              "type": "enum",
+              "values": [
+                "3",
+                "4",
+                "5",
+                "6",
+                "7",
+                "8",
+                "9",
+                "10",
+                "11",
+                "12",
+                "13",
+                "14",
+                "15"
+              ]
+            }
+          },
+          "generationInput": {
+            "mode": "image_to_video",
+            "referenceSyntax": "descriptive",
+            "outputDurationMs": 5000,
+            "maxTotalBytes": 20971520,
+            "bindings": [
+              {
+                "kind": "image",
+                "array": false,
+                "min": 1,
+                "max": 1,
+                "maxBytes": 10485760,
+                "mimeTypes": [
+                  "image/jpeg",
+                  "image/png",
+                  "image/webp"
+                ],
+                "field": "start_image_url",
+                "roles": [
+                  "first_frame"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "kling-v3-pro-first-last",
+          "name": "Kling 3.0 Pro · First and last frames",
+          "description": "3–15 seconds · native audio · aspect ratio from first frame",
+          "endpoint": "fal-ai/kling-video/v3/pro/image-to-video",
+          "kind": "video",
+          "maxCostCents": 252,
+          "priceVersion": "fal-2026-10-21-kling-v3-pro-audio-usd0.168-per-second",
+          "hardBoundConfirmed": true,
+          "parameters": {
+            "duration": "5",
+            "generate_audio": true,
+            "enable_safety_checker": true
+          },
+          "allowedParameters": {
+            "duration": {
+              "type": "enum",
+              "values": [
+                "3",
+                "4",
+                "5",
+                "6",
+                "7",
+                "8",
+                "9",
+                "10",
+                "11",
+                "12",
+                "13",
+                "14",
+                "15"
+              ]
+            }
+          },
+          "generationInput": {
+            "mode": "first_last_frame",
+            "referenceSyntax": "descriptive",
+            "outputDurationMs": 5000,
+            "maxTotalBytes": 20971520,
+            "bindings": [
+              {
+                "kind": "image",
+                "array": false,
+                "min": 1,
+                "max": 1,
+                "maxBytes": 10485760,
+                "mimeTypes": [
+                  "image/jpeg",
+                  "image/png",
+                  "image/webp"
+                ],
+                "field": "start_image_url",
+                "roles": [
+                  "first_frame"
+                ]
+              },
+              {
+                "kind": "image",
+                "array": false,
+                "min": 1,
+                "max": 1,
+                "maxBytes": 10485760,
+                "mimeTypes": [
+                  "image/jpeg",
+                  "image/png",
+                  "image/webp"
+                ],
+                "field": "end_image_url",
+                "roles": [
+                  "last_frame"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "wan-v2-6-text",
+          "name": "Wan 2.6 · Text to video",
+          "description": "5/10/15 seconds · 720p/1080p · face-free tasks under rikoko policy",
+          "endpoint": "wan/v2.6/text-to-video",
+          "kind": "video",
+          "maxCostCents": 225,
+          "priceVersion": "fal-2026-10-21-wan-v2.6-1080p-usd0.15-per-second",
+          "hardBoundConfirmed": true,
+          "maxPromptLength": 1500,
+          "parameters": {
+            "duration": "5",
+            "resolution": "720p",
+            "enable_prompt_expansion": false,
+            "multi_shots": false,
+            "enable_safety_checker": true,
+            "aspect_ratio": "16:9"
+          },
+          "allowedParameters": {
+            "duration": {
+              "type": "enum",
+              "values": [
+                "5",
+                "10",
+                "15"
+              ]
+            },
+            "resolution": {
+              "type": "enum",
+              "values": [
+                "720p",
+                "1080p"
+              ]
+            },
+            "aspect_ratio": {
+              "type": "enum",
+              "values": [
+                "16:9",
+                "9:16",
+                "1:1",
+                "4:3",
+                "3:4"
+              ]
+            }
+          }
+        },
+        {
+          "id": "wan-v2-6-first-frame",
+          "name": "Wan 2.6 · First frame",
+          "description": "5/10/15 seconds · 720p/1080p · face-free tasks under rikoko policy",
+          "endpoint": "wan/v2.6/image-to-video",
+          "kind": "video",
+          "maxCostCents": 225,
+          "priceVersion": "fal-2026-10-21-wan-v2.6-1080p-usd0.15-per-second",
+          "hardBoundConfirmed": true,
+          "maxPromptLength": 1500,
+          "parameters": {
+            "duration": "5",
+            "resolution": "720p",
+            "enable_prompt_expansion": false,
+            "multi_shots": false,
+            "enable_safety_checker": true
+          },
+          "allowedParameters": {
+            "duration": {
+              "type": "enum",
+              "values": [
+                "5",
+                "10",
+                "15"
+              ]
+            },
+            "resolution": {
+              "type": "enum",
+              "values": [
+                "720p",
+                "1080p"
+              ]
+            }
+          },
+          "generationInput": {
+            "mode": "image_to_video",
+            "outputDurationMs": 5000,
+            "maxTotalBytes": 10485760,
+            "bindings": [
+              {
+                "kind": "image",
+                "array": false,
+                "min": 1,
+                "max": 1,
+                "maxBytes": 10485760,
+                "mimeTypes": [
+                  "image/jpeg",
+                  "image/png",
+                  "image/webp"
+                ],
+                "field": "image_url",
+                "roles": [
+                  "first_frame"
+                ],
+                "minDimension": 240,
+                "maxDimension": 4096
+              }
+            ]
+          }
+        },
+        {
+          "id": "minimax-hailuo-2-3-text",
+          "name": "MiniMax Hailuo 2.3 · Text to video",
+          "description": "6/10 seconds · 768p · prompt optimization disabled",
+          "endpoint": "fal-ai/minimax/hailuo-2.3/standard/text-to-video",
+          "kind": "video",
+          "maxCostCents": 56,
+          "priceVersion": "fal-2026-10-21-hailuo-2.3-standard-usd0.56-per-10s",
+          "hardBoundConfirmed": true,
+          "parameters": {
+            "duration": "6",
+            "prompt_optimizer": false,
+            "enable_safety_checker": true
+          },
+          "allowedParameters": {
+            "duration": {
+              "type": "enum",
+              "values": [
+                "6",
+                "10"
+              ]
+            }
+          }
+        },
+        {
+          "id": "minimax-hailuo-2-3-first-frame",
+          "name": "MiniMax Hailuo 2.3 · First frame",
+          "description": "6/10 seconds · 768p · prompt optimization disabled",
+          "endpoint": "fal-ai/minimax/hailuo-2.3/standard/image-to-video",
+          "kind": "video",
+          "maxCostCents": 56,
+          "priceVersion": "fal-2026-10-21-hailuo-2.3-standard-usd0.56-per-10s",
+          "hardBoundConfirmed": true,
+          "parameters": {
+            "duration": "6",
+            "prompt_optimizer": false,
+            "enable_safety_checker": true
+          },
+          "allowedParameters": {
+            "duration": {
+              "type": "enum",
+              "values": [
+                "6",
+                "10"
+              ]
+            }
+          },
+          "generationInput": {
+            "mode": "image_to_video",
+            "outputDurationMs": 6000,
+            "maxTotalBytes": 10485760,
+            "bindings": [
+              {
+                "kind": "image",
+                "array": false,
+                "min": 1,
+                "max": 1,
+                "maxBytes": 10485760,
+                "mimeTypes": [
+                  "image/jpeg",
+                  "image/png",
+                  "image/webp"
+                ],
+                "field": "image_url",
+                "roles": [
+                  "first_frame"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "flux-2-pro-text",
+          "name": "FLUX.2 Pro · Text to image",
+          "description": "One 1024 × 1024 image · PNG",
+          "endpoint": "fal-ai/flux-2-pro",
+          "kind": "image",
+          "maxCostCents": 5,
+          "priceVersion": "fal-2026-10-21-flux-2-pro-usd0.03-first-mp-0.015-extra-mp",
+          "hardBoundConfirmed": true,
+          "parameters": {
+            "image_size": {
+              "width": 1024,
+              "height": 1024
+            },
+            "output_format": "png",
+            "enable_safety_checker": true,
+            "safety_tolerance": "2",
+            "sync_mode": false
+          }
+        },
+        {
+          "id": "flux-2-pro-edit",
+          "name": "FLUX.2 Pro · Image editing",
+          "description": "One 1024 × 1024 PNG · 1–4 reference images, at most 1024² pixels each",
+          "endpoint": "fal-ai/flux-2-pro/edit",
+          "kind": "image",
+          "maxCostCents": 17,
+          "priceVersion": "fal-2026-10-21-flux-2-pro-usd0.03-first-mp-0.015-extra-mp",
+          "hardBoundConfirmed": true,
+          "parameters": {
+            "image_size": {
+              "width": 1024,
+              "height": 1024
+            },
+            "output_format": "png",
+            "enable_safety_checker": true,
+            "safety_tolerance": "2",
+            "sync_mode": false
+          },
+          "generationInput": {
+            "mode": "image_edit",
+            "referenceSyntax": "descriptive",
+            "maxTotalBytes": 41943040,
+            "bindings": [
+              {
+                "kind": "image",
+                "array": true,
+                "min": 1,
+                "max": 4,
+                "maxBytes": 10485760,
+                "mimeTypes": [
+                  "image/jpeg",
+                  "image/png",
+                  "image/webp"
+                ],
+                "field": "image_urls",
+                "maxPixels": 1048576,
+                "roles": [
+                  "composition",
+                  "character",
+                  "product",
+                  "scene",
+                  "style"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "flux-3-max-text",
+          "name": "FLUX 3 Max · Text to video",
+          "description": "5–20 seconds · 720p/1080p · native audio · face-free tasks under rikoko policy",
+          "endpoint": "blackforestlabs/flux-3-max/text-to-video",
+          "kind": "video",
+          "maxCostCents": 580,
+          "hardBoundConfirmed": true,
+          "priceVersion": "fal-2026-10-21-flux-3-max-list-1080p-usd0.29-per-second",
+          "parameters": {
+            "duration": 5,
+            "resolution": "720p",
+            "generate_audio": true,
+            "reasoning_level": "low",
+            "aspect_ratio": "16:9"
+          },
+          "allowedParameters": {
+            "duration": {
+              "type": "integer",
+              "min": 5,
+              "max": 20
+            },
+            "resolution": {
+              "type": "enum",
+              "values": [
+                "720p",
+                "1080p"
+              ]
+            },
+            "aspect_ratio": {
+              "type": "enum",
+              "values": [
+                "21:9",
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16",
+                "2:1"
+              ]
+            }
+          }
+        },
+        {
+          "id": "flux-3-max-first-frame",
+          "name": "FLUX 3 Max · First frame",
+          "description": "5–20 seconds · 720p/1080p · native audio · face-free tasks under rikoko policy",
+          "endpoint": "blackforestlabs/flux-3-max/image-to-video",
+          "kind": "video",
+          "maxCostCents": 580,
+          "hardBoundConfirmed": true,
+          "priceVersion": "fal-2026-10-21-flux-3-max-list-1080p-usd0.29-per-second",
+          "parameters": {
+            "duration": 5,
+            "resolution": "720p",
+            "generate_audio": true,
+            "reasoning_level": "low",
+            "aspect_ratio": "auto"
+          },
+          "allowedParameters": {
+            "duration": {
+              "type": "integer",
+              "min": 5,
+              "max": 20
+            },
+            "resolution": {
+              "type": "enum",
+              "values": [
+                "720p",
+                "1080p"
+              ]
+            }
+          },
+          "generationInput": {
+            "mode": "image_to_video",
+            "referenceSyntax": "descriptive",
+            "outputDurationMs": 5000,
+            "maxTotalBytes": 20971520,
+            "bindings": [
+              {
+                "kind": "image",
+                "array": false,
+                "min": 1,
+                "max": 1,
+                "maxBytes": 10485760,
+                "mimeTypes": [
+                  "image/jpeg",
+                  "image/png",
+                  "image/webp"
+                ],
+                "field": "image_url",
+                "roles": [
+                  "first_frame"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "flux-3-max-first-last",
+          "name": "FLUX 3 Max · First and last frames",
+          "description": "5–20 seconds · 720p/1080p · native audio · face-free tasks under rikoko policy",
+          "endpoint": "blackforestlabs/flux-3-max/image-to-video",
+          "kind": "video",
+          "maxCostCents": 580,
+          "hardBoundConfirmed": true,
+          "priceVersion": "fal-2026-10-21-flux-3-max-list-1080p-usd0.29-per-second",
+          "parameters": {
+            "duration": 5,
+            "resolution": "720p",
+            "generate_audio": true,
+            "reasoning_level": "low",
+            "aspect_ratio": "auto"
+          },
+          "allowedParameters": {
+            "duration": {
+              "type": "integer",
+              "min": 5,
+              "max": 20
+            },
+            "resolution": {
+              "type": "enum",
+              "values": [
+                "720p",
+                "1080p"
+              ]
+            }
+          },
+          "generationInput": {
+            "mode": "first_last_frame",
+            "referenceSyntax": "descriptive",
+            "outputDurationMs": 5000,
+            "maxTotalBytes": 20971520,
+            "bindings": [
+              {
+                "kind": "image",
+                "array": false,
+                "min": 1,
+                "max": 1,
+                "maxBytes": 10485760,
+                "mimeTypes": [
+                  "image/jpeg",
+                  "image/png",
+                  "image/webp"
+                ],
+                "field": "image_url",
+                "roles": [
+                  "first_frame"
+                ]
+              },
+              {
+                "kind": "image",
+                "array": false,
+                "min": 1,
+                "max": 1,
+                "maxBytes": 10485760,
+                "mimeTypes": [
+                  "image/jpeg",
+                  "image/png",
+                  "image/webp"
+                ],
+                "field": "end_image_url",
+                "roles": [
+                  "last_frame"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "minimax-h3-max-text",
+          "name": "MiniMax H3 Max · Text to video",
+          "description": "1–15 seconds · 480P/768P/1080P · prompt expansion disabled",
+          "endpoint": "minimax/h3-max/text-to-video",
+          "kind": "video",
+          "maxCostCents": 256,
+          "hardBoundConfirmed": true,
+          "priceVersion": "fal-2026-10-21-h3-max-list-1080p-usd0.16-per-second-16s-bound",
+          "parameters": {
+            "duration": 5,
+            "resolution": "768P",
+            "prompt_expansion_mode": "disabled",
+            "enable_safety_checker": true,
+            "sync_mode": false,
+            "aspect_ratio": "16:9"
+          },
+          "allowedParameters": {
+            "duration": {
+              "type": "number",
+              "min": 1,
+              "max": 15
+            },
+            "resolution": {
+              "type": "enum",
+              "values": [
+                "480P",
+                "768P",
+                "1080P"
+              ]
+            },
+            "aspect_ratio": {
+              "type": "enum",
+              "values": [
+                "21:9",
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16"
+              ]
+            }
+          }
+        },
+        {
+          "id": "minimax-h3-max-first-frame",
+          "name": "MiniMax H3 Max · First frame",
+          "description": "1–15 seconds · 480P/768P/1080P · prompt expansion disabled",
+          "endpoint": "minimax/h3-max/image-to-video",
+          "kind": "video",
+          "maxCostCents": 256,
+          "hardBoundConfirmed": true,
+          "priceVersion": "fal-2026-10-21-h3-max-list-1080p-usd0.16-per-second-16s-bound",
+          "parameters": {
+            "duration": 5,
+            "resolution": "768P",
+            "prompt_expansion_mode": "disabled",
+            "enable_safety_checker": true,
+            "sync_mode": false
+          },
+          "allowedParameters": {
+            "duration": {
+              "type": "number",
+              "min": 1,
+              "max": 15
+            },
+            "resolution": {
+              "type": "enum",
+              "values": [
+                "480P",
+                "768P",
+                "1080P"
+              ]
+            }
+          },
+          "generationInput": {
+            "mode": "image_to_video",
+            "referenceSyntax": "descriptive",
+            "outputDurationMs": 5000,
+            "maxTotalBytes": 20971520,
+            "bindings": [
+              {
+                "kind": "image",
+                "array": false,
+                "min": 1,
+                "max": 1,
+                "maxBytes": 10485760,
+                "mimeTypes": [
+                  "image/jpeg",
+                  "image/png",
+                  "image/webp"
+                ],
+                "field": "image_url",
+                "roles": [
+                  "first_frame"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "minimax-h3-max-first-last",
+          "name": "MiniMax H3 Max · First and last frames",
+          "description": "1–15 seconds · 480P/768P/1080P · prompt expansion disabled",
+          "endpoint": "minimax/h3-max/image-to-video",
+          "kind": "video",
+          "maxCostCents": 256,
+          "hardBoundConfirmed": true,
+          "priceVersion": "fal-2026-10-21-h3-max-list-1080p-usd0.16-per-second-16s-bound",
+          "parameters": {
+            "duration": 5,
+            "resolution": "768P",
+            "prompt_expansion_mode": "disabled",
+            "enable_safety_checker": true,
+            "sync_mode": false
+          },
+          "allowedParameters": {
+            "duration": {
+              "type": "number",
+              "min": 1,
+              "max": 15
+            },
+            "resolution": {
+              "type": "enum",
+              "values": [
+                "480P",
+                "768P",
+                "1080P"
+              ]
+            }
+          },
+          "generationInput": {
+            "mode": "first_last_frame",
+            "referenceSyntax": "descriptive",
+            "outputDurationMs": 5000,
+            "maxTotalBytes": 20971520,
+            "bindings": [
+              {
+                "kind": "image",
+                "array": false,
+                "min": 1,
+                "max": 1,
+                "maxBytes": 10485760,
+                "mimeTypes": [
+                  "image/jpeg",
+                  "image/png",
+                  "image/webp"
+                ],
+                "field": "image_url",
+                "roles": [
+                  "first_frame"
+                ]
+              },
+              {
+                "kind": "image",
+                "array": false,
+                "min": 1,
+                "max": 1,
+                "maxBytes": 10485760,
+                "mimeTypes": [
+                  "image/jpeg",
+                  "image/png",
+                  "image/webp"
+                ],
+                "field": "end_image_url",
+                "roles": [
+                  "last_frame"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "seedance-2-5-text",
+          "name": "Seedance 2.5 US · Text to video",
+          "description": "Face-free only · 4–30 seconds · 480p/720p/1080p · cost bound requires review",
+          "endpoint": "bytedance/seedance-2.5/us/text-to-video",
+          "kind": "video",
+          "maxCostCents": 5000,
+          "hardBoundConfirmed": false,
+          "priceVersion": "UNREVIEWED-seedance-2.5-output-token-bound",
+          "parameters": {
+            "duration": "5",
+            "resolution": "720p",
+            "generate_audio": true,
+            "bitrate_mode": "standard",
+            "codec": "H264",
+            "aspect_ratio": "16:9"
+          },
+          "allowedParameters": {
+            "duration": {
+              "type": "enum",
+              "values": [
+                "4",
+                "5",
+                "6",
+                "7",
+                "8",
+                "9",
+                "10",
+                "11",
+                "12",
+                "13",
+                "14",
+                "15",
+                "16",
+                "17",
+                "18",
+                "19",
+                "20",
+                "21",
+                "22",
+                "23",
+                "24",
+                "25",
+                "26",
+                "27",
+                "28",
+                "29",
+                "30"
+              ]
+            },
+            "resolution": {
+              "type": "enum",
+              "values": [
+                "480p",
+                "720p",
+                "1080p"
+              ]
+            },
+            "aspect_ratio": {
+              "type": "enum",
+              "values": [
+                "21:9",
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16"
+              ]
+            }
+          }
+        },
+        {
+          "id": "seedance-2-5-first-frame",
+          "name": "Seedance 2.5 US · First frame",
+          "description": "Face-free only · 4–30 seconds · 480p/720p/1080p · cost bound requires review",
+          "endpoint": "bytedance/seedance-2.5/us/image-to-video",
+          "kind": "video",
+          "maxCostCents": 5000,
+          "hardBoundConfirmed": false,
+          "priceVersion": "UNREVIEWED-seedance-2.5-output-token-bound",
+          "parameters": {
+            "duration": "5",
+            "resolution": "720p",
+            "generate_audio": true,
+            "bitrate_mode": "standard",
+            "codec": "H264",
+            "aspect_ratio": "auto"
+          },
+          "allowedParameters": {
+            "duration": {
+              "type": "enum",
+              "values": [
+                "4",
+                "5",
+                "6",
+                "7",
+                "8",
+                "9",
+                "10",
+                "11",
+                "12",
+                "13",
+                "14",
+                "15",
+                "16",
+                "17",
+                "18",
+                "19",
+                "20",
+                "21",
+                "22",
+                "23",
+                "24",
+                "25",
+                "26",
+                "27",
+                "28",
+                "29",
+                "30"
+              ]
+            },
+            "resolution": {
+              "type": "enum",
+              "values": [
+                "480p",
+                "720p",
+                "1080p"
+              ]
+            }
+          },
+          "generationInput": {
+            "mode": "image_to_video",
+            "referenceSyntax": "descriptive",
+            "outputDurationMs": 5000,
+            "maxTotalBytes": 20971520,
+            "bindings": [
+              {
+                "kind": "image",
+                "array": false,
+                "min": 1,
+                "max": 1,
+                "maxBytes": 10485760,
+                "mimeTypes": [
+                  "image/jpeg",
+                  "image/png",
+                  "image/webp"
+                ],
+                "field": "image_url",
+                "roles": [
+                  "first_frame"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "seedance-2-5-first-last",
+          "name": "Seedance 2.5 US · First and last frames",
+          "description": "Face-free only · 4–30 seconds · 480p/720p/1080p · cost bound requires review",
+          "endpoint": "bytedance/seedance-2.5/us/image-to-video",
+          "kind": "video",
+          "maxCostCents": 5000,
+          "hardBoundConfirmed": false,
+          "priceVersion": "UNREVIEWED-seedance-2.5-output-token-bound",
+          "parameters": {
+            "duration": "5",
+            "resolution": "720p",
+            "generate_audio": true,
+            "bitrate_mode": "standard",
+            "codec": "H264",
+            "aspect_ratio": "auto"
+          },
+          "allowedParameters": {
+            "duration": {
+              "type": "enum",
+              "values": [
+                "4",
+                "5",
+                "6",
+                "7",
+                "8",
+                "9",
+                "10",
+                "11",
+                "12",
+                "13",
+                "14",
+                "15",
+                "16",
+                "17",
+                "18",
+                "19",
+                "20",
+                "21",
+                "22",
+                "23",
+                "24",
+                "25",
+                "26",
+                "27",
+                "28",
+                "29",
+                "30"
+              ]
+            },
+            "resolution": {
+              "type": "enum",
+              "values": [
+                "480p",
+                "720p",
+                "1080p"
+              ]
+            }
+          },
+          "generationInput": {
+            "mode": "first_last_frame",
+            "referenceSyntax": "descriptive",
+            "outputDurationMs": 5000,
+            "maxTotalBytes": 20971520,
+            "bindings": [
+              {
+                "kind": "image",
+                "array": false,
+                "min": 1,
+                "max": 1,
+                "maxBytes": 10485760,
+                "mimeTypes": [
+                  "image/jpeg",
+                  "image/png",
+                  "image/webp"
+                ],
+                "field": "image_url",
+                "roles": [
+                  "first_frame"
+                ]
+              },
+              {
+                "kind": "image",
+                "array": false,
+                "min": 1,
+                "max": 1,
+                "maxBytes": 10485760,
+                "mimeTypes": [
+                  "image/jpeg",
+                  "image/png",
+                  "image/webp"
+                ],
+                "field": "end_image_url",
+                "roles": [
+                  "last_frame"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "nano-banana-2-1-text",
+          "name": "Nano Banana 2.1 · Text to image",
+          "description": "One image · 1K/2K/4K · token-based cost bound requires review",
+          "endpoint": "google/nano-banana-2.1",
+          "kind": "image",
+          "minPromptLength": 3,
+          "maxCostCents": 100,
+          "hardBoundConfirmed": false,
+          "priceVersion": "UNREVIEWED-nano-banana-2.1-token-bound",
+          "parameters": {
+            "num_images": 1,
+            "resolution": "1K",
+            "aspect_ratio": "1:1",
+            "output_format": "png",
+            "safety_tolerance": "4",
+            "sync_mode": false,
+            "thinking_level": "minimal",
+            "limit_generations": true,
+            "enable_web_search": false
+          },
+          "allowedParameters": {
+            "resolution": {
+              "type": "enum",
+              "values": [
+                "1K",
+                "2K",
+                "4K"
+              ]
+            },
+            "aspect_ratio": {
+              "type": "enum",
+              "values": [
+                "21:9",
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16",
+                "3:2",
+                "5:4",
+                "4:5",
+                "2:3",
+                "4:1",
+                "1:4",
+                "8:1",
+                "1:8"
+              ]
+            }
+          }
+        },
+        {
+          "id": "nano-banana-2-1-edit",
+          "name": "Nano Banana 2.1 · Image editing",
+          "description": "One image · 1K/2K/4K · token-based cost bound requires review",
+          "endpoint": "google/nano-banana-2.1/edit",
+          "kind": "image",
+          "minPromptLength": 3,
+          "maxCostCents": 100,
+          "hardBoundConfirmed": false,
+          "priceVersion": "UNREVIEWED-nano-banana-2.1-token-bound",
+          "parameters": {
+            "num_images": 1,
+            "resolution": "1K",
+            "aspect_ratio": "1:1",
+            "output_format": "png",
+            "safety_tolerance": "4",
+            "sync_mode": false,
+            "thinking_level": "minimal",
+            "limit_generations": true,
+            "enable_web_search": false
+          },
+          "allowedParameters": {
+            "resolution": {
+              "type": "enum",
+              "values": [
+                "1K",
+                "2K",
+                "4K"
+              ]
+            },
+            "aspect_ratio": {
+              "type": "enum",
+              "values": [
+                "21:9",
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16",
+                "3:2",
+                "5:4",
+                "4:5",
+                "2:3",
+                "4:1",
+                "1:4",
+                "8:1",
+                "1:8"
+              ]
+            }
+          },
+          "generationInput": {
+            "mode": "image_edit",
+            "referenceSyntax": "descriptive",
+            "maxTotalBytes": 41943040,
+            "bindings": [
+              {
+                "kind": "image",
+                "array": true,
+                "min": 1,
+                "max": 4,
+                "maxBytes": 10485760,
+                "mimeTypes": [
+                  "image/jpeg",
+                  "image/png",
+                  "image/webp"
+                ],
+                "field": "image_urls",
+                "maxPixels": 16777216,
+                "roles": [
+                  "composition",
+                  "character",
+                  "product",
+                  "scene",
+                  "style"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "krea-3-berry",
+          "name": "Krea 3 Berry · Text to image",
+          "description": "One 1024 × 1024 PNG · quality variant · low reasoning",
+          "endpoint": "krea/v3/text-to-image",
+          "kind": "image",
+          "maxCostCents": 5,
+          "hardBoundConfirmed": true,
+          "priceVersion": "fal-2026-10-21-krea-v3-usd0.025-per-output-mp",
+          "parameters": {
+            "model": "berry",
+            "image_size": {
+              "width": 1024,
+              "height": 1024
+            },
+            "reasoning_level": "low",
+            "output_format": "png",
+            "sync_mode": false,
+            "enable_safety_checker": true
+          }
         }
       ]
     },
@@ -152,8 +1738,8 @@
       "models": [
         {
           "id": "gemini-reference",
-          "name": "Gemini 3.8 Flash · fal 视频分析",
-          "description": "通过 fal 的 OpenRouter 视频接口分析；采样由供应商控制，费用上界启用前核对",
+          "name": "Gemini 3.8 Flash · Video analysis via fal",
+          "description": "Analyze video through fal's OpenRouter video endpoint. Sampling is provider-controlled; verify the cost bound before enabling.",
           "endpoint": "openrouter/router/video",
           "kind": "analysis",
           "maxCostCents": 100,

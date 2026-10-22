@@ -17,8 +17,14 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           version: "0.11.19"
-      - run: uv sync --project python --frozen --python 3.12
-      - run: pnpm build
-      - run: pnpm test
-      - run: pnpm test:media
-      - run: pnpm export:public
+      - run: uv sync --project python --frozen --managed-python --python 3.12
+      - run: pnpm verify release --automated
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: release-verification
+          path: |
+            artifacts/release/**/report.json
+            artifacts/release/**/evidence-template.json
+            artifacts/release/**/*.log
+            artifacts/release/**/installation/results.json

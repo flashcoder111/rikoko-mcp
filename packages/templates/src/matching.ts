@@ -56,7 +56,12 @@ export function avoidsTemplates(message: string) {
     message,
   );
 }
-export function rankTemplates(message: string, templates: LibraryTemplate[]) {
+export function rankTemplates<
+  T extends Pick<
+    LibraryTemplate,
+    "id" | "title" | "category" | "description" | "searchTerms"
+  >,
+>(message: string, templates: T[]) {
   if (avoidsTemplates(message)) return [];
   const keywords = terms(message);
   return templates

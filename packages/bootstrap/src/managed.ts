@@ -1,6 +1,8 @@
 import { spawn } from "node:child_process";
 import { open, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+import { assertUpgradeAccess } from "./upgrade.ts";
 import {
   readInstallation,
   readPrivateJson,
@@ -12,8 +14,19 @@ export async function managedEnvironment(
   source: NodeJS.ProcessEnv = process.env,
 ) {
   const env: NodeJS.ProcessEnv = {};
+  await assertUpgradeAccess(i.home, source.RIKOKO_UPGRADE_TOKEN);
   for (const name of [
     "HOME",
+    "SystemRoot",
+    "SYSTEMROOT",
+    "WINDIR",
+    "COMSPEC",
+    "PATHEXT",
+    "USERPROFILE",
+    "LOCALAPPDATA",
+    "APPDATA",
+    "TEMP",
+    "TMP",
     "USER",
     "LOGNAME",
     "TMPDIR",
@@ -26,6 +39,8 @@ export async function managedEnvironment(
     "HTTP_PROXY",
     "https_proxy",
     "http_proxy",
+    "RIKOKO_UPGRADE_TOKEN",
+    "RIKOKO_UPGRADE_VERIFY",
   ])
     if (source[name]) env[name] = source[name];
   if (source.RIKOKO_DOWNLOAD_PROXY !== undefined)
@@ -40,7 +55,7 @@ export async function managedEnvironment(
       ? [model.official?.keyEnv]
       : (model.providers ?? []).map((p: { keyEnv: string }) => p.keyEnv);
   const forbidden =
-    /^(?:NODE_|LD_|DYLD_|PYTHON|PATH$|HOME$|DATABASE_URL$|DATA_DIR$|HOST$|PORT$|RIKOKO_CONFIG_FILE$|VIDEOWORKBENCH_)/;
+    /^(?:NODE_|LD_|DYLD_|PYTHON|PATH$|HOME$|SYSTEMROOT$|WINDIR$|COMSPEC$|PATHEXT$|USERPROFILE$|LOCALAPPDATA$|APPDATA$|TEMP$|TMP$|DATABASE_URL$|DATA_DIR$|HOST$|PORT$|RIKOKO_CONFIG_FILE$|VIDEOWORKBENCH_)/;
   for (const name of names) {
     if (
       typeof name !== "string" ||
@@ -74,7 +89,7 @@ async function startBackend(i: Installation) {
       i.node,
       [
         "--import",
-        join(i.root, "node_modules/tsx/dist/loader.mjs"),
+        pathToFileURL(join(i.root, "node_modules/tsx/dist/loader.mjs")).href,
         join(i.root, "apps/server/src/index.ts"),
       ],
       {
@@ -103,6 +118,7 @@ export async function ensureBackend(
   } = {},
 ) {
   const i = await readInstallation(file);
+  await assertUpgradeAccess(i.home, process.env.RIKOKO_UPGRADE_TOKEN);
   const fetcher = options.fetcher ?? fetch;
   const url = `http://127.0.0.1:${i.port}`;
   async function ready() {
@@ -148,6 +164,28 @@ export async function stopBackend(file: string) {
       signal: AbortSignal.timeout(1500),
     });
   } catch {
+    // A server can close its listening socket while still draining a worker.
+    // Do not report it stopped until its recorded process has actually exited.
+    const raw = await readFile(join(i.home, "data/server.pid"), "utf8").catch(
+      (error) => {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return "";
+        throw error;
+      },
+    );
+    if (raw.trim()) {
+      const pid = Number(raw.trim());
+      if (!Number.isInteger(pid) || pid <= 1)
+        throw Error("Invalid server PID file");
+      try {
+        process.kill(pid, 0);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ESRCH") return;
+        throw error;
+      }
+      throw Error(
+        "Service health is unavailable but its process is still alive; wait before upgrading",
+      );
+    }
     return;
   }
   const health = await response.json().catch(() => ({}));

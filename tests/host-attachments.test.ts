@@ -6,9 +6,11 @@ import {
   rm,
   symlink,
   writeFile,
+  readFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { randomUUID } from "node:crypto";
 import { parseDocument } from "yaml";
 import { Client } from "@modelcontextprotocol/client";
 import { InMemoryTransport } from "@modelcontextprotocol/server";
@@ -22,6 +24,106 @@ import { HostConnection } from "../packages/mcp/src/host-connection.js";
 import { createMcpServer } from "../packages/mcp/src/index.js";
 
 const directories: string[] = [];
+
+it("exports a completed job through MCP with empty subtitles and keeps all attachments", async () => {
+  const home = await mkdtemp(join(tmpdir(), "rikoko-export-"));
+  directories.push(home);
+  const media = [
+    {
+      assetId: randomUUID(),
+      name: "video.mp4",
+      mimeType: "video/mp4",
+      url: "https://unused.test/video",
+    },
+    {
+      assetId: randomUUID(),
+      name: "captions.srt",
+      mimeType: "text/plain",
+      url: "https://unused.test/captions",
+    },
+    {
+      assetId: randomUUID(),
+      name: "preview.png",
+      mimeType: "image/png",
+      url: "https://unused.test/preview",
+    },
+  ];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(
+      async (url: string) =>
+        new Response(url.includes(media[1].assetId) ? "" : "fixture bytes"),
+    ),
+  );
+  const files = new HostFiles(
+    new HostConnection("http://127.0.0.1:4310", "fixture-key"),
+    home,
+    [],
+  );
+  const server = createMcpServer(
+    async () => ({
+      jobId: randomUUID(),
+      status: "completed",
+      purpose: "final",
+      quality: { status: "unreviewed", finalReady: true, issues: [] },
+      media,
+    }),
+    { client: "codex", files },
+  );
+  const client = new Client({ name: "export-regression", version: "1" });
+  const [a, b] = InMemoryTransport.createLinkedPair();
+  await server.connect(b);
+  try {
+    await client.connect(a);
+    for (const name of ["workspace_export", "workspace_result"]) {
+      const response = await client.callTool({
+        name,
+        arguments: { jobId: randomUUID() },
+      });
+      expect(response.isError).not.toBe(true);
+      const result = (response.structuredContent as any).result;
+      expect(result.deliveryWarning).toBeUndefined();
+      expect(result.media).toHaveLength(3);
+      expect(await readFile(result.media[0].localPath, "utf8")).toBe(
+        "fixture bytes",
+      );
+      expect(await readFile(result.media[1].localPath, "utf8")).toBe("");
+      expect(await readFile(result.media[2].localPath, "utf8")).toBe(
+        "fixture bytes",
+      );
+    }
+  } finally {
+    await client.close();
+    await server.close();
+  }
+});
+
+it.each(["video/mp4", "audio/wav", "image/png", "application/octet-stream"])(
+  "still rejects empty %s attachments",
+  async (mimeType) => {
+    const home = await mkdtemp(join(tmpdir(), "rikoko-empty-media-"));
+    directories.push(home);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("")),
+    );
+    const files = new HostFiles(
+      new HostConnection("http://127.0.0.1:4310", "fixture-key"),
+      home,
+      [],
+    );
+    await expect(
+      files.materialize(randomUUID(), [
+        {
+          assetId: randomUUID(),
+          name: "captions.srt",
+          mimeType,
+          url: "https://unused.test/file",
+        },
+      ]),
+    ).rejects.toThrow("Empty media response");
+  },
+);
 afterEach(async () => {
   vi.unstubAllGlobals();
   await Promise.all(
@@ -69,8 +171,8 @@ it("adds only the macOS Hermes attachment directory using the selected client ho
           .VIDEOWORKBENCH_IMPORT_ROOTS,
       );
       expect(roots).toEqual([
-        "/project/artifacts",
-        "/project/media-inbox",
+        platform === "win32" ? "\\project\\artifacts" : "/project/artifacts",
+        platform === "win32" ? "\\project\\media-inbox" : "/project/media-inbox",
         ...(client === "hermes" && platform === "darwin"
           ? ["/Users/target/Library/Application Support/Hermes/composer-images"]
           : []),

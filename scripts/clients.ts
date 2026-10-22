@@ -31,16 +31,55 @@ import {
 import { ensureBackend } from "../packages/bootstrap/src/managed.ts";
 import { readPrivateText } from "../packages/bootstrap/src/config.ts";
 import {
-  installManagedSkill,
-  validateSkillReferences,
-} from "../packages/bootstrap/src/skill-files.js";
+  inspectLegacySkill,
+  archiveLegacySkill,
+  restoreLegacySkill,
+  recoverMigrationLock,
+} from "../packages/bootstrap/src/skill-migration.js";
+import { checkDirectorGuides } from "../packages/guidance/src/doctor.js";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const [command = "doctor", clientInput = "codex"] = process.argv.slice(2);
-const client = clients.find((name) => name === clientInput);
-if (!client || !["doctor", "install", "config", "sync-skill"].includes(command))
+const extraArgs = process.argv.slice(4);
+const checkMedia = extraArgs.includes("--media");
+const applyMigration = extraArgs.includes("--apply");
+const recoverLock = extraArgs.join() === "--recover-lock";
+const approvedFingerprint =
+  extraArgs[1] === "--accept-fingerprint" ? extraArgs[2] : undefined;
+const backupIndex = extraArgs.indexOf("--backup");
+const backupId = backupIndex >= 0 ? extraArgs[backupIndex + 1] : undefined;
+const validExtras =
+  command === "doctor"
+    ? extraArgs.length === 0 || extraArgs.join() === "--media"
+    : command === "migrate-skill"
+      ? extraArgs.length === 0 ||
+        extraArgs.join() === "--apply" ||
+        recoverLock ||
+        (extraArgs.length === 3 &&
+          extraArgs[0] === "--apply" &&
+          !!approvedFingerprint &&
+          /^[a-f0-9]{64}$/.test(approvedFingerprint))
+      : command === "restore-skill"
+        ? extraArgs.length === 2 && backupIndex === 0 && !!backupId
+        : extraArgs.length === 0;
+if (!validExtras)
   throw Error(
-    "Usage: pnpm clients <doctor|install|config|sync-skill> <codex|claude-desktop|claude-code|hermes>",
+    "Unsupported options: doctor [--media], migrate-skill [--apply [--accept-fingerprint <sha256>] | --recover-lock], restore-skill --backup <id>",
+  );
+const client = clients.find((name) => name === clientInput);
+if (
+  !client ||
+  ![
+    "doctor",
+    "install",
+    "config",
+    "sync-skill",
+    "migrate-skill",
+    "restore-skill",
+  ].includes(command)
+)
+  throw Error(
+    "Usage: pnpm clients <doctor|install|config|migrate-skill|restore-skill> <codex|claude-desktop|claude-code|hermes> [--media for doctor]",
   );
 const clientHome = process.env.VIDEOWORKBENCH_CLIENT_HOME ?? homedir();
 const skillPath =
@@ -51,17 +90,39 @@ const skillPath =
       : client === "hermes"
         ? join(clientHome, ".hermes/skills/rikoko/SKILL.md")
         : undefined;
+const archiveRoot = join(
+  clientHome,
+  ".local/share/rikoko/skill-archives",
+  client,
+);
 if (command === "sync-skill") {
-  if (!skillPath)
-    throw Error(
-      "Claude Desktop uses rikoko_guide over MCP; no local skill is installed.",
-    );
+  console.log(
+    "Deprecated: rikoko director guides now come through MCP. Upgrade/reconnect MCP, run clients doctor, then clients migrate-skill <host> to inspect the legacy installation. No files changed.",
+  );
+  process.exit(0);
+}
+if (command === "restore-skill") {
+  if (!skillPath || !backupId)
+    throw Error("No legacy Skill location or backup ID for this host");
   console.log(
     JSON.stringify(
-      await installManagedSkill(
-        join(root, "skills/rikoko"),
-        dirname(skillPath),
-      ),
+      await restoreLegacySkill(dirname(skillPath), archiveRoot, backupId),
+      null,
+      2,
+    ),
+  );
+  process.exit(0);
+}
+if (command === "migrate-skill" && recoverLock) {
+  console.log(JSON.stringify(await recoverMigrationLock(archiveRoot), null, 2));
+  process.exit(0);
+}
+if (command === "migrate-skill" && !applyMigration) {
+  console.log(
+    JSON.stringify(
+      skillPath
+        ? await inspectLegacySkill(dirname(skillPath))
+        : { status: "not_applicable" },
       null,
       2,
     ),
@@ -125,28 +186,18 @@ async function connectCheck(
       arguments: {},
     });
     if (response.isError) throw Error("Backend capability check failed");
-    const guideAvailable = list.tools.some(
-      (tool) => tool.name === "rikoko_guide",
+    const guideMetadata = await checkDirectorGuides(
+      list.tools.map((t) => t.name),
+      (response.structuredContent as any)?.result,
+      async (name, args) => {
+        const guide = await test.callTool({ name, arguments: args });
+        if (guide.isError) throw Error(`Guide unavailable: ${args.topic}`);
+        return (guide.structuredContent as any)?.result;
+      },
     );
-    const guide = guideAvailable
-      ? await test.callTool({
-          name: "rikoko_guide",
-          arguments: { topic: "overview" },
-        })
-      : undefined;
-    if (guide?.isError) throw Error("Bundled guide check failed");
-    const guideMetadata = guide
-      ? z
-          .object({
-            result: z.object({
-              topic: z.string(),
-              configuredHost: z.string(),
-              sha256: z.string(),
-              availableTopics: z.array(z.string()),
-            }),
-          })
-          .parse(guide.structuredContent)
-      : undefined;
+    const legacySkill = skillPath
+      ? await inspectLegacySkill(dirname(skillPath))
+      : { status: "not_applicable" };
     const resources = test.getServerCapabilities()?.resources
       ? (await test.listResources()).resources
       : [];
@@ -155,6 +206,41 @@ async function connectCheck(
         (tool) => !!tool._meta?.ui || !!tool._meta?.["ui/resourceUri"],
       ) || resources.some((resource) => resource.uri.startsWith("ui://"));
     if (hasEmbeddedUi) throw Error("Unexpected embedded MCP UI");
+    let mediaRuntime: unknown = {
+      checked: false,
+      instruction:
+        "Use doctor <client> --media for backend synthetic FFmpeg extraction checks.",
+    };
+    if (checkMedia) {
+      if (!list.tools.some((t) => t.name === "media_runtime_check")) {
+        mediaRuntime = {
+          checked: false,
+          ready: false,
+          reason:
+            "Runtime does not expose media_runtime_check; update the runtime and reconnect.",
+        };
+        process.exitCode = 1;
+      } else {
+        const media = await test.callTool({
+          name: "media_runtime_check",
+          arguments: {},
+        });
+        const valid = z
+          .object({ result: z.object({ ready: z.literal(true) }) })
+          .safeParse(media.structuredContent);
+        const ready = !media.isError && valid.success;
+        mediaRuntime = {
+          checked: true,
+          ready,
+          ...(media.structuredContent ?? {
+            reason:
+              "Missing structured diagnostic response. The backend may be older than this MCP bridge; update/restart the matching runtime and reconnect.",
+            content: media.content,
+          }),
+        };
+        if (!ready) process.exitCode = 1;
+      }
+    }
     console.log(
       JSON.stringify(
         {
@@ -165,12 +251,17 @@ async function connectCheck(
           interaction: "native-conversation-media-and-content",
           inlineCardResource: false,
           productionGuide: {
-            available: guideAvailable,
             ...guideMetadata,
             hostVisionVerified: false,
             hostDeliveryVerified: false,
           },
+          legacySkill,
+          migrationComplete: ["absent", "not_applicable"].includes(
+            legacySkill.status,
+          ),
+          bridgeVersion: test.getServerVersion()?.version,
           paidTestExecuted: false,
+          mediaRuntime,
           configSource,
           importRoots: JSON.parse(
             profile.env.VIDEOWORKBENCH_IMPORT_ROOTS ??
@@ -188,12 +279,35 @@ async function connectCheck(
 }
 if (command === "config") {
   console.log(mergeHostConfig(client, "", launch));
+} else if (command === "migrate-skill") {
+  if (!skillPath) throw Error("This host has no managed legacy Skill");
+  const path = clientConfigPath(client, clientHome);
+  const installed = readHostLaunch(client, await readOptional(path));
+  if (!installed)
+    throw Error("Verify an installed MCP profile before applying migration");
+  await connectCheck(installed, path);
+  console.log(
+    JSON.stringify(
+      await archiveLegacySkill(
+        dirname(skillPath),
+        archiveRoot,
+        true,
+        undefined,
+        approvedFingerprint,
+      ),
+      null,
+      2,
+    ),
+  );
 } else if (command === "doctor") {
   try {
     const path = clientConfigPath(client, clientHome);
     const installed = readHostLaunch(client, await readOptional(path));
     await connectCheck(installed ?? launch, installed ? path : "generated");
-  } catch {
+  } catch (error) {
+    console.error(
+      error instanceof Error ? error.message : "Guide verification failed",
+    );
     console.error(
       `rikoko ${client} connection failed. Check the installed MCP profile, credential access and backend connection.`,
     );
@@ -207,17 +321,6 @@ if (command === "config") {
       "Hermes is not configured on this machine. Use 'pnpm clients config hermes' on its actual host instead.",
     );
   const updated = mergeHostConfig(client, existing, launch);
-  const skill = skillPath
-    ? await readFile(join(root, "skills/rikoko/SKILL.md"), "utf8")
-    : undefined;
-  const currentSkill = skillPath ? await readOptional(skillPath) : undefined;
-  if (skillPath) await validateSkillReferences(join(root, "skills/rikoko"));
-  if (
-    currentSkill &&
-    currentSkill !== skill &&
-    !currentSkill.includes("<!-- Managed by the rikoko installer.")
-  )
-    throw Error(`A different rikoko skill already exists at ${skillPath}`);
   await mkdir(join(root, "media-inbox"), { recursive: true });
   await mkdir(join(root, "artifacts"), { recursive: true });
   if (managed && credentialFile) {
@@ -299,9 +402,7 @@ if (command === "config") {
     await writeFile(temp, updated, { mode: 0o600, flag: "wx" });
     await rename(temp, path);
   }
-  if (skillPath)
-    await installManagedSkill(join(root, "skills/rikoko"), dirname(skillPath));
   console.log(
-    `Registered ${client}: ${path}${skillPath ? `; skill: ${skillPath}` : ""}. Reload the host's MCP connections to activate. Existing servers were preserved. The dedicated key has no paid-generation budget.`,
+    `Registered ${client}: ${path}; director guides: MCP backend (no Skill installed). Reload the host's MCP connections to activate. Existing servers were preserved. The dedicated key has no paid-generation budget.`,
   );
 }

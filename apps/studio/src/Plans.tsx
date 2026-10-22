@@ -160,7 +160,7 @@ export default function Plans({
               ))}
             </ul>
           ) : (
-            <p>暂无调用账单。生成前会显示报价，扣费后可在这里查看。</p>
+            <p>暂无调用账单。生成后的用量和费用可在这里查看。</p>
           )}
         </section>
       )}
@@ -214,7 +214,7 @@ export default function Plans({
         </div>
       )}
       <p className="plan-footnote">
-        本地剪辑、渲染和模板更新免费。官方 API 按生成前的报价扣除额度；
+        本地剪辑、渲染和模板更新免费。官方 API 按实际调用结算额度；
         自有模型服务由对应供应商计费。作品与已下载素材保存在本地。
       </p>
     </section>

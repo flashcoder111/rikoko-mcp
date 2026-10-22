@@ -1,7 +1,9 @@
 import type { HostClient } from "./host-connection.js";
+import { usageText, type TaskUsage } from "../../core/src/task-usage.js";
 import type { DeliveredMedia } from "./host-files.js";
 
 export type ConversationResult = {
+  usage?: TaskUsage;
   jobId: string;
   projectId?: string;
   revisionId?: string;
@@ -23,6 +25,7 @@ export type ConversationResult = {
   mediaAcceptance?: {
     status: string;
     finalReady: boolean;
+    reviewAccepted?: boolean;
     media: unknown[];
     issues: unknown[];
   };
@@ -45,6 +48,12 @@ export function resultText(
   const lines = [
     `${result.title ?? "rikoko media"} — ${result.status ?? "queued"}`,
     `jobId: ${result.jobId}`,
+    ...(result.usage
+      ? [
+          usageText(result.usage),
+          "Usage scope: listed jobs only. For the task total, call task_usage with ALL task job IDs including analysis and authorized retries; a free render does not mean the video production was free. Include actual charges in the final reply without delaying delivery for unsettled charges.",
+        ]
+      : []),
     ...(!deliverable && result.status === "completed"
       ? [
           "Preview — request workspace_result purpose=final for delivery. No final AI review is required; do not start a review or regeneration loop.",
@@ -58,6 +67,12 @@ export function resultText(
       : []),
     ...(result.mediaAcceptance
       ? [`Media acceptance: ${JSON.stringify(result.mediaAcceptance)}`]
+      : []),
+    ...((result.quality && result.quality.reviewAccepted !== true) ||
+    (result.mediaAcceptance && result.mediaAcceptance.reviewAccepted !== true)
+      ? [
+          "Evidence boundary: technical checks only. Do not claim the pictured objects, action, continuity or a reported visual defect are correct/fixed. Brightness, edge counts and white-pixel counts are not semantic visual checks. Deliver with the actual review status; no automatic regeneration.",
+        ]
       : []),
     ...(result.projectId
       ? [

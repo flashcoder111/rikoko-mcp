@@ -275,10 +275,10 @@ it("runs quote → upload → restart → report → adaptation through the conf
     assetId: source.id,
     model: model.id,
   });
-  expect(ready.status).toBe("quote_required");
+  expect(ready.status).toBe("ready");
   expect(calls).toHaveLength(0);
   const job = await service.submit(c, {
-    quoteId: ready.quote.id,
+    quoteId: ready.quoteId,
     input: ready.input,
     idempotencyKey: "same-analysis",
   });

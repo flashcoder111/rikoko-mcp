@@ -1,3 +1,4 @@
+import { faceFreeFixturePolicy } from "./video-policy-fixture.js";
 import {
   afterAll,
   afterEach,
@@ -140,6 +141,9 @@ async function preparedInput(sourceId: string, owner = context) {
     direction: draft.direction,
     input: {
       ...input(sourceId),
+      videoPolicy: faceFreeFixturePolicy([
+        await service.get(owner, "asset", sourceId),
+      ]),
       prompt: draft.prompt,
       target: { width: 720, height: 720, aspectPolicy: "contain" },
     },

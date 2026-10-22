@@ -17,6 +17,10 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const destination = resolve(process.argv[2] ?? join(root, "artifacts/runtime"));
 const temporary = await mkdtemp(join(tmpdir(), "rikoko-runtime-"));
 try {
+  execFileSync("pnpm", ["exec", "tsx", "scripts/guides.ts"], {
+    cwd: root,
+    stdio: "pipe",
+  });
   const [packed] = JSON.parse(
     execFileSync(
       "npm",
@@ -35,10 +39,12 @@ try {
       `Private files in runtime: ${forbidden.map((f) => f.path).join(", ")}`,
     );
   for (const required of [
-    "skills/rikoko/SKILL.md",
-    ...(await readdir(join(root, "skills/rikoko/references")))
-      .filter((name) => /^[a-z0-9-]+\.md$/.test(name))
-      .map((name) => `skills/rikoko/references/${name}`),
+    "packages/guidance/manifest.json",
+    ...Object.keys(
+      JSON.parse(
+        await readFile(join(root, "packages/guidance/manifest.json"), "utf8"),
+      ).topics,
+    ).map((name) => `packages/guidance/content/${name}.md`),
     "packages/db/migrations/001_core.sql",
     "packages/contracts/schemas/composition.v1.json",
     "apps/studio/dist/index.html",

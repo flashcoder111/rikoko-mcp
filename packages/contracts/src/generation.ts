@@ -85,7 +85,7 @@ const bindingSchema = z
 export const generationInputSchema = z
   .object({
     mode: generationModeSchema,
-    referenceSyntax: z.enum(["descriptive", "kling"]).optional(),
+    referenceSyntax: z.enum(["descriptive", "kling", "seedance"]).optional(),
     bindings: z.array(bindingSchema).min(1).max(10),
     maxTotalBytes: z
       .number()

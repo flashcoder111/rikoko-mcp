@@ -58,6 +58,87 @@ afterEach(async () => {
 });
 
 describe("one project across chat, studio and MCP", () => {
+  it("prepares an idempotent Hermes request without rendering or generation", async () => {
+    const first = await create();
+    const input = {
+      projectId: first.projectId,
+      revisionId: first.revisionId,
+      selectedSceneId: "two",
+      message: "只改结尾文案，保留画面",
+      assetIds: [],
+      idempotencyKey: "handoff",
+    };
+    const jobsBefore = (await call("records_list", { type: "job" })).result;
+    const a = await call("workspace_handoff_prepare", input);
+    const b = await call("workspace_handoff_prepare", input);
+    expect(a.status).toBe(200);
+    expect(b.result).toEqual(a.result);
+    expect(a.result.status).toBe("prepared");
+    expect(a.result.hermesUrl).toMatch(/^hermes:\/\/rikoko-handoff\?request=/);
+    expect(a.result.hermesUrl).not.toContain(input.message);
+    const request = (
+      await call("workspace_request_get", { requestId: a.result.requestId })
+    ).result;
+    expect(request).toMatchObject({
+      projectId: first.projectId,
+      revisionId: first.revisionId,
+      selectedSceneId: "two",
+      originalMessage: input.message,
+    });
+    expect((await call("records_list", { type: "job" })).result).toEqual(
+      jobsBefore,
+    );
+    expect(
+      (
+        await call("workspace_handoff_prepare", {
+          ...input,
+          message: "另一要求",
+        })
+      ).status,
+    ).toBe(409);
+  });
+  it("refuses stale, cross-account and invalid scene handoffs", async () => {
+    const first = await create();
+    const input = {
+      projectId: first.projectId,
+      revisionId: first.revisionId,
+      message: "继续",
+      idempotencyKey: "handoff",
+    };
+    const other = (await service.createAccount("Other", 0)).key;
+    expect((await call("workspace_handoff_prepare", input, other)).status).toBe(
+      404,
+    );
+    expect(
+      (
+        await call("workspace_handoff_prepare", {
+          ...input,
+          selectedSceneId: "missing",
+        })
+      ).status,
+    ).toBe(409);
+    expect(
+      (
+        await call("workspace_handoff_prepare", {
+          ...input,
+          assetIds: ["other-asset"],
+        })
+      ).error.code,
+    ).toBe("INVALID_MEDIA");
+    await call("workspace_commit", {
+      projectId: first.projectId,
+      baseRevisionId: first.revisionId,
+      action: {
+        type: "edit",
+        edits: [{ type: "caption", sceneId: "one", text: "新版" }],
+      },
+      message: "改字幕",
+      idempotencyKey: "newer",
+    });
+    const stale = await call("workspace_handoff_prepare", input);
+    expect(stale.status).toBe(409);
+    expect(stale.error.code).toBe("REVISION_CONFLICT");
+  });
   it("creates once, edits in studio, resumes from the latest version and restores without losing history", async () => {
     const first = await create();
     const edited = await call("workspace_commit", {

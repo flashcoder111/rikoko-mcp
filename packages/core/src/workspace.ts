@@ -1,3 +1,5 @@
+import { prepareTemplate } from "../../templates/src/prepare.js";
+import { snapshotGuidance } from "./director-guidance.js";
 import { randomUUID } from "node:crypto";
 import {
   readCreativeContext,
@@ -171,6 +173,7 @@ export async function workspaceSnapshot(
       project,
       revision,
       headRevisionId: latest?.id ?? null,
+      guidance: snapshotGuidance(project, revision, jobs, latest),
       revisions,
       jobs,
       messages,
@@ -216,6 +219,16 @@ export async function workspaceCommit(
       if ((request.projectId ?? undefined) !== input.projectId)
         fail("INVALID_INPUT", "创作请求与作品不匹配。");
     }
+    const preparationId =
+      input.templatePreparationId ?? request?.proposal?.templatePreparationId;
+    const templatePreparation = preparationId
+      ? await tx.get(preparationId, c.accountId, "template-preparation")
+      : null;
+    if (
+      preparationId &&
+      (!templatePreparation?.composition || input.action.type !== "create")
+    )
+      fail("INVALID_INPUT", "模板准备记录不存在或不能用于此操作。");
     let project: Entity,
       composition: Composition,
       restoredContext: Entity | undefined,
@@ -301,8 +314,11 @@ export async function workspaceCommit(
     const revision = make(c.accountId, "revision", {
       projectId: project.id,
       parentId: parent?.id ?? null,
-      ...(parent?.templateSource
-        ? { templateSource: parent.templateSource }
+      ...(templatePreparation?.templateSource || parent?.templateSource
+        ? {
+            templateSource:
+              templatePreparation?.templateSource ?? parent?.templateSource,
+          }
         : {}),
       composition,
       changes: [input.action],
@@ -578,10 +594,10 @@ async function prepareWorkspacePlan(
       format: _format,
       ...selection
     } = planned.template;
-    const prepared =
-      selected.sourceKind === "builtin"
-        ? await prepareStarter(service, c, selection)
-        : await cloudConnection(service)!.templates!.prepare(c, selection);
+    const prepared = await prepareTemplate(service, c, {
+      ...selection,
+      sourceKind: selected.sourceKind,
+    });
     const composition = adaptTemplateComposition(
       prepared.composition,
       planned.template,
@@ -596,6 +612,7 @@ async function prepareWorkspacePlan(
       selected.sourceKind === "builtin" && prepared.reuse.bundledScenes > 0;
     return {
       engine: planned.engine,
+      templatePreparationId: prepared.preparationId,
       message: `已自动采用「${selected.title}」的结构并填入文案，复用 ${assetIds.length} 份画面素材。${illustrated ? "未提供的画面使用内置图形插画。" : ""}本次只进行本地合成，没有生成新图片或视频。`,
       action: { type: "create", composition },
       autoApply:

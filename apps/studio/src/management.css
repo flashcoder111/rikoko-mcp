@@ -1,0 +1,281 @@
+.management-app {
+  background: #fff;
+  color: #212023;
+}
+.management-header {
+  height: 84px;
+  padding: 0 42px;
+  display: flex;
+  gap: 30px;
+  align-items: center;
+  border-bottom: 1px solid #eeedef;
+}
+.management-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #19191b;
+  text-decoration: none;
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -1px;
+}
+.management-brand > span {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 32px;
+  border-radius: 6px;
+  background: #151419;
+  color: #fff;
+  font-size: 24px;
+}
+.management-header-label {
+  font-size: 12px;
+  color: #969398;
+}
+.management-connection {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 12px;
+  color: #969398;
+}
+.management-body {
+  display: flex;
+  height: calc(100dvh - 84px);
+  padding: 0 24px;
+}
+.management-sidebar {
+  flex: 0 0 228px;
+  padding: 42px 18px 24px;
+  background: #f6f5f6;
+  border-right: 1px solid #e2dfe3;
+  display: flex;
+  flex-direction: column;
+}
+.management-sidebar > .dashboard-eyebrow {
+  margin: 4px 16px 30px;
+  font-size: 10px;
+}
+.management-sidebar nav {
+  display: grid;
+  gap: 8px;
+}
+.management-sidebar nav a {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  min-height: 50px;
+  padding: 12px 16px;
+  color: #272529;
+  font-size: 14px;
+  text-decoration: none;
+  border-radius: 10px;
+}
+.management-sidebar nav a:hover {
+  background: #eae7eb;
+}
+.management-sidebar nav a[aria-current="page"] {
+  background: #e2dfe3;
+  font-weight: 500;
+}
+.management-sidebar-bottom {
+  border-top: 1px solid #dedbe0;
+  margin-top: 30px;
+  padding: 20px 14px;
+}
+.management-sidebar-bottom p {
+  font-size: 11px;
+  line-height: 1.9;
+  color: #959198;
+  margin: 0 0 20px;
+}
+.management-sidebar-bottom button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  color: #8d8791;
+  padding: 0;
+}
+.management-content {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  position: relative;
+}
+.management-app .dashboard {
+  padding: 44px clamp(24px, 3.5vw, 52px);
+  max-width: 1500px;
+}
+.management-app .dashboard h1 {
+  font-size: 28px;
+  letter-spacing: -0.8px;
+}
+.management-app .dashboard-heading {
+  margin-bottom: 32px;
+}
+.management-app .dashboard-panel,
+.management-app .dashboard-stats > div {
+  border-color: #e1dfe3;
+  border-radius: 10px;
+}
+.management-app .dashboard-stats strong {
+  font-size: 30px;
+}
+.management-app .dashboard-agent-note {
+  background: #f6f5f6;
+}
+.management-app .dashboard-search input {
+  background: #f6f5f6;
+  border: 1px solid #e1dfe3;
+  border-radius: 7px;
+}
+.management-app .dashboard-project-icon {
+  background: #f6f5f6;
+  color: #88818d;
+}
+.management-app .dashboard [hidden] {
+  display: none !important;
+}
+.management-app .dashboard-view-tasks .dashboard-columns {
+  grid-template-columns: minmax(0, 1fr);
+}
+.dashboard-project-filter {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 12px;
+  color: #827b87;
+  margin-bottom: 24px;
+}
+.dashboard-project-filter select {
+  margin: 0;
+  max-width: 380px;
+  background: #f6f5f6;
+  border-color: #e1dfe3;
+}
+.management-feedback {
+  margin: 18px 30px 0;
+  background: #f8f5ed;
+  border: 1px solid #e8e2d4;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+}
+.management-feedback p {
+  margin: 4px 0;
+}
+.management-feedback button {
+  margin-left: 14px;
+}
+.management-app .asset-catalog {
+  padding: 44px clamp(24px, 3.5vw, 52px);
+  max-width: 1500px;
+  margin: auto;
+}
+.management-app .asset-catalog h1 {
+  font-size: 28px;
+}
+.management-app .asset-catalog .catalog-actions a {
+  font-size: 12px;
+  color: #625b6d;
+}
+.management-menu {
+  display: none;
+}
+.credits-stats {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.credits-note {
+  margin-bottom: 20px !important;
+  font-size: 12px;
+  color: #827b87;
+}
+.credits-table-wrap {
+  overflow-x: auto;
+}
+.credits-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  text-align: left;
+}
+.credits-table th {
+  color: #98919d;
+  font-weight: 400;
+  background: #faf9fa;
+}
+.credits-table th,
+.credits-table td {
+  padding: 16px 22px;
+  border-top: 1px solid #eeebef;
+}
+.credits-table td {
+  overflow-wrap: anywhere;
+}
+.credits-table th:last-child,
+.credits-table td:last-child {
+  text-align: right;
+  white-space: nowrap;
+}
+@media (max-width: 800px) {
+  .management-header {
+    height: 64px;
+    padding: 0 18px;
+    gap: 14px;
+  }
+  .management-brand {
+    font-size: 21px;
+  }
+  .management-brand > span {
+    width: 26px;
+    height: 28px;
+    font-size: 21px;
+  }
+  .management-header-label {
+    display: none;
+  }
+  .management-menu {
+    display: inline-flex;
+    border: 0;
+    margin-left: auto;
+  }
+  .management-connection {
+    margin-left: 0;
+    gap: 8px;
+  }
+  .management-body {
+    height: calc(100dvh - 64px);
+    padding: 0;
+  }
+  .management-sidebar {
+    display: none;
+  }
+  .management-sidebar.is-open {
+    display: flex;
+    position: fixed;
+    z-index: 40;
+    top: 64px;
+    bottom: 0;
+    left: 0;
+    width: 244px;
+    box-shadow: 15px 0 30px #20162915;
+  }
+  .management-app .dashboard,
+  .management-app .asset-catalog {
+    padding: 28px 18px;
+  }
+  .management-app .credits-stats {
+    grid-template-columns: 1fr;
+  }
+  .dashboard-project-filter {
+    align-items: start;
+    flex-direction: column;
+  }
+  .dashboard-project-filter select {
+    max-width: 100%;
+  }
+}

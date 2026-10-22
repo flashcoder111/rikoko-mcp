@@ -236,6 +236,7 @@ export function referenceHandoff(
   offset = 0,
   limit = 20,
   allWhenEmpty = true,
+  detail: "compact" | "full" = "compact",
 ) {
   const requested = new Set(sourceShotIds);
   if (
@@ -256,15 +257,47 @@ export function referenceHandoff(
   const evidenceIds = new Set(
     [...shots, ...beats].flatMap((x) => x.evidenceIds),
   );
+  const evidence = report.evidence.filter(
+    (e) => evidenceIds.has(e.id) || relevant(e),
+  );
+  const parts =
+    report.analysis?.parts?.filter((p) =>
+      relevant({ startMs: p.sourceStartMs, endMs: p.sourceEndMs }),
+    ) ?? [];
+  const neighbor = (shot: ReferenceReport["shots"][number] | undefined) =>
+    !shot
+      ? null
+      : detail === "full"
+        ? shot
+        : {
+            id: shot.id,
+            startMs: shot.startMs,
+            endMs: shot.endMs,
+            startState: shot.details?.startState ?? "unknown",
+            endState: shot.details?.endState ?? "unknown",
+          };
   return {
     binding,
+    detail,
+    detailsAccess: shots.length
+      ? {
+          tool: "reference_analysis_get",
+          analysisAssetId: binding.analysisAssetId,
+          section: "handoff",
+          handoffDetail: "full",
+          sourceShotIds,
+          offset,
+          limit,
+        }
+      : null,
     summary: report.summary,
     shots,
     narrativeBeats: beats,
-    events: report.events.filter(relevant),
-    evidence: report.evidence.filter(
-      (e) => evidenceIds.has(e.id) || relevant(e),
-    ),
+    ...(detail === "full" ? { events: report.events.filter(relevant) } : {}),
+    evidence:
+      detail === "full"
+        ? evidence
+        : evidence.map(({ observation, ...index }) => index),
     unknowns: report.unknowns
       .map((u, index) => ({ index, ...u }))
       .filter(relevant),
@@ -273,15 +306,15 @@ export function referenceHandoff(
       relevantGaps: report.coverage.gaps.filter(relevant),
     },
     parts:
-      report.analysis?.parts?.filter((p) =>
-        relevant({ startMs: p.sourceStartMs, endMs: p.sourceEndMs }),
-      ) ?? [],
+      detail === "full"
+        ? parts
+        : parts.map(({ summary, audio, ...identity }) => identity),
     sourceNeighbors: shots.map((s) => {
       const i = report.shots.indexOf(s);
       return {
         shotId: s.id,
-        previous: report.shots[i - 1] ?? null,
-        next: report.shots[i + 1] ?? null,
+        previous: neighbor(report.shots[i - 1]),
+        next: neighbor(report.shots[i + 1]),
       };
     }),
     nextOffset: offset + limit < selected.length ? offset + limit : null,

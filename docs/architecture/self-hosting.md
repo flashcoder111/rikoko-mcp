@@ -31,7 +31,7 @@ PostgreSQL 模式需要首次显式创建账户；不会默认生成公开管理
 
 WhisperX 独立环境需预先安装 WhisperX 和 PyTorch，并提供本地 ASR/对齐权重目录 `WHISPERX_MODEL_PATH`、`WHISPERX_ALIGN_MODEL_PATH`，通过 `MEDIA_PYTHON` 指向该环境。它也必须安装基础 Pillow/jsonschema。默认 `uv sync` 不下载这些依赖或权重；具体版本/设备/权重许可待首次实际验证后冻结。
 
-系统 TTS 使用已安装语音，目前接纳 en/en-US/en-GB 与 zh/zh-CN；不支持的语言明确失败。macOS 默认 Samantha/Tingting；Linux 使用 espeak-ng。系统 TTS 的声音授权与语音质量不能由免费测试推导成商用承诺。
+本地系统 TTS 已移除，安装器和容器不再安装 espeak-ng。视频优先保留原生声音；独立后期配音默认使用 fal 的 ElevenLabs Eleven v3，详见[声音流程](../speech.md)。
 
 ## 备份与限制
 

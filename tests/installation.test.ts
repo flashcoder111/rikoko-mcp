@@ -24,6 +24,20 @@ import { hostCredential } from "../packages/mcp/src/host-connection.js";
 import { hostLaunch } from "../packages/mcp/src/host-config.js";
 
 const dirs: string[] = [];
+it("refuses offline snapshots while an unreachable server process is still alive", async () => {
+  const { installation, file } = await fixture();
+  await writeFile(
+    join(installation.home, "data/server.pid"),
+    String(process.pid),
+  );
+  vi.spyOn(globalThis, "fetch").mockRejectedValue(
+    new TypeError("connection refused"),
+  );
+  const kill = vi.spyOn(process, "kill").mockReturnValue(true);
+  await expect(stopBackend(file)).rejects.toThrow("process is still alive");
+  expect(kill).toHaveBeenCalledWith(process.pid, 0);
+  expect(kill).not.toHaveBeenCalledWith(process.pid, "SIGTERM");
+});
 afterEach(async () => {
   vi.restoreAllMocks();
   await Promise.all(

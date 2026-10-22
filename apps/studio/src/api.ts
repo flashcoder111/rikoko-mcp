@@ -10,6 +10,9 @@ export type GenerationModel = {
   category?: "speech" | "music" | "sound";
   maxCostCents: number;
   available: boolean;
+  requiresVoiceProfile?: boolean;
+  generationInput?: { mode: string };
+  fixedParameters?: Record<string, string | number | boolean>;
 };
 export type Capabilities = {
   workspace: { conversationPlanner: string };

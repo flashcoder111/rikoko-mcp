@@ -13,6 +13,7 @@ export const templateSchema = z
     title: z.string().min(1).max(160),
     description: z.string().max(2000).default(""),
     category: z.string().max(60).default("通用"),
+    searchTerms: z.array(z.string().max(100)).max(30).optional(),
     speech: z
       .object({
         mode: z.literal("optional"),
@@ -62,7 +63,12 @@ export const templateSchema = z
   .superRefine((t, ctx) => {
     const ids = new Set(t.assets.map((a) => a.id));
     const refs = [
-      ...t.composition.scenes.flatMap((s) => [s.assetId, s.audioAssetId]),
+      ...t.composition.scenes.flatMap((s) => [
+        s.assetId,
+        s.audioAssetId,
+        s.speechAlignment?.sourceAssetId,
+        s.speechAlignment?.transcriptAssetId,
+      ]),
       ...t.composition.events.map((e) => e.assetId),
       t.composition.audio?.assetId,
     ].filter(Boolean);
@@ -99,6 +105,7 @@ export const applyTemplateSchema = z
   .object({
     id: key,
     version: z.number().int().positive(),
+    sourceKind: z.enum(["builtin", "cloud", "personal"]).optional(),
     parameters: z.record(key, z.string().max(1000)).default({}),
     sceneAssets: z.record(idSchema, idSchema).default({}),
     speech: z
@@ -140,6 +147,15 @@ export function instantiate(
     text: replace(s.text),
     assetId: asset(s.assetId),
     audioAssetId: asset(s.audioAssetId),
+    ...(s.speechAlignment
+      ? {
+          speechAlignment: {
+            ...s.speechAlignment,
+            sourceAssetId: asset(s.speechAlignment.sourceAssetId)!,
+            transcriptAssetId: asset(s.speechAlignment.transcriptAssetId)!,
+          },
+        }
+      : {}),
   }));
   c.events = c.events.map((e) => ({
     ...e,

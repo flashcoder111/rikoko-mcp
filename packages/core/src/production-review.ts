@@ -13,6 +13,11 @@ import {
 import { fingerprint, type Service } from "./index.js";
 import { validateRemakeEvidence } from "./reference-handoff.js";
 import type { ProductionPlan } from "./production-plan.js";
+import {
+  requiresStartingStateReview,
+  startingStateAccepted,
+  startingStateChecksSchema,
+} from "./shot-reference-choice.js";
 import { validateEditingComposition } from "./production-editing.js";
 import {
   productionQualityAccepted,
@@ -159,6 +164,7 @@ export const mediaReviewSchema = z
       })
       .strict(),
     notes: z.string().trim().min(1).max(4000),
+    startingStateChecks: startingStateChecksSchema.optional(),
     requirementChecks: z.array(requirementCheckSchema).max(50).optional(),
     qualityChecks: z.array(productionQualityCheckSchema).max(2000).optional(),
   })
@@ -306,6 +312,26 @@ export async function reviewMedia(service: Service, c: Context, raw: unknown) {
         409,
       );
     if (production?.plan) {
+      const shot = (production.plan.plan as ProductionPlan).shots.find(
+        (s) => s.id === input.production?.shotId,
+      );
+      const needsStartingState =
+        asset.kind === "image" && requiresStartingStateReview(shot, asset.id);
+      if (input.startingStateChecks && !needsStartingState)
+        throw new AppError(
+          "INVALID_STARTING_STATE_REVIEW",
+          "startingStateChecks require the stage_first_frame image and its current production shot binding.",
+        );
+      if (
+        needsStartingState &&
+        input.decision === "accepted" &&
+        !startingStateAccepted(input.startingStateChecks)
+      )
+        throw new AppError(
+          "STARTING_STATE_REVIEW_REQUIRED",
+          "Check the first frame's stage, count, arrangement and support once; stage and arrangement must pass. Record short reasons; unknown or failed state checks cannot accept this frame.",
+          409,
+        );
       if (
         revision &&
         input.decision === "accepted" &&
@@ -318,21 +344,35 @@ export async function reviewMedia(service: Service, c: Context, raw: unknown) {
           409,
         );
       const fps = Number(asset.metadata?.fps);
-      validateProductionQualityReview({
-        plan: production.plan.plan,
-        shotId: input.production?.shotId,
-        composition: revision?.composition,
-        qualityChecks: input.qualityChecks,
-        decision: input.decision,
-        samples: sortedSamples,
-        range,
-        frameMs:
-          asset.kind === "image"
-            ? 1
-            : Number.isFinite(fps) && fps > 0
-              ? 1000 / fps
-              : 40,
-      });
+      // A quick boundary-image check cannot prove video actions or soundtrack timing.
+      // The exact intended shot/scope is retained above; its image state is judged by
+      // framing/continuity/noArtifacts, not by fabricated future operation ranges.
+      if (asset.kind === "video")
+        validateProductionQualityReview({
+          plan: production.plan.plan,
+          shotId: input.production?.shotId,
+          composition: revision?.composition,
+          qualityChecks: input.qualityChecks,
+          decision: input.decision,
+          samples: sortedSamples,
+          range,
+          frameMs:
+            asset.kind === "image"
+              ? 1
+              : Number.isFinite(fps) && fps > 0
+                ? 1000 / fps
+                : 40,
+        });
+      else if (input.qualityChecks?.length)
+        throw new AppError(
+          "INVALID_IMAGE_REVIEW",
+          "For a key image record only the quick image checks; video operation and audio findings require the actual video.",
+        );
+    } else if (input.startingStateChecks) {
+      throw new AppError(
+        "INVALID_STARTING_STATE_REVIEW",
+        "Bind startingStateChecks to the intended production shot.",
+      );
     } else if (input.qualityChecks?.length) {
       throw new AppError(
         "PRODUCTION_QUALITY_REVIEW_REQUIRED",

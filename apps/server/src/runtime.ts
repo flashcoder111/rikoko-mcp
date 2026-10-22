@@ -11,8 +11,11 @@ import {
   type Model,
 } from "../../../packages/providers/src/index.js";
 import { h3Models } from "../../../packages/providers/src/h3.js";
+import { seedanceMiniModels } from "../../../packages/providers/src/seedance-mini.js";
 import { klingO3Models } from "../../../packages/providers/src/kling-o3.js";
 import { audioModels } from "../../../packages/providers/src/audio.js";
+import { expandedModels } from "../../../packages/providers/src/expanded-models.js";
+import { latestModels } from "../../../packages/providers/src/latest-models.js";
 import {
   loadModelConfig,
   buildProviders,
@@ -31,7 +34,14 @@ export async function openRuntime() {
   const cloudConfig = resolveCloudConfig(config);
   const { mode } = cloudConfig;
   const plans = await loadPlans(process.env.RIKOKO_PLANS_FILE);
-  let models: Model[] = [...h3Models, ...klingO3Models, ...audioModels];
+  let models: Model[] = [
+    ...seedanceMiniModels,
+    ...h3Models,
+    ...klingO3Models,
+    ...audioModels,
+    ...latestModels,
+    ...expandedModels,
+  ];
   if (!config && process.env.FAL_MODELS_FILE)
     models = JSON.parse(await readFile(process.env.FAL_MODELS_FILE, "utf8"));
   const dataDir = resolve(process.env.DATA_DIR ?? ".data");

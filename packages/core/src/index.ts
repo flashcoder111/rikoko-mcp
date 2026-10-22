@@ -19,6 +19,7 @@ import { sha256, LocalStorage, type Storage } from "../../storage/src/index.js";
 import { validateGenerationAssets } from "../../providers/src/generation-input.js";
 import { validateStoryboardInput } from "./storyboard-state.js";
 import { checkGenerationTarget } from "../../providers/src/generation-target.js";
+import { assertVideoPolicy } from "../../providers/src/video-policy.js";
 import { validateVoiceProfile } from "./voice-profile.js";
 import { validatePreparedGeneration } from "./generation-preparation.js";
 export const fingerprint = (v: unknown): string =>
@@ -558,6 +559,7 @@ export class Service {
       for (const ref of input.references ?? [])
         assets.push(await this.owned(tx, c, "asset", ref.assetId));
       checkGenerationTarget(this.provider.validate(input), input, assets);
+      assertVideoPolicy(this.provider.validate(input), input, assets);
       if (input.references?.length) {
         validateGenerationAssets(this.provider.validate(input), input, assets);
         if (
@@ -655,45 +657,44 @@ export class Service {
       providerMaxCostCents: 0,
     };
   }
+  private async createQuote(tx: Transaction, c: Context, input: Operation) {
+    const price = this.estimate(input);
+    const preparation = await validatePreparedGeneration(
+      this,
+      tx,
+      c.accountId,
+      input,
+    );
+    await this.validateOperation(tx, c, input);
+    return tx.put(
+      entity(c.accountId, "quote", {
+        inputHash: fingerprint(input),
+        ...(preparation
+          ? {
+              preparedRequestId: preparation.id,
+              preparedRequestHash: preparation.requestHash,
+              templateVersion: preparation.prompt.templateVersion,
+            }
+          : {}),
+        referenceAssets: await this.referenceSnapshots(tx, c.accountId, input),
+        ...price,
+        billingSource: this.billingSource,
+        expiresAt: new Date(Date.now() + 300_000).toISOString(),
+        evidence: isPaidOperation(input) ? "provider-live" : "local-real",
+      }),
+    );
+  }
   async quote(c: Context, raw: unknown) {
     const input = operationSchema.parse(raw);
-    const price = this.estimate(input);
     return this.db.transaction(async (tx) => {
       await this.authorize(tx, c);
-      const preparation = await validatePreparedGeneration(
-        this,
-        tx,
-        c.accountId,
-        input,
-      );
-      await this.validateOperation(tx, c, input);
-      return tx.put(
-        entity(c.accountId, "quote", {
-          inputHash: fingerprint(input),
-          ...(preparation
-            ? {
-                preparedRequestId: preparation.id,
-                preparedRequestHash: preparation.requestHash,
-                templateVersion: preparation.prompt.templateVersion,
-              }
-            : {}),
-          referenceAssets: await this.referenceSnapshots(
-            tx,
-            c.accountId,
-            input,
-          ),
-          ...price,
-          billingSource: this.billingSource,
-          expiresAt: new Date(Date.now() + 300_000).toISOString(),
-          evidence: isPaidOperation(input) ? "provider-live" : "local-real",
-        }),
-      );
+      return this.createQuote(tx, c, input);
     });
   }
   async submit(c: Context, raw: unknown) {
     const data = z
       .object({
-        quoteId: z.string(),
+        quoteId: z.string().optional(),
         idempotencyKey: z.string().min(1).max(128),
         input: operationSchema,
       })
@@ -716,7 +717,9 @@ export class Service {
         );
         return this.owned(tx, c, "job", previous.job_id);
       }
-      const q = await this.owned(tx, c, "quote", data.quoteId);
+      const q = data.quoteId
+        ? await this.owned(tx, c, "quote", data.quoteId)
+        : await this.createQuote(tx, c, data.input);
       ensure(
         q.inputHash === hash,
         "QUOTE_MISMATCH",

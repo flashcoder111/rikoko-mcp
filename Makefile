@@ -24,5 +24,4 @@ verify-clients:
 verify-service:
 	pnpm exec vitest run tests/reliability.test.ts tests/api.test.ts
 verify-release:
-	pnpm build
 	pnpm verify release

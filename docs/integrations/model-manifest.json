@@ -1,1 +1,23 @@
-{"schemaVersion":1,"bundledWeights":[],"defaultDownloads":false,"optional":[{"name":"WhisperX ASR and alignment","status":"NOT_RUN","revision":null,"license":"must be checked for selected weights","configuration":["WHISPERX_MODEL_PATH","WHISPERX_ALIGN_MODEL_PATH"]},{"name":"system TTS","status":"local-real en/zh synthesis tested","bundled":false,"rights":"OS/voice terms apply; no voice cloning or supplied human voice"}]}
+{
+  "schemaVersion": 1,
+  "bundledWeights": [],
+  "defaultDownloads": false,
+  "optional": [
+    {
+      "name": "WhisperX ASR and alignment",
+      "status": "NOT_RUN",
+      "revision": null,
+      "license": "must be checked for selected weights",
+      "configuration": [
+        "WHISPERX_MODEL_PATH",
+        "WHISPERX_ALIGN_MODEL_PATH"
+      ]
+    }
+  ],
+  "speechPolicy": {
+    "default": "ElevenLabs Eleven v3 via fal",
+    "purpose": "post-production modifications",
+    "localSynthesis": false,
+    "nativeVideoAudio": "preserve when present"
+  }
+}

@@ -1,3 +1,4 @@
+import { faceFreeFixturePolicy } from "./video-policy-fixture.js";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
@@ -338,6 +339,15 @@ async function invoke(
       prompt: draft.prompt,
       parameters: raw.parameters ?? {},
       references: refs.map(({ assetId, role }) => ({ assetId, role })),
+      ...(raw.stage === "video"
+        ? {
+            videoPolicy: faceFreeFixturePolicy(
+              await Promise.all(
+                refs.map((r) => service.get(c, "asset", r.assetId)),
+              ),
+            ),
+          }
+        : {}),
       target: {
         width: 144,
         height: 144,

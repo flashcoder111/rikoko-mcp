@@ -106,7 +106,7 @@ export const storyboardTools = {
   reference_storyboard_quote: {
     schema: quoteSchema,
     description:
-      "Quote one storyboard image-edit or video step using a compatible model. Supply preparedRequestId to quote its frozen operation without rebuilding text or inputs; its storyboard/version/stage/model must match. A saved target-plan preparation is required; raw source observations cannot be quoted. Returns exact input for job_submit after price agreement. Accepted images are reused unless regenerate=true. Video requires a reviewed target image and any requested motion reference. Prefer available MiniMax. After generation use reference_adapt and workspace_commit.",
+      "Quote one storyboard image-edit or video step using a compatible model. Supply preparedRequestId to quote its frozen operation without rebuilding text or inputs; its storyboard/version/stage/model must match. A saved target-plan preparation is required; raw source observations cannot be quoted. This is an optional cost-estimate tool only when the user explicitly asks for pricing. The default workflow submits the prepared input directly with job_submit without quoteId. Accepted images are reused unless regenerate=true is explicitly requested by the user; never set it autonomously after a quality judgment. Video requires a reviewed target image and any requested motion reference. Use video_model_resolve: default Seedance Mini for face-free tasks; present/unknown faces block Seedance and require user choice of MiniMax (recommended) or Kling. After generation use reference_adapt and workspace_commit.",
   },
 };
 
@@ -423,7 +423,7 @@ export async function callStoryboardTool(
         "The prepared output does not cover this storyboard shot",
       );
     return {
-      status: "quote_required",
+      status: "quoted",
       input: operation,
       quote: gateway
         ? await gateway.quote(c, operation)
@@ -431,7 +431,7 @@ export async function callStoryboardTool(
       targetDurationMs: shot.durationMs,
       generationDurationMs: durationMs,
       instruction:
-        "Obtain agreement to this quote, then use job_submit with this exact prepared input and a stable idempotencyKey.",
+        "Use job_submit with this exact prepared input and a stable idempotencyKey. This optional estimate does not add a mandatory price-confirmation step.",
     };
   }
   throw new AppError(

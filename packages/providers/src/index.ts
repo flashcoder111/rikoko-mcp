@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { videoModelFamily } from "../../contracts/src/video-policy.js";
+import { assertVideoPolicy } from "./video-policy.js";
 import { promptReferenceSyntax } from "./prompt-reference.js";
 import {
   AppError,
@@ -30,6 +32,8 @@ export type Model = {
   creditPriceCents?: number;
   priceVersion: string;
   hardBoundConfirmed: boolean;
+  maxPromptLength?: number;
+  minPromptLength?: number;
   parameters: Record<string, unknown>;
   allowedParameters?: AllowedParameters;
   promptField?: string;
@@ -41,6 +45,21 @@ export type Model = {
 /** Public generation specifications only; never publish arbitrary provider parameters. */
 export function fixedGenerationParameters(model: Model) {
   const result: Record<string, string | number | boolean> = {};
+  const imageSize = model.parameters.image_size;
+  if (imageSize && typeof imageSize === "object" && !Array.isArray(imageSize)) {
+    const { width, height } = imageSize as Record<string, unknown>;
+    if (
+      typeof width === "number" &&
+      typeof height === "number" &&
+      Number.isSafeInteger(width) &&
+      Number.isSafeInteger(height) &&
+      width > 0 &&
+      height > 0
+    ) {
+      result.width = width;
+      result.height = height;
+    }
+  }
   if (typeof model.parameters.keep_audio === "boolean")
     result.keep_audio = model.parameters.keep_audio;
   for (const key of ["generate_audio", "force_instrumental"])
@@ -128,11 +147,14 @@ export class FalProvider {
       name: m.name ?? m.id,
       description: m.description ?? "",
       kind: m.kind,
+      ...(m.kind === "video" ? { videoFamily: videoModelFamily(m) } : {}),
       category: m.category,
       ...(m.requiresVoiceProfile ? { requiresVoiceProfile: true } : {}),
       maxCostCents: m.maxCostCents,
       creditPriceCents: m.creditPriceCents,
       priceVersion: m.priceVersion,
+      ...(m.maxPromptLength ? { maxPromptLength: m.maxPromptLength } : {}),
+      ...(m.minPromptLength ? { minPromptLength: m.minPromptLength } : {}),
       ...(m.allowedParameters
         ? { allowedParameters: m.allowedParameters }
         : {}),
@@ -224,6 +246,24 @@ export class FalProvider {
         "INVALID_MODEL_INPUT",
         "Use tts with the owned cloned voice profile",
       );
+    if (
+      input.kind === "generate" &&
+      m.minPromptLength &&
+      input.prompt.length < m.minPromptLength
+    )
+      throw new AppError(
+        "INVALID_MODEL_INPUT",
+        `Prompt requires at least ${m.minPromptLength} characters for this model`,
+      );
+    if (
+      input.kind === "generate" &&
+      m.maxPromptLength &&
+      input.prompt.length > m.maxPromptLength
+    )
+      throw new AppError(
+        "INVALID_MODEL_INPUT",
+        `Prompt exceeds this model's ${m.maxPromptLength}-character limit`,
+      );
     if (input.kind === "generate")
       resolveGenerationParameters(m, input.parameters);
     if (
@@ -237,6 +277,7 @@ export class FalProvider {
         "Model capability does not match operation",
       );
     validateGenerationInput(m, input);
+    assertVideoPolicy(m, input);
     return m;
   }
   estimate(input: Operation) {

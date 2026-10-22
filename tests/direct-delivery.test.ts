@@ -287,13 +287,14 @@ it("rejects corrupt outputs and invalid metadata without authorizing regeneratio
   });
   expect(network).not.toHaveBeenCalled();
 });
-it("advertises direct delivery without mandatory final review", async () => {
+it("advertises direct delivery and does not reinterpret unreviewed cases as successful trials", async () => {
   const capabilities: any = await callTool(service, c, "capabilities", {});
   expect(capabilities.reviewPolicy).toMatchObject({
     finalAiReview: "off_by_default",
     automaticQualityRegeneration: false,
   });
   expect(capabilities.visualReview.finalReviewRequired).toBe(false);
+  expect(capabilities.directorLibrary.automaticPromotion).toBe(false);
 });
 
 it("delivers renderer outputs including empty subtitles and legacy thumbnail metadata", async () => {

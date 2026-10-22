@@ -54,6 +54,7 @@ const getSchema = z
       ])
       .default("overview"),
     sourceShotIds: z.array(idSchema).max(20).default([]),
+    handoffDetail: z.enum(["compact", "full"]).default("compact"),
     offset: z.number().int().min(0).default(0),
     limit: z.number().int().min(1).max(50).default(20),
   })
@@ -120,17 +121,17 @@ export const referenceTools = {
   reference_analyze: {
     schema: analyzeSchema,
     description:
-      "Quote one independent Gemini video analysis; the configured upstream must declare the Gemini family, regardless of the host LLM. Explicit detail (overview/shots/recreate) overrides reference_analysis_settings; when omitted use the account preference, or with auto use recreate for purpose=remake and shots otherwise. focus prioritizes motion, camera, appearance, text, audio or continuity. For full-video recreate or long/dense videos, use reference_analysis_plan/prepare first, analyze every prepared clip and merge; this tool alone makes one model request. Recreate requires structured initial/final states and action stages. Returns cache or exact quote input, never purchases. Obtain price agreement before job_submit. range is prompt-only on fal; only prepared clip assets physically restrict the upload. FPS is unknown on fal.",
+      "Prepare one independent Gemini video analysis; the configured upstream must declare the Gemini family, regardless of the host LLM. Explicit detail (overview/shots/recreate) overrides reference_analysis_settings; when omitted use the account preference, or with auto use recreate for purpose=remake and shots otherwise. focus prioritizes motion, camera, appearance, text, audio or continuity. For full-video recreate or long/dense videos, use reference_analysis_plan/prepare first, analyze every prepared clip and merge; this tool alone makes one model request. Recreate requires structured initial/final states and action stages. Returns a cache hit, an existing job, or status=ready with exact input and an internal quoteId. Submit ready input directly with job_submit for the requested analysis; no price confirmation. Preparation alone never starts the model. range is prompt-only on fal; only prepared clip assets physically restrict the upload. FPS is unknown on fal.",
   },
   reference_analysis_get: {
     schema: getSchema,
     description:
-      "Read a source-bound reference analysis. For remake authoring choose section=handoff with optional sourceShotIds and pagination: returns verified Gemini lineage/hash, full shot states/stages, relevant beats/evidence/unknown indices/gaps and source neighbors. Handoff requires a completed recreate analysis job or a trusted merged report, never an uploaded provenance claim. Choose overview for compact context, or paginated shots/events/evidence/unknowns/parts. parts retains per-segment summaries, audio and source boundaries without repeating them on every page. Times use original-source milliseconds; model times are estimates, FFmpeg cut candidates are separate measurements. all returns the bounded full report.",
+      "Read a source-bound reference analysis. For remake authoring choose section=handoff with optional sourceShotIds and pagination: defaults to handoffDetail=compact: verified Gemini lineage/hash, complete selected shot states/stages, relevant beats, evidence IDs/confidence, unknown indices/gaps and neighboring boundary states. Evidence observations, events and segment audio remain available via handoffDetail=full (detailsAccess) or their paginated sections; inspect them when a decision needs that detail. Handoff requires a completed recreate analysis job or a trusted merged report, never an uploaded provenance claim. Choose overview for compact context, or paginated shots/events/evidence/unknowns/parts. parts retains per-segment summaries, audio and source boundaries without repeating them on every page. Times use original-source milliseconds; model times are estimates, FFmpeg cut candidates are separate measurements. all returns the bounded full report.",
   },
   reference_analysis_query: {
     schema: querySchema,
     description:
-      "Retrieve existing evidence in a source time range. This is evidence retrieval, not a new model answer. Returns a focused analysis input for unresolved questions; it requires a new quote and approval. Does not call any model.",
+      "Retrieve existing evidence in a source time range. This is evidence retrieval, not a new model answer. Returns a focused analysis input for unresolved questions; submit it with job_submit when needed for the requested analysis; no separate price confirmation. Does not call any model.",
   },
   reference_adapt: {
     schema: referenceAdaptSchema,
@@ -551,11 +552,11 @@ export async function callReferenceTool(
         };
     }
     return {
-      status: "quote_required",
+      status: "ready",
       input,
-      quote: officialQuote ?? (await service.quote(c, input)),
+      quoteId: (officialQuote ?? (await service.quote(c, input))).id,
       instruction:
-        "Obtain agreement to this quote, then job_submit with the returned input and a stable idempotencyKey.",
+        "Submit the returned input and quoteId with job_submit and a stable idempotencyKey. No separate price confirmation is needed for the requested analysis.",
     };
   }
   if (name === "reference_adapt") return adaptReference(service, c, raw);
@@ -575,6 +576,8 @@ export async function callReferenceTool(
           input.sourceShotIds,
           input.offset,
           input.limit,
+          true,
+          input.handoffDetail,
         );
       });
     if (input.sourceShotIds.length)

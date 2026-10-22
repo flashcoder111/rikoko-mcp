@@ -1,3 +1,9 @@
+import { mediaFailure, type MediaStage } from "./media-diagnostics.js";
+import {
+  extractInspectionFrame,
+  inspectionGray,
+  lastInspectionVideoTime,
+} from "./media-runtime.js";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
@@ -79,12 +85,15 @@ export async function inspectMedia(service: Service, c: Context, raw: unknown) {
     );
   active++;
   let dir: string | undefined;
+  let stage: MediaStage = "temp_directory";
   try {
     dir = await mkdtemp(join(tmpdir(), "rikoko-inspect-"));
     const path = join(dir, "source");
+    stage = "source_read";
     const bytes = await service.storage.read(asset.storageKey);
     if (sha256(bytes) !== asset.sha256 || bytes.byteLength !== asset.bytes)
       throw new AppError("SOURCE_MISMATCH", "Source bytes changed");
+    stage = "source_write";
     await writeFile(path, bytes, { mode: 0o600 });
     const frames: {
       assetId: string;
@@ -96,7 +105,7 @@ export async function inspectMedia(service: Service, c: Context, raw: unknown) {
     }[] = [];
     const gray: Buffer[] = [];
     // Endpoints are requested source positions, not claims of frame-exact model timing.
-    const last = Math.max(
+    let last = Math.max(
       input.startMs,
       endMs -
         Math.min(
@@ -105,6 +114,15 @@ export async function inspectMedia(service: Service, c: Context, raw: unknown) {
         ),
     );
     const signal = AbortSignal.timeout(55000);
+    if (asset.kind === "video" && !input.timesMs && count > 1) {
+      stage = "probe_video";
+      last = Math.min(last, await lastInspectionVideoTime(path, signal));
+      if (last < input.startMs)
+        throw new AppError(
+          "INVALID_INTERVAL",
+          "Inspection range starts after the last video timestamp",
+        );
+    }
     for (let i = 0; i < count; i++) {
       const timeMs =
         input.timesMs?.[i] ??
@@ -114,38 +132,21 @@ export async function inspectMedia(service: Service, c: Context, raw: unknown) {
               input.startMs + ((last - input.startMs) * i) / (count - 1),
             ));
       const output = join(dir, `frame-${i}.png`);
-      const args = [
-        "-nostdin",
-        "-hide_banner",
-        "-loglevel",
-        "error",
-        "-y",
-        ...(asset.kind === "video" ? ["-ss", String(timeMs / 1000)] : []),
-        "-protocol_whitelist",
-        "file,pipe",
-        "-i",
+      stage = "extract_frame";
+      await extractInspectionFrame(
         path,
-        "-map",
-        "0:v:0",
-        "-frames:v",
-        "1",
-      ];
-      await execute(
-        "ffmpeg",
-        [
-          ...args,
-          "-vf",
-          "scale=640:640:force_original_aspect_ratio=decrease",
-          output,
-        ],
-        { timeout: 20000, maxBuffer: 1024 * 1024, signal },
+        output,
+        signal,
+        asset.kind === "video" ? timeMs : undefined,
       );
+      stage = "read_frame";
       const frameBytes = await readFile(output);
       if (frameBytes.length > 2 * 1024 * 1024)
         throw new AppError(
           "MEDIA_TOO_LARGE",
           "Inspection image exceeds output limit",
         );
+      stage = "register_frame";
       const frame = await service.registerAsset(c.accountId, frameBytes, {
         name: `inspect-${asset.id}-${timeMs}.png`,
         kind: "image",
@@ -176,28 +177,8 @@ export async function inspectMedia(service: Service, c: Context, raw: unknown) {
         sha256: frame.sha256,
         image: { data: frameBytes.toString("base64"), mimeType: "image/png" },
       });
-      const rawFrame = await execute(
-        "ffmpeg",
-        [
-          "-nostdin",
-          "-hide_banner",
-          "-loglevel",
-          "error",
-          "-protocol_whitelist",
-          "file,pipe",
-          "-i",
-          output,
-          "-vf",
-          "scale=64:64,format=gray",
-          "-frames:v",
-          "1",
-          "-f",
-          "rawvideo",
-          "pipe:1",
-        ],
-        { encoding: "buffer", timeout: 10000, maxBuffer: 1024 * 1024, signal },
-      );
-      gray.push(rawFrame.stdout);
+      stage = "gray_frame";
+      gray.push(await inspectionGray(output, signal));
     }
     const differences = gray
       .slice(1)
@@ -268,10 +249,12 @@ export async function inspectMedia(service: Service, c: Context, raw: unknown) {
       },
       warnings,
     };
+    stage = "save_evidence";
     await service.scoped(c, "write", (tx) => tx.put(record));
     let grid: { data: string; mimeType: string } | undefined;
     if (input.layout === "grid") {
       const output = join(dir, "grid.png");
+      stage = "build_grid";
       await execute(
         "ffmpeg",
         [
@@ -294,6 +277,7 @@ export async function inspectMedia(service: Service, c: Context, raw: unknown) {
         ],
         { timeout: 15000, maxBuffer: 1024 * 1024, signal },
       );
+      stage = "read_grid";
       grid = {
         data: (await readFile(output)).toString("base64"),
         mimeType: "image/png",
@@ -314,13 +298,12 @@ export async function inspectMedia(service: Service, c: Context, raw: unknown) {
       ],
     };
   } catch (error) {
-    if (error instanceof AppError) throw error;
-    throw new AppError(
-      "MEDIA_FAILED",
-      "Local inspection failed or timed out; use fewer samples or a smaller source",
-    );
+    throw mediaFailure(error, stage);
   } finally {
     active--;
-    if (dir) await rm(dir, { recursive: true, force: true });
+    if (dir)
+      await rm(dir, { recursive: true, force: true }).catch(() => {
+        console.error("rikoko media inspection: temporary cleanup failed");
+      });
   }
 }

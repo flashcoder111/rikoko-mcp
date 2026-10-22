@@ -1306,3 +1306,66 @@
   grid-column: 2;
   grid-row: 1 / 3;
 }
+
+.composer-commands {
+  display: grid;
+  gap: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 10px;
+  margin-bottom: 8px;
+  border: 1px solid #596174;
+  border-radius: 10px;
+}
+.composer-commands-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.composer-commands > button,
+.composer-model-group > button {
+  display: grid;
+  gap: 3px;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  padding: 8px 10px;
+}
+.composer-commands span,
+.composer-commands p {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.composer-commands > button:focus-visible,
+.composer-model-group > button:focus-visible {
+  outline: 2px solid #8fafff;
+  outline-offset: -2px;
+}
+.composer-model-group {
+  display: grid;
+  gap: 6px;
+}
+.composer-model-group > button[aria-pressed="true"] {
+  outline: 2px solid #8fafff;
+  outline-offset: -2px;
+}
+.composer-speech-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  font-size: 12px;
+}
+.composer-speech-controls label {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.composer-speech-controls input {
+  width: 170px;
+  max-width: 100%;
+}
+.composer-speech-controls > span {
+  flex-basis: 100%;
+  color: var(--muted, #777);
+}

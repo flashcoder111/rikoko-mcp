@@ -1,4 +1,6 @@
 import { requireGenerationPreparation } from "../../core/src/generation-policy.js";
+import { assertVideoPolicy } from "../../providers/src/video-policy.js";
+import { remapVideoPolicy } from "../../contracts/src/video-policy.js";
 import { requireGeminiUnderstanding } from "../../core/src/reference-handoff.js";
 import { randomUUID } from "node:crypto";
 import { Service, fingerprint } from "../../core/src/index.js";
@@ -115,14 +117,24 @@ export class GatewayClient {
     input: Operation,
     prepared?: Entity,
   ) {
-    if (input.kind !== "generate" || this.service.allowLegacyGeneration) return;
-    const kind =
-      prepared?.providerRequest?.kind ??
-      (await this.models(c)).find((model: any) => model.id === input.model)
-        ?.kind;
+    if (input.kind !== "generate") return;
+    const assets = await Promise.all(
+      (input.references ?? []).map((r) =>
+        this.service.get(c, "asset", r.assetId),
+      ),
+    );
+    const model = (await this.models(c)).find(
+      (model: any) => model.id === input.model,
+    );
+    const kind = model?.kind;
     if (!kind)
       throw new AppError("CAPABILITY_UNAVAILABLE", "Unknown cloud model");
-    requireGenerationPreparation(input, kind, false);
+    assertVideoPolicy(model, input, assets);
+    requireGenerationPreparation(
+      input,
+      kind,
+      this.service.allowLegacyGeneration,
+    );
   }
   async quote(c: Context, raw: unknown) {
     await this.service.scoped(c, "write", async () => {});
@@ -231,6 +243,14 @@ export class GatewayClient {
           ...input.references[i],
           assetId: await this.upload(c, referenceAssets[i]),
         });
+      if (input.videoPolicy)
+        remoteInput.videoPolicy = remapVideoPolicy(
+          input.videoPolicy,
+          input.references.map((r, i) => ({
+            sourceAssetId: r.assetId,
+            assetId: remoteInput.references![i].assetId,
+          })),
+        );
     }
     // Storyboards and visual review remain local; the cloud receives only the validated generation operation.
     if (remoteInput.kind === "generate") delete remoteInput.storyboard;
@@ -254,7 +274,7 @@ export class GatewayClient {
   }
   async submit(
     c: Context,
-    p: { quoteId: string; idempotencyKey: string; input: unknown },
+    p: { quoteId?: string; idempotencyKey: string; input: unknown },
   ) {
     await this.service.scoped(c, "write", async () => {});
     const input = operationSchema.parse(p.input);
@@ -264,9 +284,6 @@ export class GatewayClient {
         "INVALID_CAPABILITY",
         "云端支持媒体生成与参考视频分析",
       );
-    const q = await this.service.get(c, "quote", p.quoteId);
-    if (q.cloudOrigin !== this.origin || q.inputHash !== fingerprint(input))
-      throw new AppError("QUOTE_MISMATCH", "云端报价与请求不一致", 409);
     const id = `cloud-${fingerprint([c.accountId, this.origin, p.idempotencyKey])}`;
     const existing = await this.service.scoped(c, "read", (tx) =>
       tx.get(id, c.accountId, "job"),
@@ -276,8 +293,12 @@ export class GatewayClient {
         throw new AppError("IDEMPOTENCY_CONFLICT", "重复请求内容不同", 409);
       return existing;
     }
+    const q = p.quoteId
+      ? await this.service.get(c, "quote", p.quoteId)
+      : await this.quote(c, input);
+    if (q.cloudOrigin !== this.origin || q.inputHash !== fingerprint(input))
+      throw new AppError("QUOTE_MISMATCH", "云端报价与请求不一致", 409);
     const prepared = await this.preparations.validate(c, input);
-    await this.enforceGenerationPolicy(c, input, prepared);
     if (
       prepared &&
       (q.preparedRequestId !== prepared.id ||
@@ -289,6 +310,7 @@ export class GatewayClient {
         409,
       );
     await this.references(c, input, q.referenceAssets ?? []);
+    await this.enforceGenerationPolicy(c, input, prepared);
     if (input.kind === "reference_analyze") {
       requireGeminiUnderstanding(q.analysisUpstreamModel);
       const model = (await this.models(c)).find(

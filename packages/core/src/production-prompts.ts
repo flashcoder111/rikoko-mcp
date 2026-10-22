@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { directorKitSchema, renderDirectorKit } from "./director-kits.js";
 import { AppError, idSchema } from "../../contracts/src/index.js";
 import { referenceRoleSchema } from "../../contracts/src/generation.js";
 import {
@@ -66,6 +67,15 @@ export const promptInputSchema = z
     ]),
     subject: z.string().trim().min(1).max(1500),
     action: z.string().trim().min(1).max(1500),
+    sceneDirection: z
+      .string()
+      .trim()
+      .min(1)
+      .max(3000)
+      .optional()
+      .describe(
+        "Complete shot-local scene prose: subject/setting, starting arrangement, visible action and timing, settled ending and camera. Replaces their separate prose in the video prompt; structured state remains available for validation. Explicit constraints, process, kit and reference bindings still apply.",
+      ),
     initialState: promptStateSchema.optional(),
     endState: promptStateSchema.refine(
       (v) => typeof v !== "string" || v.trim().length > 0,
@@ -77,6 +87,7 @@ export const promptInputSchema = z
     editing: z.string().trim().min(1).max(3000).optional(),
     actionType: z.string().max(100).optional(),
     references: z.array(promptReferenceSchema).max(12).default([]),
+    directorKit: directorKitSchema.optional(),
   })
   .strict();
 const wording = {
@@ -150,14 +161,25 @@ export function compilePrompt(
       ["motion", "source_video"].includes(r.role) ? ++video : ++image,
     ),
   }));
+  const kit = input.directorKit
+    ? renderDirectorKit(input.directorKit, input.mode)
+    : undefined;
   const prompt = [
-    wording[input.mode],
-    `Subject: ${input.subject}`,
-    input.setting && `Setting: ${input.setting}`,
-    input.initialState && `At the start: ${renderState(input.initialState)}`,
-    `Main action: ${input.action}`,
-    `Required final state: ${renderState(input.endState)}`,
-    input.camera && `Camera: ${input.camera}`,
+    kit?.text,
+    input.mode === "image_to_video" && input.process?.operations.length === 0
+      ? "Preserve the supplied first frame's completed state. Only the explicitly described camera movement or micro-motion is allowed; do not introduce objects or begin an operation."
+      : wording[input.mode],
+    ...(input.sceneDirection
+      ? [input.sceneDirection]
+      : [
+          `Subject: ${input.subject}`,
+          input.setting && `Setting: ${input.setting}`,
+          input.initialState &&
+            `At the start: ${renderState(input.initialState)}`,
+          `Main action: ${input.action}`,
+          `Required final state: ${renderState(input.endState)}`,
+          input.camera && `Camera: ${input.camera}`,
+        ]),
     input.constraints && `Keep these constraints: ${input.constraints}`,
     input.process && renderProcessDirection(input.process),
     input.editing && `Editing direction: ${input.editing}`,
@@ -174,16 +196,33 @@ export function compilePrompt(
       "Split the shot or shorten its declared direction to fit 5000 characters; process and editing constraints are never truncated",
     );
   return {
-    templateVersion:
-      input.process || input.editing
-        ? "rikoko-direction-v3"
-        : "rikoko-direction-v2",
-    compilerVersion:
-      input.process || input.editing
-        ? "rikoko-prompt-compiler-v3"
-        : "rikoko-prompt-compiler-v2",
+    templateVersion: input.sceneDirection
+      ? "rikoko-scene-direction-v1"
+      : kit
+        ? `rikoko-director-${kit.id}-r${kit.version}`
+        : input.process || input.editing
+          ? "rikoko-direction-v3"
+          : "rikoko-direction-v2",
+    compilerVersion: input.sceneDirection
+      ? "rikoko-prompt-compiler-v5"
+      : kit
+        ? "rikoko-prompt-compiler-v4"
+        : input.process || input.editing
+          ? "rikoko-prompt-compiler-v3"
+          : "rikoko-prompt-compiler-v2",
     referenceSyntax: syntax,
     direction: input,
+    ...(kit
+      ? {
+          directorKit: {
+            id: kit.id,
+            version: kit.version,
+            recipe: kit.recipe,
+            validation: kit.validation,
+            requirements: kit.requirements,
+          },
+        }
+      : {}),
     readyForSubmission: false,
     prompt,
     bindings,

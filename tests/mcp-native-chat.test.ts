@@ -64,7 +64,9 @@ it.each(["codex", "hermes", "claude", "generic"])(
       expect(tools.tools.every((tool) => !tool._meta)).toBe(true);
       expect(client.getServerCapabilities()?.resources).toBeUndefined();
       expect(client.getInstructions()).toContain("original conversation");
-      expect(client.getInstructions()).toContain("deliver the video");
+      expect(client.getInstructions()).toContain(
+        "Deliver technically ready media",
+      );
       for (const name of ["rikoko_create", "rikoko_resume"]) {
         const prompt = await client.getPrompt({
           name,
@@ -73,7 +75,9 @@ it.each(["codex", "hermes", "claude", "generic"])(
               ? { request: "Make a local clip" }
               : { projectId: "project" },
         });
-        expect(JSON.stringify(prompt)).toContain("deliver the video");
+        expect(JSON.stringify(prompt)).toContain(
+          "workspace_result purpose=final",
+        );
       }
       const committed = await client.callTool({
         name: "workspace_commit",

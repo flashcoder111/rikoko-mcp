@@ -1,6 +1,8 @@
 import { validateRemakeEvidence } from "./reference-handoff.js";
+import { validateProductionRequest } from "./production-request.js";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
+import { continuityCutIssue } from "./production-continuity.js";
 import {
   AppError,
   idSchema,
@@ -98,6 +100,7 @@ export async function productionScopeState(
   if (!scope)
     return { project, scope: undefined, plan: undefined, hash: undefined };
   const plan = await tx.get(scope.planId, accountId, "production-plan");
+  if (plan) await validateProductionRequest(tx, accountId, plan);
   const hash = fingerprint({
     scope,
     planVersion: plan?.version,
@@ -344,6 +347,27 @@ export async function inspectProductionScope(
       "PRODUCTION_TARGET_MISMATCH",
       "Composition dimensions differ from the formal target",
     );
+  if (plan?.plan.method?.kind === "source_edit") {
+    const scenes = revision.composition.scenes;
+    const source = plan.plan.method.source;
+    if (
+      scenes.length !== plan.plan.shots.length ||
+      scenes.reduce((n: number, s: any) => n + s.durationMs, 0) !==
+        source?.durationMs ||
+      scenes.some(
+        (scene: any, i: number) =>
+          scene.productionShotId !== plan.plan.shots[i]?.id ||
+          scene.durationMs !== plan.plan.shots[i]?.durationMs ||
+          (scene.speed ?? 1) !== 1 ||
+          (scene.sourceStartMs ?? 0) !== 0 ||
+          scene.fit === "cover",
+      )
+    )
+      add(
+        "SOURCE_EDIT_TIMELINE_MISMATCH",
+        "Source editing inherits the original timeline at native speed without cropping. Assemble with production_editing_preview; do not repair motion with retiming.",
+      );
+  }
   if (plan) {
     try {
       await validateRemakeEvidence(
@@ -410,6 +434,29 @@ export async function inspectProductionScope(
         "PRODUCTION_SHOT_MISSING",
         `Target shot ${shot.id} is absent from the composition`,
       );
+  for (const shot of plan?.plan.shots ?? []) {
+    const anchor = shot.process?.stateAnchor;
+    if (anchor?.mode !== "previous_end") continue;
+    const index = revision.composition.scenes.findIndex(
+      (s: any) => s.productionShotId === shot.id,
+    );
+    const previous = revision.composition.scenes[index - 1];
+    if (!previous || previous.productionShotId !== anchor.previousShotId)
+      continue; // Ordering checks report this separately.
+    const frame = anchor.assetId
+      ? await tx.get(anchor.assetId, accountId, "asset")
+      : undefined;
+    const source = previous.assetId
+      ? await tx.get(previous.assetId, accountId, "asset")
+      : undefined;
+    const issue = continuityCutIssue(frame, source, previous);
+    if (issue)
+      add(
+        "CONTINUITY_EDIT_ENDPOINT_MISMATCH",
+        issue,
+        revision.composition.scenes[index].id,
+      );
+  }
   if (plan?.plan.process || plan?.plan.editing) {
     const order = revision.composition.scenes
       .map((s: any) => s.productionShotId)

@@ -14,7 +14,7 @@ TikTok 单视频和分享链接可通过现有素材导入入口交给本地 Wor
 
 视频优先保留生成模型原生声音；后期修改或替换配音默认采用 **ElevenLabs Eleven v3**，不提供本地系统配音。新增 **ElevenLabs Music 配乐、Sound Effects V2 音效、MiniMax Voice Clone 克隆音色及复用**的 fal 档案与本地时间线支持。新档案待核价和真实生成验收；既有 MiniMax 配音、Scribe v2 转写的历史验收保持原记录。见[声音流程说明](docs/speech.md)。
 
-rikoko 是可自部署的视频创作 MCP，提供可选剪辑工作台。用户在 Codex、Hermes 或 Claude 原对话中提出要求、查看状态和继续修改；支持的客户端安装后可使用 rikoko Skill（Codex 支持时用 `$rikoko`，Claude Code/Hermes 用 `/rikoko`）；Claude Desktop 通过普通 MCP 工具和 `rikoko_guide` 读取同一份导演指引。完成时在原对话交付视频附件或媒体链接，并始终附上可点击的本地浏览器工作台链接，供用户自行打开修改；用户也可要求只返回链接。不自动弹出 MCP 窗口、注册卡片播放器或另开网页对话。客户端适配与安装见 [三端接入](examples/clients/README.md)，交互验收见 [原对话与工作台链接](docs/acceptance/native-conversation.md)。实现计划见 [计划书](plans/框架搭建与开源整合实施计划书.md)。
+rikoko 是可自部署的视频创作 MCP，提供可选剪辑工作台。用户在 Codex、Hermes 或 Claude 原对话中提出要求、查看状态和继续修改；所有客户端通过 MCP 工具 `rikoko_guide` 按需读取执行后端的导演指南，无需安装独立 Skill；宿主 Agent 负责创意与决策。完成时在原对话交付视频附件或媒体链接，并始终附上可点击的本地浏览器工作台链接，供用户自行打开修改；用户也可要求只返回链接。不自动弹出 MCP 窗口、注册卡片播放器或另开网页对话。客户端适配与安装见 [三端接入](examples/clients/README.md)，交互验收见 [原对话与工作台链接](docs/acceptance/native-conversation.md)。实现计划见 [计划书](plans/框架搭建与开源整合实施计划书.md)。
 
 本仓库新增原创实现，不复制 Hypit 的源代码、Skill 或示例。原有 `plans/`、`research/`、`outputs/` 保留。
 
@@ -23,7 +23,7 @@ rikoko 是可自部署的视频创作 MCP，提供可选剪辑工作台。用户
 在 macOS 或 Linux/WSL 终端执行：
 
 ```sh
-curl -fsSL https://github.com/flashcoder111/video-workbench/releases/latest/download/install.sh | bash
+curl -fsSL https://github.com/flashcoder111/rikoko-mcp/releases/latest/download/install.sh | bash
 ```
 
 安装器从 GitHub Release 下载并校验版本包、准备依赖、注册检测到的 Codex/Claude MCP，自动启动本地服务并导出免费样片。安装后重载客户端 MCP，通过当前宿主的技能入口或自然语言使用 rikoko。指定客户端可把末尾的 `bash` 改为 `bash -s -- --client codex`、`bash -s -- --client claude-code` 或 macOS 的 `bash -s -- --client claude-desktop`。
@@ -88,7 +88,7 @@ make verify-local
 make verify-service
 ```
 
-`verify-media-ai`、`verify-live`、`verify-clients` 和 `verify-release` 对尚未完成的必选验收返回非零退出码和具体缺项，不把跳过计作通过。`pnpm demo` 使用真实媒体处理，但记录的是本地子检查，不代替计划书中的长原片、人工金标准或真实供应商验收。
+`pnpm verify release --automated` 执行构建、完整回归、真实媒体测试以及隔离安装、升级和失败回退，生成绑定源码指纹的报告。`pnpm verify release` 另要求真实客户端、干净机器和发行许可验收证据；生成版使用 `--scope generation` 并补充真实模型验收，缺项返回非零。详见 [发布验收](docs/architecture/release-verification.md)。`verify-media-ai`、`verify-live`、`verify-clients` 不自动执行人工或付费验收，也不会根据历史状态推断当前环境。`pnpm demo` 使用真实媒体处理，但记录的是本地子检查，不代替计划书中的长原片、人工金标准或真实供应商验收。
 
 ## MCP 与 HTTP
 
@@ -100,7 +100,7 @@ make verify-service
 
 默认对话链路是 `workspace_commit` → `workspace_result`；继续修改前 `workspace_snapshot`，提交时带上最新 `baseRevisionId`。可选 `workspace_plan` 先取得可审阅方案。
 
-底层独立操作链路是 `project_create` → `plan_create` / `revision_create` → `quote_create` → `job_submit` → `record_get(type=job)`。重连使用原 `job_id`；重提使用原幂等键。同键不同内容会报冲突。支持表与配置例子见 [客户端说明](examples/clients/README.md)。
+底层独立操作链路是 `project_create` → `plan_create` / `revision_create` → `job_submit` → `record_get(type=job)`。默认直接提交，无需单独报价或确认费用；只有用户明确询价时才使用 `quote_create`。内部请求校验、额度预留和费用结算继续生效。重连使用原 `job_id`；重提使用原幂等键。同键不同内容会报冲突。支持表与配置例子见 [客户端说明](examples/clients/README.md)。
 
 ## 付费供应商
 
@@ -126,7 +126,7 @@ fal 响应不等于最终账单。本实现保留待核对费用与预留额度�
 
 The default route is a white inline-results conversation. `/workspace?project=...` opens the dark assistant/player/timeline/media workspace. The editor supports draft undo/redo, split/trim/reorder, captions, sound, format, fit, annotated frame attachments and immutable saved exports. On phones, switch between preview, conversation, editing and media using the bottom tabs.
 
-MiniMax H3 fixed profiles are now registered by default, while paid execution remains disabled by default. Configure `FAL_KEY` and `ENABLE_PAID_PROVIDERS=true` **only after authorizing a test budget**. Existing account balance and key limits are still enforced. A custom `FAL_MODELS_FILE` replaces the default profiles. The reviewed profile uses `minimax/h3/text-to-video`, 768P, 5 seconds, and a maximum US$0.30 quote (public rate checked 2026-10-11). Review current provider pricing before enabling it later.
+Video selection defaults to compatible Seedance Mini for face-free tasks. Faces or unknown face status block every Seedance variant: recommend MiniMax, offer Kling, and obtain or reuse the user’s explicit model choice through `video_model_resolve`. New Seedance Mini profiles are registered with unconfirmed cost bounds and cannot execute until reviewed/configured; existing MiniMax H3 profiles remain available under their existing configuration. Paid execution remains disabled by default. Configure `FAL_KEY` and `ENABLE_PAID_PROVIDERS=true` **only after authorizing a test budget**. Existing account balance and key limits are still enforced. A custom `FAL_MODELS_FILE` replaces the default profiles. The reviewed profile uses `minimax/h3/text-to-video`, 768P, 5 seconds, and a maximum US$0.30 quote (public rate checked 2026-10-11). Review current provider pricing before enabling it later.
 
 Detailed implementation, source observations, test evidence and external-service boundaries: [UI replica acceptance](docs/acceptance/ui-replica.md). Local H3 example media is identified as a public fal sample, not a new generation. `scripts/h3-ui-fixture.ts` imports the already-downloaded local sample through the normal authenticated upload path; it never purchases a generation.
 

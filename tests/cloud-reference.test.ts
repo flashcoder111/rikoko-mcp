@@ -6,6 +6,7 @@ import { Database } from "../packages/db/src/index.js";
 import { Service } from "../packages/core/src/index.js";
 import { LocalStorage } from "../packages/storage/src/index.js";
 import { GatewayClient } from "../packages/cloud-client/src/gateway.js";
+import { faceFreeFixturePolicy } from "./video-policy-fixture.js";
 let db: Database, service: Service, dir: string, c: any, asset: any;
 const bytes = Buffer.from("reference-test-bytes");
 const remote: any[] = [];
@@ -32,6 +33,19 @@ beforeEach(async () => {
     expect(init.redirect).toBe("error");
     expect(init.headers).toMatchObject({ Authorization: "Bearer cloud-test" });
     const path = new URL(url).pathname;
+    if (path === "/v1/generation-models")
+      return Response.json([
+        {
+          id: "reference-model",
+          name: "MiniMax reference",
+          kind: "video",
+          available: true,
+          generationInput: {
+            mode: "image_to_video",
+            references: [{ roles: ["first_frame"], kind: "image" }],
+          },
+        },
+      ]);
     if (path === "/v1/reference-uploads")
       return Response.json({ id: "upload-1" });
     if (path === "/v1/reference-uploads/upload-1") {
@@ -67,6 +81,20 @@ const input = () => ({
   mode: "image_to_video",
   prompt: "Animate the product",
   references: [{ assetId: asset.id, role: "first_frame" }],
+  videoPolicy: faceFreeFixturePolicy([asset]),
+});
+it("submits directly through the cloud and retries without another quote or purchase", async () => {
+  const request = { input: input(), idempotencyKey: "direct-cloud" };
+  const job = await gateway.submit(c, request);
+  const retry = await gateway.submit(c, request);
+  expect(retry.id).toBe(job.id);
+  expect(remote).toHaveLength(2);
+  expect(remote[1].quoteId).toBe("remote-quote");
+  expect(remote[1].input.references[0].assetId).toBe("remote-asset");
+  await expect(
+    gateway.submit(c, { ...request, input: { ...input(), prompt: "Changed" } }),
+  ).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
+  expect(remote).toHaveLength(2);
 });
 it("uploads owned bytes once, binds remote references to the quote and retries without repurchasing", async () => {
   const q = await gateway.quote(c, input());
@@ -190,7 +218,11 @@ it("rejects read-only callers and corrupt local bytes before uploading", async (
   await expect(gateway.quote(c, input())).rejects.toMatchObject({
     code: "REFERENCE_CHANGED",
   });
-  expect(fetcher).not.toHaveBeenCalled();
+  expect(
+    fetcher.mock.calls.every(
+      ([url]) => new URL(url).pathname === "/v1/generation-models",
+    ),
+  ).toBe(true);
 });
 it("rejects a cloud upload with a mismatched hash before quoting", async () => {
   const delegate = fetcher.getMockImplementation()!;

@@ -1,3 +1,4 @@
+import SaveTemplate from "./SaveTemplate";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Scissors,
@@ -34,6 +35,8 @@ import { latestJob, type Snapshot } from "./api";
 import { AssetThumb } from "./media";
 import StudioPlayer, { Filmstrip, timestamp } from "./StudioPlayer";
 import AudioControls from "./AudioControls";
+import CaptionStyleControls from "./CaptionStyleControls";
+import HermesHandoff from "./HermesHandoff";
 import {
   assetCategories,
   matchesAsset,
@@ -47,6 +50,7 @@ export default function Editor({
   onEdit,
   onRestore,
   onViewRevision,
+  onLatest,
   chat,
 }: {
   snapshot?: Snapshot;
@@ -57,6 +61,7 @@ export default function Editor({
   onEdit: (edits: Edit[], message: string) => void;
   onRestore: (id: string) => void;
   onViewRevision: (id: string) => void;
+  onLatest?: () => void;
   chat: ChatProps;
 }) {
   const revision = snapshot?.revision;
@@ -77,8 +82,7 @@ export default function Editor({
     [mobile, setMobile] = useState("preview"),
     [zoom, setZoom] = useState(1),
     [selectedAssetId, setSelectedAssetId] = useState("");
-  const [caption, setCaption] = useState(""),
-    [trimStart, setTrimStart] = useState(0),
+  const [trimStart, setTrimStart] = useState(0),
     [trimEnd, setTrimEnd] = useState(0);
   const [loadedRevision, setLoadedRevision] = useState("");
   const pendingSave = useRef("");
@@ -140,7 +144,6 @@ export default function Editor({
     }
   }, [history, cursor, revision?.id, loadedRevision, historical]);
   useEffect(() => {
-    setCaption(scene?.text ?? "");
     setTrimStart(0);
     setTrimEnd((scene?.durationMs ?? 0) / 1000);
   }, [scene?.id, scene?.text, scene?.durationMs]);
@@ -154,6 +157,7 @@ export default function Editor({
         last &&
         [
           "style",
+          "caption",
           "scene_audio",
           "music",
           "format",
@@ -277,7 +281,7 @@ export default function Editor({
   const selectedAsset = assets.find((a) => a.id === selectedAssetId);
   return (
     <div
-      className={`replica-studio ${side ? "media-side" : ""} mobile-${mobile}`}
+      className={`replica-studio ${side ? "media-side" : ""} ${inspector ? "has-inspector" : ""} mobile-${mobile}`}
     >
       <nav className="studio-mobile-tabs" aria-label="工作台面板">
         {[
@@ -299,8 +303,17 @@ export default function Editor({
         ))}
       </nav>
       <aside className="vizard-chat">
+        <HermesHandoff
+          key={`handoff:${snapshot?.project.id ?? "new"}`}
+          snapshot={snapshot}
+          selectedSceneId={scene?.id}
+          assetIds={chat.attachments.map((asset) => asset.id)}
+          draft={chat.draft}
+          blocked={dirty || !!busy || historical}
+          dirty={dirty}
+        />
         <Chat
-          key={snapshot?.project.id ?? "new"}
+          key={`chat:${snapshot?.project.id ?? "new"}`}
           {...chat}
           embedded
           selectedSceneId={scene?.id}
@@ -336,6 +349,26 @@ export default function Editor({
           />
           <div className="edit-status">
             <button
+              disabled={!scene || historical || !!busy}
+              onClick={() => {
+                setInspector("caption");
+                setMobile("timeline");
+              }}
+            >
+              <Type size={13} />
+              改文案
+            </button>
+            <button
+              disabled={!scene || historical || !!busy}
+              onClick={() => {
+                setInspector("audio");
+                setMobile("timeline");
+              }}
+            >
+              <Music2 size={13} />
+              换音乐
+            </button>
+            <button
               className={timelineEditing ? "active" : ""}
               onClick={() => setTimelineEditing(!timelineEditing)}
             >
@@ -348,7 +381,7 @@ export default function Editor({
                 : historical
                   ? "正在查看历史版本"
                   : job?.status === "completed"
-                    ? "All changes saved"
+                    ? "修改已保存"
                     : "可直接在时间线上编辑"}
             </span>
             <button
@@ -359,10 +392,17 @@ export default function Editor({
               <History size={13} />{" "}
               {revision ? `Version ${revision.version}` : "版本"}
             </button>
+            {revision && (
+              <SaveTemplate
+                revisionId={revision.id}
+                title={revision.composition.title}
+                disabled={dirty || !!busy}
+              />
+            )}
             {dirty && (
               <button className="pink" disabled={!!busy} onClick={save}>
                 <Save size={13} />
-                保存并生成预览
+                保存并合成预览
               </button>
             )}
             {job?.status === "completed" && !dirty && (
@@ -375,6 +415,20 @@ export default function Editor({
               </a>
             )}
           </div>
+          <p className="edit-render-note">
+            改文案、换音乐会复用现有素材，只重新合成视频，不会重新生成画面。
+          </p>
+          {historical && onLatest && (
+            <div className="workspace-latest" role="status">
+              作品已有新版本。
+              {dirty
+                ? "请先保留当前草稿，再查看最新修改。"
+                : "可载入 Hermes 或其他页面保存的最新修改。"}
+              <button disabled={dirty || !!busy} onClick={onLatest}>
+                载入最新版本
+              </button>
+            </div>
+          )}
         </div>
         <section
           className={`editing-timeline ${timelineEditing ? "expanded" : "compact-timeline"}`}
@@ -855,52 +909,35 @@ export default function Editor({
               {(inspector === "caption" || inspector === "clip") && (
                 <>
                   <label>
-                    字幕
+                    文案 / 字幕
                     <textarea
                       aria-label="镜头字幕"
-                      value={caption}
-                      onChange={(e) => setCaption(e.target.value)}
+                      value={scene?.text ?? ""}
+                      maxLength={1000}
+                      onChange={(e) =>
+                        scene &&
+                        edit([
+                          {
+                            type: "caption",
+                            sceneId: scene.id,
+                            text: e.target.value,
+                          },
+                        ])
+                      }
                       rows={3}
                     />
                   </label>
-                  <button
-                    className="pink wide"
-                    disabled={caption === scene?.text}
-                    onClick={() =>
-                      scene &&
-                      edit([
-                        { type: "caption", sceneId: scene.id, text: caption },
-                      ])
-                    }
-                  >
-                    应用字幕
-                  </button>
-                  <div className="input-pair">
-                    <label>
-                      字号
-                      <input
-                        type="number"
-                        min={12}
-                        max={96}
-                        value={composition?.captionStyle.fontSize ?? 28}
-                        onChange={(e) =>
-                          edit([
-                            { type: "style", fontSize: Number(e.target.value) },
-                          ])
-                        }
-                      />
-                    </label>
-                    <label>
-                      文字颜色
-                      <input
-                        type="color"
-                        value={composition?.captionStyle.color ?? "#ffffff"}
-                        onChange={(e) =>
-                          edit([{ type: "style", color: e.target.value }])
-                        }
-                      />
-                    </label>
-                  </div>
+                  <p className="edit-help">
+                    输入后即时预览，保存时一起应用。这里只修改独立字幕，不会改变配音或视频画面里的文字。
+                  </p>
+                  {composition && (
+                    <CaptionStyleControls
+                      key={revision?.id}
+                      style={composition.captionStyle}
+                      assets={assets}
+                      onChange={(style) => edit([{ type: "style", ...style }])}
+                    />
+                  )}
                 </>
               )}
               {inspector === "clip" && (
@@ -1055,6 +1092,7 @@ export default function Editor({
                   <label>
                     背景音乐
                     <select
+                      aria-label="背景音乐"
                       value={composition?.audio?.assetId ?? ""}
                       onChange={(e) =>
                         edit([
@@ -1076,6 +1114,23 @@ export default function Editor({
                         ))}
                     </select>
                   </label>
+                  <label className="music-upload">
+                    <Plus size={14} />
+                    上传音乐
+                    <input
+                      type="file"
+                      accept="audio/*"
+                      aria-label="上传背景音乐"
+                      onChange={(e) => {
+                        if (e.target.files?.length)
+                          chat.onUpload(e.target.files);
+                        e.target.value = "";
+                      }}
+                    />
+                  </label>
+                  <p className="edit-help">
+                    上传完成后在上方选择音乐，播放预览即可试听。原视频中混合的人声与音乐会一起受“原声音量”影响。
+                  </p>
                   {composition?.audio && (
                     <label>
                       配乐音量 · {Math.round(composition.audio.gain * 100)}%
@@ -1105,9 +1160,11 @@ export default function Editor({
               onClick={save}
             >
               <Save size={14} />
-              保存并生成预览
+              保存并合成预览
             </button>
-            <p>编辑可撤销。保存后创建新版本。</p>
+            <p>
+              复用现有素材，不会重新生成画面。保存后创建新版本，可撤销编辑或恢复历史版本。
+            </p>
           </footer>
         </aside>
       )}

@@ -1,3 +1,8 @@
+import {
+  publicError,
+  publicErrorSchema,
+  RemoteAppError,
+} from "../../contracts/src/error-contract.js";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { AppError } from "../../contracts/src/index.js";
@@ -69,11 +74,37 @@ export class HostConnection {
       },
       signal: AbortSignal.timeout(60_000),
       redirect: "error",
+    }).catch(() => {
+      throw new AppError(
+        "BACKEND_TRANSPORT_ERROR",
+        "Backend connection failed or timed out; the operation outcome may be unknown. Read existing records before retrying a write.",
+        502,
+      );
     });
     if (!response.ok) {
       const body = (await response.json().catch(() => ({}))) as {
         error?: { code?: string; message?: string };
       };
+      const parsed = publicErrorSchema.safeParse(body.error);
+      if (
+        response.status === 404 &&
+        path.startsWith("/api/tools/") &&
+        body.error?.code === "NOT_FOUND" &&
+        body.error.message === "Tool not found"
+      ) {
+        const detail = publicError(
+          new AppError(
+            "BACKEND_TOOL_UNAVAILABLE",
+            "This MCP tool is not available in the running backend. The bridge and backend may be on different runtime versions.",
+            404,
+            { stage: "backend_dispatch", reason: "tool_not_available" },
+          ),
+        );
+        if (parsed.success) detail.traceId = parsed.data.traceId;
+        throw new RemoteAppError(detail, response.status);
+      }
+      if (parsed.success)
+        throw new RemoteAppError(parsed.data, response.status);
       throw new AppError(
         body.error?.code ?? "BACKEND_ERROR",
         body.error?.message ?? `Backend returned ${response.status}`,
@@ -88,6 +119,17 @@ export class HostConnection {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input),
     });
-    return ((await response.json()) as { result: unknown }).result;
+    try {
+      const body = await response.json();
+      if (!body || typeof body !== "object" || !("result" in body))
+        throw Error("Missing result");
+      return body.result;
+    } catch {
+      throw new AppError(
+        "BACKEND_RESPONSE_INVALID",
+        "Backend returned an unreadable or incomplete JSON result. Inspect existing state before retrying a write.",
+        502,
+      );
+    }
   }
 }

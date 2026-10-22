@@ -1,17 +1,30 @@
 import { serve } from "@hono/node-server";
-import { resolve } from "node:path";
+import { resolve, dirname } from "node:path";
+import { assertUpgradeAccess } from "../../../packages/bootstrap/src/upgrade.js";
 import { writeFile, readFile, unlink } from "node:fs/promises";
 import { openRuntime } from "./runtime.js";
 import { createApp } from "./app.js";
 import { Worker } from "../../worker/src/worker.js";
 // Bind before opening PGlite: only one concurrent managed launcher can proceed.
+await assertUpgradeAccess(
+  dirname(resolve(process.env.DATA_DIR ?? ".data")),
+  process.env.RIKOKO_UPGRADE_TOKEN,
+);
 let app: ReturnType<typeof createApp> | undefined;
 let runtime: Awaited<ReturnType<typeof openRuntime>> | undefined;
 let worker: Worker | undefined;
 let running: Promise<void> | undefined;
 const server = serve({
-  fetch: (request) =>
-    app ? app.fetch(request) : new Response("Starting", { status: 503 }),
+  fetch: (request) => {
+    if (
+      process.env.RIKOKO_UPGRADE_VERIFY === "1" &&
+      new URL(request.url).pathname !== "/health" &&
+      request.headers.get("x-rikoko-upgrade-token") !==
+        process.env.RIKOKO_UPGRADE_TOKEN
+    )
+      return new Response("Upgrade verification in progress", { status: 503 });
+    return app ? app.fetch(request) : new Response("Starting", { status: 503 });
+  },
   hostname: process.env.HOST ?? "127.0.0.1",
   port: Number(process.env.PORT ?? 4310),
 });
@@ -20,8 +33,8 @@ async function shutdown() {
   if (stopping) return;
   stopping = true;
   worker?.stop();
-  server.close();
-  await running;
+  const closed = new Promise<void>((done) => server.close(() => done()));
+  await Promise.all([running, closed]);
   await runtime?.db.close();
   const pidFile = process.env.VIDEOWORKBENCH_PID_FILE;
   if (

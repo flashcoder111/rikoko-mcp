@@ -1,7 +1,22 @@
 import { z } from "zod";
-import { idSchema } from "../../contracts/src/index.js";
+import { creativeChoiceSchema } from "./production-intent.js";
+import {
+  productionMethodSchema,
+  methodPlanIssues,
+  methodDirection,
+} from "./production-method.js";
+import {
+  referenceChoiceSchema,
+  shotReferenceCheck,
+} from "./shot-reference-choice.js";
+import {
+  imageDirectorKitSchema,
+  videoDirectorKitSchema,
+} from "./director-kits.js";
+import { AppError, idSchema } from "../../contracts/src/index.js";
 import {
   promptReferenceSchema,
+  promptInputSchema,
   productionStateSchema,
 } from "./production-prompts.js";
 import {
@@ -22,9 +37,11 @@ import {
 const state = productionStateSchema;
 export const productionPlanSchema = z
   .object({
+    creativeChoices: z.array(creativeChoiceSchema).max(30).optional(),
     title: z.string().min(1).max(160),
     width: z.number().int().min(144).max(1920),
     height: z.number().int().min(144).max(1920),
+    method: productionMethodSchema.optional(),
     remake: remakeSchema.optional(),
     process: productionProcessSchema.optional(),
     editing: productionEditingSchema.optional(),
@@ -35,6 +52,23 @@ export const productionPlanSchema = z
             id: idSchema,
             visualKind: z.enum(["media", "graphic"]).default("media"),
             sourceShotIds: z.array(idSchema).max(20).default([]),
+            referenceChoice: referenceChoiceSchema.optional(),
+            sourceVideo: z
+              .discriminatedUnion("strategy", [
+                z
+                  .object({
+                    strategy: z.literal("reference"),
+                    assetId: idSchema,
+                  })
+                  .strict(),
+                z
+                  .object({
+                    strategy: z.literal("reconstruct"),
+                    reason: z.string().trim().min(1).max(1000),
+                  })
+                  .strict(),
+              ])
+              .optional(),
             purpose: z.string().trim().min(1).max(1000).optional(),
             actionStages: z
               .array(z.string().trim().min(1).max(400))
@@ -45,14 +79,26 @@ export const productionPlanSchema = z
               .array(z.string().trim().min(1).max(500))
               .max(20)
               .optional(),
+            generationConstraints: z
+              .array(z.string().trim().min(1).max(500))
+              .max(20)
+              .optional(),
             productFactIndices: z
               .array(z.number().int().nonnegative())
               .max(30)
               .optional(),
             requirementUses: z.array(requirementUseSchema).max(50).optional(),
             process: processShotSchema.optional(),
+            promptKits: z
+              .object({
+                image: imageDirectorKitSchema.optional(),
+                video: videoDirectorKitSchema.optional(),
+              })
+              .strict()
+              .optional(),
             initialState: state,
             action: z.string().min(1).max(1500),
+            sceneDirection: promptInputSchema.shape.sceneDirection,
             endState: state,
             transition: z
               .enum(["continuous", "time_jump", "independent"])
@@ -76,7 +122,11 @@ export function validateProductionPlan(raw: unknown) {
     shotId: string;
     object?: string;
     message: string;
-  }[] = [...processValidation.issues, ...validateProductionEditing(plan)];
+  }[] = [
+    ...processValidation.issues,
+    ...validateProductionEditing(plan),
+    ...methodPlanIssues(plan),
+  ];
   const ids = new Set<string>();
   const known: Record<string, string> = Object.create(null);
   for (const shot of plan.shots) {
@@ -87,6 +137,23 @@ export function validateProductionPlan(raw: unknown) {
         message: "Target shot IDs must be unique",
       });
     ids.add(shot.id);
+    const videoRefs = shot.references.filter(
+      (ref) =>
+        ref.usage !== "analysis_only" &&
+        ["motion", "source_video"].includes(ref.role),
+    );
+    const sourceVideo = shot.sourceVideo;
+    if (
+      (sourceVideo?.strategy === "reference" &&
+        !videoRefs.some((ref) => ref.assetId === sourceVideo.assetId)) ||
+      (sourceVideo?.strategy === "reconstruct" && videoRefs.length > 0)
+    )
+      issues.push({
+        code: "SOURCE_VIDEO_STRATEGY_MISMATCH",
+        shotId: shot.id,
+        message:
+          "A reference strategy must bind its actual motion/source_video asset for generation; reconstruction must explain the omission and must not claim to send video.",
+      });
     if (shot.transition !== "continuous") {
       if (!shot.transitionReason)
         issues.push({
@@ -221,6 +288,12 @@ export function validateProductionPlan(raw: unknown) {
     plan,
     issues,
     recommendations: processValidation.recommendations,
+    referenceChecks: plan.shots
+      .filter((shot) => shot.visualKind === "media")
+      .map((shot) => ({
+        shotId: shot.id,
+        ...shotReferenceCheck(shot, plan.method),
+      })),
     valid: issues.length === 0,
     evidenceBoundary:
       "Checks declared continuity, process preconditions/effects, action budgets, editing intent and requirement coverage. The host must inspect actual frames and listen to audio to judge physical plausibility, timing and quality.",
@@ -233,35 +306,49 @@ export function productionShotDirection(
   shot: ProductionPlan["shots"][number],
   stage: "video" | "first_frame" | "last_frame" = "video",
 ) {
+  if (plan.method?.kind === "source_edit" && stage === "video")
+    return {
+      sceneDirection: [
+        methodDirection(plan.method),
+        shot.sceneDirection?.startsWith(methodDirection(plan.method))
+          ? shot.sceneDirection
+              .slice(methodDirection(plan.method).length)
+              .trim()
+          : shot.sceneDirection,
+        ...(shot.generationConstraints ?? []),
+        editingShotDirection(plan, shot.id, true),
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      action: plan.method.change,
+      initialState: shot.initialState,
+      endState: shot.endState,
+      references: shot.references,
+    };
   const authored =
-    shot.purpose || shot.actionStages || shot.acceptanceCriteria || plan.remake;
-  const uses = shot.requirementUses ?? [];
+    plan.method ||
+    shot.purpose ||
+    shot.actionStages ||
+    shot.acceptanceCriteria ||
+    shot.generationConstraints ||
+    plan.remake;
   const productFacts = plan.remake?.productFacts ?? [];
   const selectedProductFacts =
     shot.productFactIndices?.map((index) => productFacts[index]) ??
     productFacts;
   const process = processShotDirection(plan, shot, stage);
   const editing =
-    stage === "video" ? editingShotDirection(plan, shot.id) : undefined;
+    stage === "video"
+      ? editingShotDirection(plan, shot.id, !!shot.sceneDirection)
+      : undefined;
   const constraints = authored
     ? [
-        ...(stage === "video"
-          ? [
-              shot.purpose && `Shot purpose: ${shot.purpose}`,
-              ...(shot.acceptanceCriteria ?? []).map(
-                (x, i) => `Acceptance ${i + 1}: ${x}`,
-              ),
-              ...uses.map((use) => {
-                const r = plan.remake?.requirements.find(
-                  (r) => r.id === use.requirementId,
-                );
-                return (
-                  r &&
-                  `${r.mode === "preserve" ? "Preserve" : r.mode === "adapt" ? "Adapt" : "Creative choice"}: ${r.description}. Target application: ${use.application}${use.changeReason ? `. Change reason: ${use.changeReason}` : ""}`
-                );
-              }),
-            ]
+        // Review requirements and editorial intent remain in the plan and host response.
+        // Only deliberately authored on-screen constraints belong in provider prompts.
+        ...(plan.method && plan.method.kind !== "adaptation"
+          ? [methodDirection(plan.method)]
           : []),
+        ...(shot.generationConstraints ?? []),
         // Omission preserves existing plans. An explicit selection projects
         // only relevant facts; [] leaves their application to shot-local states
         // and requirements while retaining every fact in the canonical plan.
@@ -271,6 +358,9 @@ export function productionShotDirection(
         .join("\n")
     : undefined;
   return {
+    // Always bind absence too: a caller must not inject prose that replaces
+    // the saved states/action, including through a boundary-image draft.
+    sceneDirection: stage === "video" ? shot.sceneDirection : undefined,
     action:
       stage === "first_frame"
         ? "Depict the state before the main action begins"
@@ -282,6 +372,12 @@ export function productionShotDirection(
               : ""),
     initialState: stage === "last_frame" ? shot.endState : shot.initialState,
     endState: stage === "first_frame" ? shot.initialState : shot.endState,
+    ...(shot.promptKits
+      ? {
+          directorKit:
+            stage === "video" ? shot.promptKits.video : shot.promptKits.image,
+        }
+      : {}),
     references:
       stage === "video"
         ? shot.references
@@ -298,4 +394,41 @@ export function productionShotDirection(
     ...(process ? { process } : {}),
     ...(editing ? { editing } : {}),
   };
+}
+
+/** Do not silently rewrite mixed editorial/generation prose; make the host fix its plan. */
+export function assertEditorialSeparation(
+  plan: ProductionPlan,
+  shotId: string,
+  prompt: string,
+) {
+  const ending = plan.editing?.ending;
+  if (!ending?.shotIds.includes(shotId)) return;
+  const copy = [ending.brandText, ending.cta].filter(
+    (value): value is string => !!value?.trim(),
+  );
+  const containsCopy = copy.some((value) => {
+    const escaped = value.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(
+      `(?<![\\p{L}\\p{N}_])${escaped}(?![\\p{L}\\p{N}_])`,
+      "iu",
+    ).test(prompt);
+  });
+  if (containsCopy)
+    throw new AppError(
+      "EDITORIAL_COPY_IN_GENERATION",
+      "This shot's provider prompt contains text reserved for an editorial overlay. Move that copy to editing. Revise the saved shot action/camera/references or generationConstraints to describe only footage, then recompile and prepare. Keep acceptanceCriteria and remake requirements in the plan.",
+      409,
+      {
+        stage: "provider_prompt",
+        issues: [
+          {
+            path: shotId,
+            code: "EDITORIAL_COPY_IN_GENERATION",
+            message:
+              "Revise the saved shot with production_plan_save; preserve editorial copy in editing and review criteria in the plan.",
+          },
+        ],
+      },
+    );
 }

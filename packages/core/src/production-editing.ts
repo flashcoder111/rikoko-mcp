@@ -265,13 +265,16 @@ export function validateProductionEditing(plan: EditingPlan): EditingIssue[] {
 export function editingShotDirection(
   plan: EditingPlan,
   shotId: string,
+  concise = false,
 ): string | undefined {
   const e = plan.editing;
   if (!e) return undefined;
   const lines: string[] = [];
   if (e.audio?.mode === "shared_track")
     lines.push(
-      `Do not generate background music. The shared score is added in editing.${e.audio.allowNativeAudio ? " Preserve only planned speech and physical sounds for the mix." : " Generated clip audio will be muted in editing."}`,
+      concise
+        ? `Do not generate background music.${e.audio.allowNativeAudio ? " Preserve only planned speech and physical sounds." : ""}`
+        : `Do not generate background music. The shared score is added in editing.${e.audio.allowNativeAudio ? " Preserve only planned speech and physical sounds for the mix." : " Generated clip audio will be muted in editing."}`,
     );
   if (e.audio?.mode === "silent")
     lines.push(
@@ -279,11 +282,11 @@ export function editingShotDirection(
     );
   if (e.audio?.mode === "native")
     lines.push(
-      `Use native sound intentionally and maintain continuity at cuts. Sound ending: ${e.audio.ending}; ${e.audio.endingReason}.`,
+      `Use native sound intentionally and maintain continuity at cuts. Sound ending: ${e.audio.ending}.`,
     );
   if (e.ending?.shotIds.includes(shotId))
     lines.push(
-      `Ending intent: ${e.ending.reason}. ${e.ending.productVisible ? "Keep the finished product visible and stable." : "Use the planned closing visual."} Allow at least ${e.ending.minHoldMs} ms of settled product/brand reading time across the ending. ${e.ending.brandText ? `Reserve space for the exact brand overlay '${e.ending.brandText}' added in editing.` : ""}${e.ending.cta ? ` CTA in editing: ${e.ending.cta}.` : ""} No extra process actions during the reading hold.`,
+      `${e.ending.productVisible ? "Keep the finished product visible and stable." : "Use the planned closing visual."} Hold the completed state for at least ${e.ending.minHoldMs} ms. Reserve clean space for text composited later; generate no lettering, titles or captions. No extra process actions during the hold.`,
     );
   return lines.join("\n") || undefined;
 }

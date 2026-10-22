@@ -1,3 +1,5 @@
+import { validateStoryboardInput } from "../packages/core/src/storyboard-state.js";
+import { acceptFixtureImage } from "./critical-image-fixture.js";
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -110,6 +112,22 @@ async function enqueue(prepared: any) {
     idempotencyKey: crypto.randomUUID(),
   });
 }
+it("direct submission preserves preparation binding and rejects changed inputs", async () => {
+  const prepared = await prepare();
+  const job = await callTool(service, c, "job_submit", {
+    input: prepared.input,
+    idempotencyKey: "direct-prepared",
+  });
+  expect(job.preparedRequestId).toBe(prepared.preparedRequestId);
+  await expect(
+    callTool(service, c, "job_submit", {
+      input: { ...prepared.input, prompt: "Changed" },
+      idempotencyKey: "direct-changed",
+    }),
+  ).rejects.toMatchObject({ code: "PREPARED_REQUEST_MISMATCH" });
+  expect(fetcher).not.toHaveBeenCalled();
+  await service.cancel(c, job.id);
+});
 it("persists a frozen request and binds quote and job without provider calls", async () => {
   const p = await prepare();
   expect(p.preparedRequestId).toBeTruthy();
@@ -270,6 +288,7 @@ async function referenceFixture() {
       provenance: { evidence: "contract-mock" },
     },
   );
+  await acceptFixtureImage(service, c, asset);
   provider.models[0].generationInput = {
     mode: "reference_to_video",
     outputDurationMs: 5000,
@@ -311,6 +330,18 @@ async function referenceFixture() {
       mode: "reference_to_video",
       prompt: preview.prompt,
       references: [{ assetId: asset.id, role: "product" }],
+      videoPolicy: {
+        faces: "absent",
+        reason: "Synthetic product-only fixture",
+        references: [
+          {
+            assetId: asset.id,
+            sha256: asset.sha256,
+            faces: "absent",
+            reason: "Synthetic fixture",
+          },
+        ],
+      },
     },
     direction: d,
   };
@@ -849,4 +880,59 @@ it("does not select image editing when a plan has only analysis references", asy
     direction: draft.video.direction,
   });
   expect(p.references).toHaveLength(0);
+});
+
+it("checks storyboard duration on the prepared submission path without a public quote", async () => {
+  const asset = await service.registerAsset(
+    c.accountId,
+    Buffer.from("fixture-image"),
+    {
+      name: "first.png",
+      kind: "image",
+      mime: "image/png",
+      metadata: {},
+      provenance: {},
+    },
+  );
+  await db.transaction(async (tx) => {
+    await tx.put({
+      id: "duration-board",
+      accountId: c.accountId,
+      type: "storyboard",
+      createdAt: new Date().toISOString(),
+      version: 1,
+      shots: [
+        {
+          sourceShotId: "shot",
+          durationMs: 6000,
+          review: {
+            decision: "accepted",
+            imageAssetId: asset.id,
+            sha256: asset.sha256,
+          },
+        },
+      ],
+    });
+    const input = {
+      kind: "generate" as const,
+      model: model.id,
+      prompt: "Lift",
+      parameters: {},
+      mode: "image_to_video" as const,
+      references: [{ assetId: asset.id, role: "first_frame" as const }],
+      storyboard: {
+        storyboardId: "duration-board",
+        version: 1,
+        sourceShotId: "shot",
+        stage: "video" as const,
+      },
+    };
+    for (const expectedOutput of [{ durationMs: 5000 }, {}])
+      await expect(
+        validateStoryboardInput(tx, c.accountId, input, expectedOutput),
+      ).rejects.toMatchObject({ code: "GENERATION_TOO_SHORT" });
+    await expect(
+      validateStoryboardInput(tx, c.accountId, input, { durationMs: 6000 }),
+    ).resolves.toBeUndefined();
+  });
 });

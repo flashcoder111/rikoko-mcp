@@ -452,6 +452,15 @@
 .mode-studio a {
   color: inherit;
 }
+.mode-studio .edit-render-note,
+.mode-studio .edit-help,
+.mode-studio .hermes-handoff p,
+.mode-studio .hermes-handoff small {
+  color: #a8adb8;
+}
+.mode-studio .hermes-handoff-ready a {
+  color: #ff93bc;
+}
 .mode-studio select,
 .mode-studio input,
 .mode-studio textarea {
@@ -482,13 +491,16 @@
   overflow: hidden;
 }
 .vizard-chat {
+  display: flex;
+  flex-direction: column;
   border-right: 1px solid #303034;
   background: #19191c;
   min-width: 0;
   overflow: hidden;
 }
 .vizard-chat .conversation {
-  height: 100%;
+  flex: 1;
+  height: auto;
   padding: 0 12px 12px;
   max-width: none;
   min-height: 0;
@@ -1159,6 +1171,11 @@
   flex-direction: column;
   overflow: hidden;
 }
+@media (min-width: 1001px) {
+  .has-inspector .workbench-main {
+    margin-right: 320px;
+  }
+}
 .clip-inspector > header {
   height: 45px;
   min-height: 45px;
@@ -1478,7 +1495,7 @@
     min-height: 0;
   }
   .mobile-chat .vizard-chat {
-    display: block;
+    display: flex;
   }
   .mobile-chat .workbench-main {
     display: none;
@@ -1691,4 +1708,133 @@
 }
 .mode-studio .composer textarea::placeholder {
   color: #77777e;
+}
+
+.caption-style-controls {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+}
+.caption-style-controls .input-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.caption-style-controls select,
+.caption-style-controls input,
+.caption-style-controls textarea {
+  width: 100%;
+  min-width: 0;
+}
+.caption-style-hint,
+.caption-style-controls small {
+  color: #a5a5ae;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.caption-style-controls summary {
+  cursor: pointer;
+  padding: 8px 0;
+}
+.caption-style-sample {
+  padding: 24px 8px;
+  text-align: center;
+  background: linear-gradient(125deg, #263f4d, #75828b);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.caption-style-sample span {
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.clip-inspector .caption-style-controls {
+  padding: 0;
+  overflow: visible;
+  flex: none;
+}
+.clip-inspector .caption-style-controls label {
+  margin: 4px 0;
+}
+.clip-inspector .caption-style-controls .input-pair {
+  margin: 0;
+}
+.caption-style-suggest {
+  border-top: 1px solid #3a3a40;
+  padding-top: 4px;
+}
+.edit-render-note,
+.edit-help {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #64748b;
+  margin: 8px 14px;
+}
+.clip-inspector .edit-help {
+  margin: 0 0 12px;
+}
+.edit-status {
+  flex-wrap: wrap;
+}
+.workspace-latest {
+  margin: 8px 14px;
+  padding: 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 12px;
+}
+.workspace-latest button {
+  margin-left: 8px;
+}
+.clip-inspector .music-upload {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.music-upload input {
+  max-width: 100%;
+  font-size: 12px;
+}
+.hermes-handoff {
+  padding: 12px;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 12px;
+  line-height: 1.6;
+  flex-shrink: 0;
+  max-height: 50vh;
+  overflow: auto;
+}
+.hermes-handoff summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+.hermes-handoff p,
+.hermes-handoff small {
+  color: #64748b;
+}
+.hermes-handoff label {
+  display: block;
+}
+.hermes-handoff textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 6px 0;
+  resize: vertical;
+}
+.hermes-handoff button,
+.hermes-handoff-ready a {
+  display: inline-block;
+  margin: 6px 0;
+}
+.hermes-handoff-ready a {
+  color: #9d174d;
+  text-decoration: underline;
 }

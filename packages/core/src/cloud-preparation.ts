@@ -2,6 +2,8 @@ import {
   remakeEvidenceSchema,
   validateRemakeEvidence,
 } from "./reference-handoff.js";
+import { remapVideoPolicy } from "../../contracts/src/video-policy.js";
+import { assertVideoPolicy } from "../../providers/src/video-policy.js";
 import { z } from "zod";
 import {
   AppError,
@@ -195,6 +197,14 @@ export async function bindCloudPreparation(
     }
     const input = operationSchema.parse({
       ...saved.input,
+      ...(saved.input.videoPolicy
+        ? {
+            videoPolicy: remapVideoPolicy(
+              saved.input.videoPolicy,
+              data.references,
+            ),
+          }
+        : {}),
       preparedRequestId,
       ...(saved.input.references
         ? {
@@ -209,6 +219,7 @@ export async function bindCloudPreparation(
       throw new AppError("INVALID_INPUT", "Expected generation");
     const model = service.provider.validate(input);
     validateGenerationAssets(model, input, assets);
+    assertVideoPolicy(model, input, assets);
     const record = {
       ...saved,
       id: preparedRequestId,

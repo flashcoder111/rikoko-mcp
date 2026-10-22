@@ -1,4 +1,9 @@
 import { randomUUID } from "node:crypto";
+import {
+  validateUserRequirements,
+  intentNotice,
+  type UserRequirement,
+} from "./production-intent.js";
 import { readCreativeContext } from "./creative-context.js";
 import {
   AppError,
@@ -29,6 +34,8 @@ export function requestView(record: Entity): CreationRequest {
     proposal,
   } = record;
   return {
+    userRequirements: record.userRequirements,
+    communication: intentNotice(record.userRequirements ?? []),
     creativeContextId: record.creativeContextId,
     requestId: id,
     requestVersion: version,
@@ -147,6 +154,49 @@ export async function workspaceRequestSave(
         "INVALID_INPUT",
         "这次请求的补充轮次过多，请整理要求后开始新的请求。",
       );
+    const priorRequirements: UserRequirement[] =
+      previous?.userRequirements ??
+      (previous?.turns ?? []).flatMap(
+        (turn: { message: string }, index: number) =>
+          turn.message.trim()
+            ? [
+                {
+                  id: `turn-${index}`,
+                  text: turn.message,
+                  sourceTurn: index,
+                  sourceQuote: turn.message,
+                  preserve: [],
+                },
+              ]
+            : [],
+      );
+    const userRequirements: UserRequirement[] = input.userRequirements ?? [
+      ...priorRequirements,
+      ...(input.message
+        ? [
+            {
+              id: `turn-${turns.length - 1}`,
+              text: input.message,
+              sourceTurn: turns.length - 1,
+              sourceQuote: input.message,
+              preserve: [],
+            },
+          ]
+        : []),
+    ];
+    validateUserRequirements(userRequirements, turns);
+    // An attachment-only or agent-only update cannot silently rewrite settled requirements.
+    if (
+      previous &&
+      !input.message &&
+      input.userRequirements &&
+      JSON.stringify(userRequirements) !== JSON.stringify(priorRequirements)
+    )
+      throw new AppError(
+        "USER_REQUIREMENT_CHANGE_REQUIRED",
+        "Changing user requirements needs the user's actual new instruction; keep creative decisions in the plan.",
+        409,
+      );
     const record: Entity = {
       ...(previous ?? {
         id: randomUUID(),
@@ -157,6 +207,7 @@ export async function workspaceRequestSave(
       version: (previous?.version ?? 0) + 1,
       updatedAt: new Date().toISOString(),
       originalMessage: previous?.originalMessage ?? input.message,
+      userRequirements,
       creativeContextId,
       turns,
       assetIds,

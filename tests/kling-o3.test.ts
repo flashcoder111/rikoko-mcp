@@ -1,3 +1,4 @@
+import { faceFreeFixturePolicy } from "./video-policy-fixture.js";
 import { readFile } from "node:fs/promises";
 import { expect, it, vi } from "vitest";
 import {
@@ -74,6 +75,10 @@ function input(images = 1) {
   return operationSchema.parse({
     kind: "generate",
     model: profile.id,
+    videoPolicy: faceFreeFixturePolicy([
+      { id: "clip" },
+      ...Array.from({ length: images }, (_, i) => ({ id: `image${i}` })),
+    ]),
     mode: "video_to_video",
     prompt:
       "In @Video1 replace the background with @Image1; retain the camera motion.",

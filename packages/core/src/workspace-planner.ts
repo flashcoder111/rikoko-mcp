@@ -358,7 +358,7 @@ export async function planRequest(
       return {
         engine: "local-commands",
         message:
-          "这条要求需要相应的视频画面。请发送可用视频；也可以让当前 Agent 为缺少的镜头提供生成报价。",
+          "这条要求需要相应的视频画面。请发送可用视频；也可以让当前 Agent 生成缺少的镜头。",
         missingInputs: [
           {
             id: "footage",
@@ -379,7 +379,7 @@ export async function planRequest(
       return {
         engine: "local-commands",
         message:
-          "还需要配音或口播音轨。请在这里发送音频；如果需要生成声音，可以先让当前 Agent 提供报价。",
+          "还需要配音或口播音轨。请在这里发送音频；如果需要生成声音，可以让当前 Agent 直接生成。",
         missingInputs: [
           {
             id: "narration",

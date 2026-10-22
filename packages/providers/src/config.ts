@@ -57,6 +57,8 @@ export const modelSchema = z
     creditPriceCents: z.number().int().positive().max(1000000).optional(),
     priceVersion: z.string().min(1).max(200),
     hardBoundConfirmed: z.boolean(),
+    maxPromptLength: z.number().int().positive().max(20000).optional(),
+    minPromptLength: z.number().int().positive().max(5000).optional(),
     parameters: z.record(z.string(), z.json()),
     allowedParameters: allowedParametersSchema.optional(),
     promptField: z.string().regex(/^\w+$/).optional(),

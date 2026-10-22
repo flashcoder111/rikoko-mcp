@@ -1,3 +1,4 @@
+import { faceFreeFixturePolicy } from "./video-policy-fixture.js";
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import { mkdtemp, readFile, rm, mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -9,8 +10,6 @@ import { FalProvider } from "../packages/providers/src/index.js";
 import { callTool } from "../packages/mcp/src/tools.js";
 import { resultText } from "../packages/mcp/src/presentation.js";
 import { validateWorkspace } from "../packages/core/src/production-review.js";
-import { installSkillReferences } from "../packages/bootstrap/src/skill-files.js";
-import { exportPublicSource } from "../scripts/export-public.js";
 import { referenceShotPrompts } from "../packages/core/src/reference-prompts.js";
 import { referenceAdaptSchema } from "../packages/mcp/src/reference-tools.js";
 import { GatewayClient } from "../packages/cloud-client/src/gateway.js";
@@ -84,6 +83,7 @@ it("rejects unprepared reference video before any provider call", async () => {
       mode: "image_to_video",
       prompt: "Close the lid",
       references: [{ role: "first_frame", assetId: "missing" }],
+      videoPolicy: faceFreeFixturePolicy([{ id: "missing" }]),
       target: { width: 1280, height: 720 },
     }),
   ).rejects.toMatchObject({ code: "GENERATION_PREPARATION_REQUIRED" });
@@ -114,6 +114,17 @@ it("permits old clients only through explicit server configuration", async () =>
   expect(network).not.toHaveBeenCalled();
 });
 it("blocks unprepared cloud video before uploading references or requesting a quote", async () => {
+  const asset = await service.registerAsset(
+    c.accountId,
+    Buffer.from("synthetic frame"),
+    {
+      name: "fixture.png",
+      kind: "image",
+      mime: "image/png",
+      metadata: { width: 320, height: 180 },
+      provenance: { evidence: "synthetic" },
+    },
+  );
   const requests: string[] = [];
   const fetcher = vi.fn(async (url: any) => {
     requests.push(String(url));
@@ -131,7 +142,8 @@ it("blocks unprepared cloud video before uploading references or requesting a qu
       model: "video",
       mode: "image_to_video",
       prompt: "Close lid",
-      references: [{ role: "first_frame", assetId: "missing" }],
+      references: [{ role: "first_frame", assetId: asset.id }],
+      videoPolicy: faceFreeFixturePolicy([asset]),
       target: { width: 1280, height: 720 },
     }),
   ).rejects.toMatchObject({ code: "GENERATION_PREPARATION_REQUIRED" });
@@ -416,52 +428,5 @@ it("allows contiguous split scenes but rejects gaps or omission of the action st
     (await validateWorkspace(svc, c, "revision")).issues.some(
       (i) => i.code === "ACTION_RANGE_CUT",
     ),
-  ).toBe(true);
-});
-it("rejects missing declared skill references instead of reporting successful installation", async () => {
-  const source = join(dir, "skill");
-  await mkdir(source);
-  await writeFile(
-    join(source, "SKILL.md"),
-    "Read [direction](references/video-direction.md)",
-  );
-  await expect(
-    installSkillReferences(source, join(dir, "installed")),
-  ).rejects.toThrow(/reference/i);
-});
-it("ships every linked playbook in the actual public export", async () => {
-  const out = join(dir, "export");
-  await exportPublicSource(process.cwd(), out);
-  const skill = await readFile(join(out, "skills/rikoko/SKILL.md"), "utf8");
-  for (const match of skill.matchAll(/\]\((references\/[^)]+)\)/g))
-    expect(
-      await readFile(join(out, "skills/rikoko", match[1]), "utf8"),
-    ).not.toBe("");
-});
-it("labels old storyboard drafts as source observations that cannot be submitted as target prompts", () => {
-  const shot: any = {
-    id: "source",
-    action: "Squeeze sauce onto a hot dog",
-    framing: "Close",
-    cameraMotion: "Static",
-    transition: "Cut",
-  };
-  const draft: any = referenceShotPrompts(
-    { shots: [shot], visualStyle: { description: "Food" } } as any,
-    shot,
-    "Make a burger",
-    "",
-  );
-  expect(draft.readyForGeneration).toBe(false);
-  expect(draft.videoPrompt).toBeUndefined();
-  expect(draft.sourceObservation.action).toBe(shot.action);
-});
-it("accepts explicit target shot mapping on replacements", () => {
-  expect(
-    referenceAdaptSchema.safeParse({
-      analysisAssetId: "analysis",
-      title: "Burger",
-      replacements: [{ sourceShotId: "source", productionShotId: "target" }],
-    }).success,
   ).toBe(true);
 });

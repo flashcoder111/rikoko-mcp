@@ -226,6 +226,12 @@ export default function AssetLibrary({
                   </button>
                   <a
                     href={`/api/assets/${encodeURIComponent(a.id)}/file`}
+                    download={a.name ?? `rikoko-${a.id}`}
+                  >
+                    下载
+                  </a>
+                  <a
+                    href={`/api/assets/${encodeURIComponent(a.id)}/file`}
                     target="_blank"
                     rel="noreferrer"
                   >

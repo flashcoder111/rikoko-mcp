@@ -1,3 +1,4 @@
+import { captionCss } from "./caption-style";
 import React, { useEffect, useRef, useState } from "react";
 import type {
   Composition,
@@ -29,9 +30,12 @@ export default function Templates({
   const [selected, setSelected] = useState<LibraryTemplate>();
   const [parameters, setParameters] = useState<Record<string, string>>({});
   const [bindings, setBindings] = useState<Record<string, string>>({});
+  const [speechAssetId, setSpeechAssetId] = useState("");
+  const [speechTranscriptId, setSpeechTranscriptId] = useState("");
   const [slot, setSlot] = useState<string>();
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("全部");
+  const [sourceFilter, setSourceFilter] = useState("all");
   const [frame, setFrame] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [showDemo, setShowDemo] = useState(true);
@@ -42,7 +46,13 @@ export default function Templates({
     [error, setError] = useState("");
   const applying = useRef(false);
   const attempt = useRef<
-    { fingerprint: string; key: string; composition?: Composition } | undefined
+    | {
+        fingerprint: string;
+        key: string;
+        composition?: Composition;
+        preparationId?: string;
+      }
+    | undefined
   >(undefined);
   useEffect(() => {
     let live = true;
@@ -81,26 +91,44 @@ export default function Templates({
   }
   async function apply() {
     if (!selected || applying.current) return;
+    if (speechAssetId && !speechTranscriptId) {
+      setError("请选择这段口播对应的转写；缺少转写时，可先在对话中处理口播。");
+      return;
+    }
     applying.current = true;
     setBusy(true);
     setError("");
     const input = {
       id: selected.id,
       version: selected.version,
+      sourceKind: selected.sourceKind,
       parameters,
       sceneAssets: bindings,
+      ...(speechAssetId
+        ? {
+            speech: {
+              assetId: speechAssetId,
+              transcriptAssetId: speechTranscriptId,
+            },
+          }
+        : {}),
     };
     const fingerprint = JSON.stringify(input);
     if (attempt.current?.fingerprint !== fingerprint)
       attempt.current = { fingerprint, key: crypto.randomUUID() };
     const current = attempt.current;
     try {
-      if (!current.composition)
-        current.composition = (
-          await api<{ composition: Composition }>("template_prepare", input)
-        ).composition;
+      if (!current.composition) {
+        const prepared = await api<{
+          composition: Composition;
+          preparationId: string;
+        }>("template_prepare", input);
+        current.composition = prepared.composition;
+        current.preparationId = prepared.preparationId;
+      }
       const result = await api<{ projectId: string }>("workspace_commit", {
         action: { type: "create", composition: current.composition },
+        templatePreparationId: current.preparationId,
         message: `从模板「${selected.title}」创建作品，复用已有素材`,
         origin: "studio",
         idempotencyKey: current.key,
@@ -118,6 +146,10 @@ export default function Templates({
   const templates = snapshot.templates
     .filter(
       (t) =>
+        (sourceFilter === "all" ||
+          (sourceFilter === "personal"
+            ? t.sourceKind === "personal"
+            : t.sourceKind !== "personal")) &&
         (category === "全部" || t.category === category) &&
         `${t.title} ${t.description} ${t.category} ${(t.searchTerms ?? []).join(" ")}`
           .toLocaleLowerCase()
@@ -125,6 +157,16 @@ export default function Templates({
     )
     .sort((a, b) => Number(!!b.isNew) - Number(!!a.isNew));
   const scene = selected?.composition.scenes[frame];
+  const speechSources = assets.filter(
+    (a) =>
+      ["audio", "video"].includes(a.kind) &&
+      a.metadata?.hasAudio &&
+      a.metadata.durationMs > 0,
+  );
+  const speechTranscripts = assets.filter(
+    (a) =>
+      a.kind === "transcript" && a.metadata?.sourceAssetId === speechAssetId,
+  );
   const chosenAsset = scene && assets.find((a) => a.id === bindings[scene.id]);
   const caption = scene?.text.replace(
     /\{\{([^{}]+)\}\}/g,
@@ -152,6 +194,15 @@ export default function Templates({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
+          <select
+            aria-label="模板来源"
+            value={sourceFilter}
+            onChange={(e) => setSourceFilter(e.target.value)}
+          >
+            <option value="all">全部模板</option>
+            <option value="personal">我的模板</option>
+            <option value="official">官方模板</option>
+          </select>
           <select
             aria-label="模板分类"
             value={category}
@@ -198,6 +249,8 @@ export default function Templates({
               onClick={() => {
                 setSelected(t);
                 setBindings({});
+                setSpeechAssetId("");
+                setSpeechTranscriptId("");
                 setParameters(
                   Object.fromEntries(
                     Object.entries(t.parameters).map(([k, v]) => [
@@ -227,12 +280,23 @@ export default function Templates({
               )}
               <div className="template-card-meta">
                 <small>
-                  {t.category} · {t.sourceKind === "builtin" ? "内置" : "云端"}
+                  {t.category} ·{" "}
+                  {t.sourceKind === "builtin"
+                    ? "内置"
+                    : t.sourceKind === "personal"
+                      ? "我的模板"
+                      : "官方云端"}
                 </small>
                 {t.isNew && <span className="template-new">新增</span>}
+                {t.updateAvailable && (
+                  <small>
+                    来源有 v{t.updateAvailable.version} 更新 · 个人修改已保留
+                  </small>
+                )}
               </div>
               <strong>{t.title}</strong>
               <span>{t.description}</span>
+              {t.speech && <small>可选：跟随口播编排</small>}
               <small>
                 {t.composition.scenes.length} 个镜头 ·{" "}
                 {t.composition.scenes.reduce(
@@ -340,8 +404,7 @@ export default function Templates({
               <div
                 className="template-caption"
                 style={{
-                  color: selected.composition.captionStyle.color,
-                  background: `${selected.composition.captionStyle.background}e6`,
+                  ...captionCss(selected.composition.captionStyle, 0.6),
                 }}
               >
                 {caption}
@@ -414,6 +477,70 @@ export default function Templates({
                 </small>
               </label>
             ))}
+            {selected.speech && (
+              <details className="template-speech">
+                <summary>跟随口播编排（可选）</summary>
+                <p className="library-note">
+                  选择已有口播和对应转写，镜头与字幕将跟随实际说话时间。各段文案需要与口播内容一致。
+                </p>
+                <label>
+                  口播音频
+                  <select
+                    aria-label="口播音频"
+                    disabled={busy}
+                    value={speechAssetId}
+                    onChange={(e) => {
+                      setSpeechAssetId(e.target.value);
+                      setSpeechTranscriptId("");
+                    }}
+                  >
+                    <option value="">沿用模板节奏</option>
+                    {speechSources.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {speechAssetId && (
+                  <label>
+                    对应转写
+                    <select
+                      aria-label="对应转写"
+                      disabled={busy}
+                      required
+                      value={speechTranscriptId}
+                      onChange={(e) => setSpeechTranscriptId(e.target.value)}
+                    >
+                      <option value="">选择对应转写</option>
+                      {speechTranscripts.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+                {!speechSources.length ||
+                (speechAssetId && !speechTranscripts.length) ? (
+                  <p className="library-note">
+                    可在对话中导入口播并生成对应转写，再刷新素材。
+                  </p>
+                ) : null}
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    setError("");
+                    void onRefresh().catch((e) =>
+                      setError((e as Error).message),
+                    );
+                  }}
+                >
+                  刷新素材
+                </button>
+              </details>
+            )}
             <h2>2. 选择要复用的画面</h2>
             {selected.composition.scenes.map((s, i) => {
               const a = assets.find((x) => x.id === bindings[s.id]);

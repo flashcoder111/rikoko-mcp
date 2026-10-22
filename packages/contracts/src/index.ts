@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { videoPolicySchema } from "./video-policy.js";
 import {
   captionStyleSchema,
   captionStylePatchSchema,
@@ -267,6 +268,7 @@ export const operationSchema = z.discriminatedUnion("kind", [
   z
     .object({
       kind: z.literal("generate"),
+      videoPolicy: videoPolicySchema.optional(),
       model: z.string().min(1).max(120),
       prompt: z.string().min(1).max(5000),
       parameters: z.record(z.string(), z.json()).default({}),

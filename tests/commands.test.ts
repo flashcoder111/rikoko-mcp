@@ -42,7 +42,7 @@ it("distinguishes speech from other audio while preserving image and video roles
   expect(generationRole({ kind: "video" })).toBe("video");
 });
 
-it("prefers available compatible MiniMax profiles and discovers future models from the catalog", () => {
+it("prefers available Seedance Mini text profiles, with MiniMax as an alternative", () => {
   const model = (id: string) => ({
     id,
     name: id,
@@ -50,12 +50,14 @@ it("prefers available compatible MiniMax profiles and discovers future models fr
     available: true,
   });
   const seedance = model("future-seedance-profile");
+  const mini = model("seedance-mini-text");
   const minimax = model("minimax-text");
   const reference = {
     ...model("minimax-reference"),
     generationInput: { mode: "image_to_video" },
   };
   expect(defaultGenerationModel([seedance, reference, minimax])).toBe(minimax);
+  expect(defaultGenerationModel([minimax, seedance, mini])).toBe(mini);
   expect(
     defaultGenerationModel([
       reference,

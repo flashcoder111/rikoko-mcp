@@ -176,9 +176,7 @@ export default function LegacyApp() {
       .catch((e) => setError(e.message));
   }, []);
   async function submit(input: unknown) {
-    const quote = await call("quote_create", { input });
     return call("job_submit", {
-      quoteId: quote.id,
       idempotencyKey: crypto.randomUUID(),
       input,
     });
@@ -297,7 +295,8 @@ export default function LegacyApp() {
           text,
           language,
           voice: "default",
-          engine: "local",
+          engine: "fal",
+          model: "elevenlabs-voice",
         }),
       );
       const audio = await call("record_get", {
@@ -985,7 +984,8 @@ export default function LegacyApp() {
                         text: voiceText,
                         language,
                         voice: "default",
-                        engine: "local",
+                        engine: "fal",
+                        model: "elevenlabs-voice",
                       });
                       await refresh();
                       setView("jobs");
@@ -995,7 +995,8 @@ export default function LegacyApp() {
                   生成独立音频 ↗
                 </button>
                 <p className="hint">
-                  使用系统已安装的语音。音频会保存到素材库，可继续用于作品。
+                  默认使用 ElevenLabs Eleven
+                  v3，用于后期修改或替换配音。提交后生成，音频会保存到素材库。
                 </p>
               </section>
               <section className="create-panel">

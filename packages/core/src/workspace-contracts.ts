@@ -1,5 +1,9 @@
 import { z } from "zod";
 import {
+  userRequirementSchema,
+  type UserRequirement,
+} from "./production-intent.js";
+import {
   compositionSchema,
   captionStylePatchSchema,
   idSchema,
@@ -136,6 +140,7 @@ export const actionSchema = z.discriminatedUnion("type", [
 ]);
 export const commitSchema = z
   .object({
+    templatePreparationId: idSchema.optional(),
     creativeContextId: idSchema.optional(),
     requestId: idSchema.optional(),
     requestVersion: z.number().int().positive().optional(),
@@ -171,6 +176,7 @@ export const missingInputSchema = z
   .strict();
 export const requestSaveSchema = z
   .object({
+    userRequirements: z.array(userRequirementSchema).min(1).max(50).optional(),
     creativeContextId: idSchema.optional(),
     requestId: idSchema.optional(),
     requestVersion: z.number().int().positive().optional(),
@@ -184,6 +190,10 @@ export const requestSaveSchema = z
   .strict();
 export type MissingInput = z.infer<typeof missingInputSchema>;
 export type CreationRequest = {
+  userRequirements?: UserRequirement[];
+  communication?: ReturnType<
+    typeof import("./production-intent.js").intentNotice
+  >;
   creativeContextId?: string;
   requestId: string;
   requestVersion: number;
@@ -203,6 +213,7 @@ export type Action = z.infer<typeof actionSchema>;
 export type Commit = z.infer<typeof commitSchema>;
 export type PlanInput = z.infer<typeof planSchema>;
 export type Proposal = {
+  templatePreparationId?: string;
   creativeContextId?: string;
   requestId?: string;
   requestVersion?: number;

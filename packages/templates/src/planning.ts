@@ -50,7 +50,21 @@ export function localTemplatePlan(
   context: TemplateContext,
 ): PlannedProposal | undefined {
   const selected = rankTemplates(input.message, context.templates)[0]?.template;
-  if (!selected || selected.sourceKind !== "builtin") return;
+  if (!selected) return;
+  if (selected.sourceKind !== "builtin") {
+    // Reuse personal/official content only on an explicit named request. Free-form adaptation belongs to the Agent.
+    if (!input.message.toLowerCase().includes(selected.title.toLowerCase()))
+      return;
+    return {
+      engine: "template-library",
+      message: `复用「${selected.title}」的已保存内容。`,
+      template: templateDecisionSchema.parse({
+        id: selected.id,
+        version: selected.version,
+        sourceKind: selected.sourceKind,
+      }),
+    };
+  }
   // These requests require footage/analysis or audio work that a graphic template cannot supply.
   if (
     /(?:真人|口播|配音|跳舞|跟拍|电影大片|live.action|voice.?over|lip.?sync)/i.test(

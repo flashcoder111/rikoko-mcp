@@ -5,6 +5,8 @@ import { join } from "node:path";
 import { openRuntime } from "../apps/server/src/runtime.js";
 import { cloudConnection } from "../packages/cloud-client/src/index.js";
 import { callTool } from "../packages/mcp/src/tools.js";
+import { expandedModels } from "../packages/providers/src/expanded-models.js";
+import { latestModels } from "../packages/providers/src/latest-models.js";
 let dir: string;
 beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "model-runtime-"));
@@ -26,6 +28,19 @@ beforeEach(async () => {
 afterEach(async () => {
   vi.unstubAllEnvs();
   await rm(dir, { recursive: true, force: true });
+});
+it("publishes expanded built-in models without enabling paid generation", async () => {
+  const runtime = await openRuntime();
+  try {
+    const catalog = runtime.service.provider.describe();
+    for (const model of [...latestModels, ...expandedModels])
+      expect(catalog.find((m) => m.id === model.id)).toMatchObject({
+        name: model.name,
+        available: false,
+      });
+  } finally {
+    await runtime.db.close();
+  }
 });
 it("explicit custom config overrides legacy credentials and does not enable the official gateway", async () => {
   const path = join(dir, "config.json");

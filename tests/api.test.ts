@@ -77,7 +77,7 @@ it("discovers and calls tools through the real MCP v2 client", async () => {
   );
   const client = new Client({ name: "acceptance-client", version: "1.0.0" });
   await client.connect(transport);
-  expect(client.getInstructions()).toContain("/rikoko help");
+  expect(client.getInstructions()).toContain("rikoko_guide");
   const capabilities = await client.callTool({
     name: "capabilities",
     arguments: {},

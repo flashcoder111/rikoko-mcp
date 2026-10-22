@@ -1,3 +1,8 @@
+import { publicError } from "../../../packages/contracts/src/error-contract.js";
+import {
+  runtimeVersion,
+  runtimeGuideVersion,
+} from "../../../packages/core/src/runtime-identity.js";
 import { Hono } from "hono";
 import { captionFontBytes } from "../../../packages/render/src/fonts.js";
 import { bodyLimit } from "hono/body-limit";
@@ -53,38 +58,40 @@ export function createApp(
     await next();
   });
   app.onError((e, c) => {
-    if (e instanceof AppError)
-      return c.json(
-        { error: { code: e.code, message: e.message } },
-        e.status as any,
+    const error = publicError(
+      e instanceof SyntaxError
+        ? new AppError("INVALID_JSON", "Malformed JSON")
+        : e,
+    );
+    if (
+      !(e instanceof AppError) &&
+      !(e instanceof ZodError) &&
+      !(e instanceof SyntaxError)
+    )
+      console.error("Request failed", error.traceId, e.constructor.name);
+    if (error.details?.stage)
+      console.error(
+        "rikoko diagnostic",
+        JSON.stringify({
+          traceId: error.traceId,
+          code: error.code,
+          details: error.details,
+        }),
       );
-    if (e instanceof ZodError)
-      return c.json(
-        {
-          error: {
-            code: "INVALID_INPUT",
-            message: e.issues
-              .map((i) => i.path.join(".") + ": " + i.message)
-              .join("; "),
-          },
-        },
-        400,
-      );
-    if (e instanceof SyntaxError)
-      return c.json(
-        { error: { code: "INVALID_JSON", message: "Malformed JSON" } },
-        400,
-      );
-    console.error("Request failed", e.constructor.name);
     return c.json(
-      { error: { code: "INTERNAL", message: "Request failed" } },
-      500,
+      { error },
+      (e instanceof AppError
+        ? e.status
+        : e instanceof ZodError || e instanceof SyntaxError
+          ? 400
+          : 500) as any,
     );
   });
   app.get("/health", (c) =>
     c.json({
       status: "ok",
-      version: "0.1.0",
+      version: runtimeVersion,
+      guideVersion: runtimeGuideVersion,
       ...(options.instanceId
         ? { instanceId: options.instanceId, pid: process.pid }
         : {}),

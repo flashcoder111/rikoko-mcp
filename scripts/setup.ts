@@ -3,7 +3,12 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { access, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import {
+  pythonExecutable,
+  serviceLauncher,
+} from "../packages/bootstrap/src/platform.ts";
+
 import { homedir } from "node:os";
 import {
   initializeInstallation,
@@ -50,16 +55,31 @@ if (requested === "auto") {
   )
     clients.push("claude-code");
   if (
-    process.platform === "darwin" &&
-    (await present(join(clientHome, "Library/Application Support/Claude")))
+    (process.platform === "darwin" &&
+      (await present(
+        join(clientHome, "Library/Application Support/Claude"),
+      ))) ||
+    (process.platform === "win32" &&
+      (await present(
+        process.env.RIKOKO_CLAUDE_DESKTOP_CONFIG ??
+          join(
+            (clientHome === homedir() ? process.env.APPDATA : undefined) ??
+              join(clientHome, "AppData/Roaming"),
+            "Claude",
+          ),
+      )))
   )
     clients.push("claude-desktop");
-} else if (["codex", "claude-code", "claude-desktop"].includes(requested))
+} else if (requested === "none") clients = [];
+else if (["codex", "claude-code", "claude-desktop"].includes(requested))
   clients = [requested];
 else throw Error("Unsupported client");
-if (clients.includes("claude-desktop") && process.platform !== "darwin")
+if (
+  clients.includes("claude-desktop") &&
+  !["darwin", "win32"].includes(process.platform)
+)
   throw Error(
-    "Claude Desktop 安装当前仅支持 macOS；其他系统请使用 Claude Code。",
+    "Claude Desktop installation supports macOS and Windows; use Claude Code on Linux.",
   );
 
 const { installation, file } = await initializeInstallation({
@@ -67,7 +87,7 @@ const { installation, file } = await initializeInstallation({
   root,
   release,
   node: process.execPath,
-  python: join(root, "python/.venv/bin/python"),
+  python: pythonExecutable(root),
   path: process.env.PATH ?? "/usr/bin:/bin",
 });
 const credentialsFile = join(installation.home, "config/credentials.json");
@@ -83,20 +103,20 @@ const connected = await bindOfficialKey(
 delete process.env.RIKOKO_OFFICIAL_KEY;
 if (connected) await stopBackend(file);
 const backend = await ensureBackend(file);
-const quote = (s: string) => `'${s.replaceAll("'", "'\\''")}'`;
-const control = join(installation.home, "service");
+const launcher = serviceLauncher(
+  installation.node,
+  join(root, "scripts/service.ts"),
+  file,
+);
+const control = join(installation.home, launcher.name);
 if (!(await present(control)))
-  await writeFile(
-    control,
-    `#!/bin/sh\nexec ${quote(installation.node)} --experimental-strip-types ${quote(join(root, "scripts/service.ts"))} "\${1:-start}" ${quote(file)}\n`,
-    { mode: 0o700, flag: "wx" },
-  );
+  await writeFile(control, launcher.content, { mode: 0o700, flag: "wx" });
 for (const client of clients) {
   const { stdout } = await run(
     process.execPath,
     [
       "--import",
-      join(root, "node_modules/tsx/dist/loader.mjs"),
+      pathToFileURL(join(root, "node_modules/tsx/dist/loader.mjs")).href,
       join(root, "scripts/clients.ts"),
       "install",
       client,
@@ -119,6 +139,9 @@ async function call(name: string, input: unknown) {
     headers: {
       Authorization: `Bearer ${admin}`,
       "Content-Type": "application/json",
+      ...(process.env.RIKOKO_UPGRADE_TOKEN
+        ? { "x-rikoko-upgrade-token": process.env.RIKOKO_UPGRADE_TOKEN }
+        : {}),
     },
     body: JSON.stringify(input),
     redirect: "error",
@@ -147,7 +170,7 @@ const created = await call("workspace_commit", {
     },
   },
   message: "安装自检：本地免费样片",
-  idempotencyKey: "installation-smoke-v1",
+  idempotencyKey: `installation-smoke-${release.sha256}`,
 });
 const deadline = Date.now() + 60_000;
 let completed = false;

@@ -315,7 +315,7 @@ describe("declared process state and shot actions", () => {
     expect(prompt("last_frame")).toContain("cover: visible");
   });
 
-  it("keeps global product facts in the plan while compiling mapped shot requirements", () => {
+  it("keeps review requirements in the plan while compiling explicit footage constraints", () => {
     const input: any = fixture();
     input.remake = {
       analysisAssetId: "source-analysis",
@@ -342,6 +342,7 @@ describe("declared process state and shot actions", () => {
       actionStages: ["Contact, attach, then hold"],
       camera: "Fixed view of the contact point",
       acceptanceCriteria: ["Show the completed attachment before cutting"],
+      generationConstraints: ["Keep physical tool contact visible"],
       requirementUses: [
         {
           requirementId: "single-operation",
@@ -362,9 +363,10 @@ describe("declared process state and shot actions", () => {
     for (const stage of ["video", "first_frame", "last_frame"] as const)
       expect(prompt(stage)).not.toContain("gold presentation ribbon");
     expect(prompt("video")).toContain(input.remake.requirements[0].description);
-    expect(prompt("video")).toContain(
+    expect(prompt("video")).not.toContain(
       input.shots[0].requirementUses[0].application,
     );
+    expect(prompt("video")).not.toContain("Acceptance 1");
     expect(plan).toEqual(before);
     expect(plan.remake?.productFacts).toEqual(input.remake.productFacts);
     const { process: _, ...legacy } = plan;

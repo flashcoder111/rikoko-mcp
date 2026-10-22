@@ -3,7 +3,9 @@ import manifest from "./bundled/manifest.json";
 
 export const starterAssets = manifest;
 export type LibraryTemplate = Template & {
-  sourceKind: "builtin" | "cloud";
+  sourceKind: "builtin" | "cloud" | "personal";
+  upstream?: { id: string; version: number; source: string; hash: string };
+  updateAvailable?: { id: string; version: number; sourceKind: string };
   parameterLabels?: Record<string, string>;
   sceneLabels?: Record<string, string>;
   coverAssetId?: string;
@@ -239,6 +241,7 @@ export const starterTemplates: LibraryTemplate[] = definitions.map((d) => {
         height: 1280,
         language: "zh",
         captionStyle: {
+          fontFamily: "noto-sans-sc",
           fontSize: 36,
           color: "#ffffff",
           background: d.captionBackground ?? "#183a36",

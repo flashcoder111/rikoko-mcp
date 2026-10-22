@@ -1,0 +1,68 @@
+.template-inventory-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 16px;
+  margin: 20px 0;
+}
+.template-inventory .dashboard-panel {
+  padding: 20px;
+  min-width: 0;
+}
+.template-inventory h2 {
+  font-size: 17px;
+}
+.template-inventory p,
+.template-inventory li {
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.template-inventory pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  max-height: 320px;
+  overflow: auto;
+}
+.template-inventory select,
+.template-inventory input,
+.save-personal-template input,
+.save-personal-template textarea {
+  max-width: 100%;
+  padding: 9px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: white;
+  color: #17212b;
+}
+.template-inventory .template-update {
+  background: #fff4d9;
+  padding: 10px;
+  border-radius: 8px;
+  color: #765316;
+}
+.save-personal-template {
+  display: inline-block;
+  margin: 8px;
+  max-width: 100%;
+}
+.save-personal-template form {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  margin-top: 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #fff;
+  color: #17212b;
+  max-width: 420px;
+}
+.save-personal-template label {
+  display: grid;
+  gap: 5px;
+}
+.save-personal-template [role="status"] {
+  display: block;
+  max-width: 420px;
+  white-space: normal;
+  line-height: 1.5;
+}

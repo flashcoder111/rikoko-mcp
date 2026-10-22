@@ -19,8 +19,6 @@
     "packages/storage",
     "packages/templates",
     "packages/cloud-client",
-    "skills/rikoko/SKILL.md",
-    "skills/rikoko/references",
     "python/media_core",
     "python/adapters",
     "python/pyproject.toml",
@@ -32,9 +30,13 @@
     "scripts/build-starter-art.py",
     "scripts/build-starter-previews.ts",
     "scripts/clients.ts",
+    "scripts/hermes-plugin.ts",
+    "scripts/verify-workspace-handoff.ts",
+    "integrations/hermes",
     "scripts/setup.ts",
     "scripts/service.ts",
     "scripts/install.sh",
+    "scripts/install.ps1",
     "scripts/keys.ts",
     "scripts/schemas.ts",
     "config/models.official.example.json",
@@ -44,13 +46,17 @@
     "docs/integrations",
     "docs/tutorials",
     "docs/architecture/dual-mode.md",
+    "docs/architecture/workspace-hermes-handoff.md",
     "docs/architecture/model-services.md",
     "docs/speech.md",
     "docs/architecture/installation.md",
+    "docs/architecture/update-notifications.md",
     "docs/open-source/boundaries.md",
     "CONTRIBUTING.md",
     "LICENSE",
     "THIRD_PARTY_NOTICES.md",
+    "THIRD_PARTY_LICENSES.txt",
+    "fixtures/manifest.json",
     ".env.example",
     ".gitignore",
     "pnpm-lock.yaml",
@@ -58,7 +64,10 @@
     "tsconfig.json",
     "vitest.config.ts",
     "AGENTS.md",
-    "docs/architecture/repository-layout.md"
+    "docs/architecture/repository-layout.md",
+    "packages/guidance",
+    "scripts/guides.ts",
+    "scripts/upgrade.ts"
   ],
   "exclude": [
     "tests/cloud.test.ts",
@@ -66,7 +75,8 @@
     "tests/cloud-storage.test.ts",
     "tests/model-billing.test.ts",
     "tests/public-export.test.ts",
-    "tests/installer-release.test.ts"
+    "tests/installer-release.test.ts",
+    "tests/release-evidence.test.ts"
   ],
   "readme": "docs/open-source/README.public.md",
   "scripts": {
@@ -74,13 +84,16 @@
     "worker": "tsx apps/worker/src/index.ts",
     "stdio": "tsx packages/mcp/src/stdio.ts",
     "clients": "tsx scripts/clients.ts",
+    "hermes:plugin": "tsx scripts/hermes-plugin.ts",
     "service": "tsx scripts/service.ts",
     "keys": "tsx scripts/keys.ts",
     "demo": "tsx scripts/demo.ts",
-    "build": "tsc --noEmit && vite build --config apps/studio/vite.config.ts && vite build --config apps/mcp-card/vite.config.ts",
+    "build": "pnpm guides:check && tsc --noEmit && vite build --config apps/studio/vite.config.ts && vite build --config apps/mcp-card/vite.config.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:media": "uv run --project python python -m unittest discover -s tests -p '*_test.py'"
+    "test:media": "uv run --project python python -m unittest discover -s tests -p '*_test.py'",
+    "guides:check": "tsx scripts/guides.ts",
+    "guides:manifest": "tsx scripts/guides.ts --write"
   }
 }

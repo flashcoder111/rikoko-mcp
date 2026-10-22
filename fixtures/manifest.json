@@ -1,1 +1,44 @@
-{"schemaVersion":1,"fixtures":[{"id":"orbit-original-graphics","creator":"Video Workbench implementation","source":"python/media_core/cli.py:graphic","license":"Apache-2.0 candidate","redistributable":true,"fictionalProduct":true,"humanLikeness":false,"sha256":"generated at execution; see acceptance asset records"},{"id":"example-copy-translations-word-times","source":"scripts/demo.ts","license":"Apache-2.0 candidate","evidence":"precomputed","humanRecordings":false},{"id":"sine-tone","source":"FFmpeg sine generator","frequencyHz":220,"evidence":"local-real","redistributable":true},{"id":"system-tts-outputs","source":"installed macOS voices or espeak-ng","redistributable":"not included in source release; voice terms must be checked","voiceConsent":"no cloned or uploaded human voice"}],"bundledMediaFiles":[]}
+{
+  "schemaVersion": 1,
+  "fixtures": [
+    {
+      "id": "orbit-original-graphics",
+      "creator": "Video Workbench implementation",
+      "source": "python/media_core/cli.py:graphic",
+      "license": "Apache-2.0 candidate",
+      "redistributable": true,
+      "fictionalProduct": true,
+      "humanLikeness": false,
+      "sha256": "generated at execution; see acceptance asset records"
+    },
+    {
+      "id": "example-copy-translations-word-times",
+      "source": "scripts/demo.ts",
+      "license": "Apache-2.0 candidate",
+      "evidence": "precomputed",
+      "humanRecordings": false
+    },
+    {
+      "id": "sine-tone",
+      "source": "FFmpeg sine generator",
+      "frequencyHz": 220,
+      "evidence": "local-real",
+      "redistributable": true
+    },
+    {
+      "id": "system-tts-outputs",
+      "source": "installed macOS voices or espeak-ng",
+      "redistributable": "not included in source release; voice terms must be checked",
+      "voiceConsent": "no cloned or uploaded human voice"
+    }
+  ],
+  "bundledMediaFiles": {
+    "inventory": "docs/integrations/media-licenses.json",
+    "artworkGenerator": "scripts/build-starter-art.py",
+    "previewGenerator": "scripts/build-starter-previews.ts",
+    "font": "packages/render/fonts/NotoSansSC.ttf",
+    "fontLicense": "OFL-1.1",
+    "paidGeneration": false,
+    "previewAudio": "none"
+  }
+}

@@ -57,6 +57,28 @@ const asset = (id: string, fields = {}): Entity => ({
   ...fields,
 });
 const provider = (m = model) => new FalProvider([m], "fixture", true);
+it("rejects undersized H3 references before submitting and accepts the boundary", () => {
+  const bounded: Model = {
+    ...model,
+    generationInput: {
+      ...model.generationInput!,
+      bindings: [{ ...binding, minDimension: 256, maxPixels: 16777216 }],
+    },
+  };
+  const refs = (width: number, height: number) => [
+    asset("person", { metadata: { width, height } }),
+    asset("bottle", { metadata: { width: 512, height: 512 } }),
+  ];
+  expect(() =>
+    validateGenerationAssets(bounded, input, refs(225, 225)),
+  ).toThrow("minimum 256px");
+  expect(() =>
+    validateGenerationAssets(bounded, input, refs(256, 255)),
+  ).toThrow();
+  expect(() =>
+    validateGenerationAssets(bounded, input, refs(256, 256)),
+  ).not.toThrow();
+});
 it("keeps text-only compatibility but rejects undeclared reference operations", () => {
   const text = { ...model, generationInput: undefined };
   expect(

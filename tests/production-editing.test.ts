@@ -195,7 +195,8 @@ describe("production editing contract", () => {
   it("compiles production sound policy and ending intent, not global beats into each independent model clip", () => {
     const text = editingShotDirection(plan(), "hero");
     expect(text).toContain("Do not generate background music");
-    expect(text).toContain("example");
+    expect(text).not.toContain("example");
+    expect(text).toContain("generate no lettering");
     expect(text).toContain("1500");
     expect(text).not.toContain("Listened to");
   });

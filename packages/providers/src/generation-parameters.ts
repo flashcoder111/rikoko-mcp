@@ -4,6 +4,14 @@ import { AppError } from "../../contracts/src/index.js";
 const rule = z.discriminatedUnion("type", [
   z
     .object({
+      type: z.literal("number"),
+      min: z.number().finite().positive(),
+      max: z.number().finite().positive().max(4096),
+    })
+    .strict()
+    .refine((r) => r.max >= r.min),
+  z
+    .object({
       type: z.literal("enum"),
       values: z
         .array(z.union([z.string().max(40), z.number().finite(), z.boolean()]))
@@ -44,7 +52,8 @@ export function resolveGenerationParameters(
       (spec.type === "enum"
         ? !spec.values.includes(value as any)
         : typeof value !== "number" ||
-          !Number.isInteger(value) ||
+          !Number.isFinite(value) ||
+          (spec.type === "integer" && !Number.isInteger(value)) ||
           value < spec.min ||
           value > spec.max)
     )

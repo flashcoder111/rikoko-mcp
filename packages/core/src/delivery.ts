@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { summarizeTaskUsage } from "./task-usage.js";
 import { AppError, type Context } from "../../contracts/src/index.js";
 import { sha256 } from "../../storage/src/index.js";
 import { Service } from "./index.js";
@@ -16,6 +17,7 @@ export async function workspaceResult(
     ? await service.get(c, "revision", job.revisionId)
     : undefined;
   const result = {
+    usage: summarizeTaskUsage([job]),
     jobId,
     projectId: revision?.projectId,
     revisionId: revision?.id,

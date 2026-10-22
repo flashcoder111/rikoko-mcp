@@ -43,7 +43,7 @@ export const referenceWorkflowTools = {
   reference_analysis_plan: {
     schema: planSchema,
     description:
-      "Plan analysis precision locally: explicit detail wins over reference_analysis_settings; otherwise the saved account preference applies, with auto resolving to shots or recreate for purpose=remake. Detect cut candidates and allocate bounded source intervals; no provider call or purchase. Recreate isolates candidate shots and splits long actions into windows. Window boundaries are not new shots. Use prepare in pages, reference_analyze for each returned exact input, then merge completed reports. Keep all segments; show the total plan and quotes before purchasing. FPS remains provider controlled, not a claimed precision setting.",
+      "Plan analysis precision locally: explicit detail wins over reference_analysis_settings; otherwise the saved account preference applies, with auto resolving to shots or recreate for purpose=remake. Detect cut candidates and allocate bounded source intervals; no provider call or purchase. Recreate isolates candidate shots and splits long actions into windows. Window boundaries are not new shots. Use prepare in pages, reference_analyze for each returned exact input, then merge completed reports. Keep all segments and submit the prepared inputs directly with job_submit within the requested scope; no separate price confirmation. FPS remains provider controlled, not a claimed precision setting.",
   },
   reference_analysis_prepare: {
     schema: prepareSchema,

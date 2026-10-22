@@ -10,6 +10,7 @@ export async function validateStoryboardInput(
   tx: Transaction,
   accountId: string,
   input: Operation,
+  expectedOutput?: { durationMs?: number },
 ) {
   if (input.kind !== "generate" || !input.storyboard) return;
   const link = input.storyboard;
@@ -47,6 +48,14 @@ export async function validateStoryboardInput(
       );
     return;
   }
+  if (
+    expectedOutput &&
+    (!expectedOutput.durationMs || expectedOutput.durationMs < shot.durationMs)
+  )
+    throw new AppError(
+      "GENERATION_TOO_SHORT",
+      "The prepared output does not cover this storyboard shot",
+    );
   const review = shot.review;
   if (review?.decision !== "accepted")
     throw new AppError(

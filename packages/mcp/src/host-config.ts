@@ -1,4 +1,5 @@
-import { join } from "node:path";
+import { join, win32 } from "node:path";
+import { pathToFileURL } from "node:url";
 import { homedir } from "node:os";
 import { isDeepStrictEqual } from "node:util";
 import { parse as parseToml } from "smol-toml";
@@ -29,30 +30,37 @@ export function hostLaunch(options: {
   home?: string;
   platform?: NodeJS.Platform;
 }): HostLaunch {
+  const paths =
+    (options.platform ?? process.platform) === "win32" ? win32 : { join };
   return {
     command: options.node,
     args: [
       "--import",
-      join(options.root, "node_modules/tsx/dist/loader.mjs"),
-      join(options.root, "packages/mcp/src/stdio.ts"),
+      (options.platform ?? process.platform) === "win32"
+        ? pathToFileURL(
+            paths.join(options.root, "node_modules/tsx/dist/loader.mjs"),
+            { windows: true },
+          ).href
+        : paths.join(options.root, "node_modules/tsx/dist/loader.mjs"),
+      paths.join(options.root, "packages/mcp/src/stdio.ts"),
     ],
     env: {
       VIDEOWORKBENCH_URL: backendUrl(options.url),
       VIDEOWORKBENCH_CLIENT: options.client.startsWith("claude")
         ? "claude"
         : options.client,
-      VIDEOWORKBENCH_EXPORT_DIR: join(
+      VIDEOWORKBENCH_EXPORT_DIR: paths.join(
         options.root,
         ".data/host-media",
         options.client,
       ),
       VIDEOWORKBENCH_IMPORT_ROOTS: JSON.stringify([
-        join(options.root, "artifacts"),
-        join(options.root, "media-inbox"),
+        paths.join(options.root, "artifacts"),
+        paths.join(options.root, "media-inbox"),
         ...(options.client === "hermes" &&
         (options.platform ?? process.platform) === "darwin"
           ? [
-              join(
+              paths.join(
                 options.home ?? homedir(),
                 "Library/Application Support/Hermes/composer-images",
               ),
@@ -71,7 +79,40 @@ export function hostLaunch(options: {
     },
   };
 }
-export function clientConfigPath(client: ClientName, home: string) {
+export function clientConfigPath(
+  client: ClientName,
+  home: string,
+  options: {
+    platform?: NodeJS.Platform;
+    appData?: string;
+    desktopConfig?: string;
+  } = {},
+) {
+  if ((options.platform ?? process.platform) === "win32") {
+    if (client === "claude-desktop") {
+      const override =
+        options.desktopConfig ?? process.env.RIKOKO_CLAUDE_DESKTOP_CONFIG;
+      if (override) {
+        if (!win32.isAbsolute(override))
+          throw Error("Claude Desktop config path must be absolute");
+        return override;
+      }
+      // Keep isolated client homes isolated; do not use the real user's APPDATA.
+      const appData =
+        options.appData ??
+        (home === homedir() ? process.env.APPDATA : undefined) ??
+        win32.join(home, "AppData", "Roaming");
+      return win32.join(appData, "Claude", "claude_desktop_config.json");
+    }
+    return win32.join(
+      home,
+      client === "codex"
+        ? ".codex/config.toml"
+        : client === "claude-code"
+          ? ".claude.json"
+          : ".hermes/config.yaml",
+    );
+  }
   return client === "codex"
     ? join(home, ".codex/config.toml")
     : client === "claude-desktop"

@@ -18,6 +18,9 @@ export async function buildInstaller(
   },
   output: string,
 ) {
+  const pkg = JSON.parse(await readFile(join(root, "package.json"), "utf8"));
+  if (config.version !== pkg.version)
+    throw Error("Release version must match package.json version");
   const name = `video-workbench-${config.version}.tar.gz`;
   const base = new URL(config.downloadBaseUrl);
   if (
@@ -34,7 +37,14 @@ export async function buildInstaller(
   await exportPublicSource(root, join(output, "video-workbench"));
   await promisify(execFile)(
     "tar",
-    ["-czf", join(output, name), "-C", output, "video-workbench"],
+    [
+      "--no-xattrs",
+      "-czf",
+      join(output, name),
+      "-C",
+      output,
+      "video-workbench",
+    ],
     {
       env: { ...process.env, COPYFILE_DISABLE: "1" },
     },
@@ -43,17 +53,16 @@ export async function buildInstaller(
     .update(await readFile(join(output, name)))
     .digest("hex");
   const release = validateRelease({ ...config, archiveUrl, sha256 });
-  const template = await readFile(join(root, "scripts/install.sh"), "utf8");
-  if (template.split("__VWB_RELEASE_BASE64__").length !== 2)
-    throw Error("Installer template marker must occur exactly once");
-  const installer = template.replace(
-    "__VWB_RELEASE_BASE64__",
-    Buffer.from(JSON.stringify(release)).toString("base64"),
-  );
-  await writeFile(join(output, "install.sh"), installer, {
-    mode: 0o755,
-    flag: "wx",
-  });
+  for (const name of ["install.sh", "install.ps1"]) {
+    const template = await readFile(join(root, "scripts", name), "utf8");
+    if (template.split("__VWB_RELEASE_BASE64__").length !== 2)
+      throw Error("Installer template marker must occur exactly once");
+    const installer = template.replace(
+      "__VWB_RELEASE_BASE64__",
+      Buffer.from(JSON.stringify(release)).toString("base64"),
+    );
+    await writeFile(join(output, name), installer, { mode: 0o755, flag: "wx" });
+  }
   await writeFile(
     join(output, "release.json"),
     JSON.stringify(release, null, 2) + "\n",
@@ -65,7 +74,16 @@ export async function buildInstaller(
   const url = `${config.downloadBaseUrl.replace(/\/$/, "")}/install.sh`;
   const quoted = `'${url.replaceAll("'", "'\\''")}'`;
   const command = `curl -fsSL ${quoted} | bash`;
-  return { directory: output, command, published: false, release };
+  const windowsUrl = `${config.downloadBaseUrl.replace(/\/$/, "")}/install.ps1`;
+  const windowsQuoted = `'${windowsUrl.replaceAll("'", "''")}'`;
+  const windowsCommand = `& { $script = Join-Path $env:TEMP ('rikoko-' + [guid]::NewGuid().ToString('N') + '.ps1'); try { Invoke-WebRequest -UseBasicParsing -ErrorAction Stop ${windowsQuoted} -OutFile $script; powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script; if ($LASTEXITCODE -ne 0) { throw 'rikoko installation failed' } } finally { Remove-Item -LiteralPath $script -Force -ErrorAction SilentlyContinue } }`;
+  return {
+    directory: output,
+    command,
+    windowsCommand,
+    published: false,
+    release,
+  };
 }
 if (
   process.argv[1] &&

@@ -9,9 +9,340 @@
       "enabled": false,
       "models": [
         {
+          "id": "seedance-mini-text",
+          "name": "Seedance 2.0 Mini · Text to video",
+          "description": "Face-free tasks only. Verify the account's pricing/cost bound before enabling.",
+          "endpoint": "bytedance/seedance-2.0/mini/text-to-video",
+          "kind": "video",
+          "maxCostCents": 300,
+          "priceVersion": "EXAMPLE-REPLACE-AFTER-PRICING-REVIEW",
+          "hardBoundConfirmed": false,
+          "parameters": {
+            "duration": "5",
+            "resolution": "720p",
+            "aspect_ratio": "16:9",
+            "generate_audio": true,
+            "codec": "H264"
+          },
+          "allowedParameters": {
+            "duration": {
+              "type": "enum",
+              "values": [
+                "4",
+                "5",
+                "6",
+                "7",
+                "8",
+                "9",
+                "10",
+                "11",
+                "12",
+                "13",
+                "14",
+                "15"
+              ]
+            },
+            "resolution": {
+              "type": "enum",
+              "values": [
+                "480p",
+                "720p"
+              ]
+            },
+            "aspect_ratio": {
+              "type": "enum",
+              "values": [
+                "21:9",
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16"
+              ]
+            }
+          }
+        },
+        {
+          "id": "seedance-mini-first-frame",
+          "name": "Seedance 2.0 Mini · First frame",
+          "description": "Face-free tasks only. Verify the account's pricing/cost bound before enabling.",
+          "endpoint": "bytedance/seedance-2.0/mini/image-to-video",
+          "kind": "video",
+          "maxCostCents": 300,
+          "priceVersion": "EXAMPLE-REPLACE-AFTER-PRICING-REVIEW",
+          "hardBoundConfirmed": false,
+          "parameters": {
+            "duration": "5",
+            "resolution": "720p",
+            "aspect_ratio": "16:9",
+            "generate_audio": true,
+            "codec": "H264"
+          },
+          "allowedParameters": {
+            "duration": {
+              "type": "enum",
+              "values": [
+                "4",
+                "5",
+                "6",
+                "7",
+                "8",
+                "9",
+                "10",
+                "11",
+                "12",
+                "13",
+                "14",
+                "15"
+              ]
+            },
+            "resolution": {
+              "type": "enum",
+              "values": [
+                "480p",
+                "720p"
+              ]
+            },
+            "aspect_ratio": {
+              "type": "enum",
+              "values": [
+                "21:9",
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16"
+              ]
+            }
+          },
+          "generationInput": {
+            "mode": "image_to_video",
+            "outputDurationMs": 5000,
+            "maxTotalBytes": 41943040,
+            "bindings": [
+              {
+                "kind": "image",
+                "min": 1,
+                "max": 1,
+                "array": false,
+                "maxBytes": 20971520,
+                "mimeTypes": [
+                  "image/jpeg",
+                  "image/png",
+                  "image/webp"
+                ],
+                "field": "image_url",
+                "roles": [
+                  "first_frame"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "seedance-mini-first-last",
+          "name": "Seedance 2.0 Mini · First and last frames",
+          "description": "Face-free tasks only. Verify the account's pricing/cost bound before enabling.",
+          "endpoint": "bytedance/seedance-2.0/mini/image-to-video",
+          "kind": "video",
+          "maxCostCents": 300,
+          "priceVersion": "EXAMPLE-REPLACE-AFTER-PRICING-REVIEW",
+          "hardBoundConfirmed": false,
+          "parameters": {
+            "duration": "5",
+            "resolution": "720p",
+            "aspect_ratio": "16:9",
+            "generate_audio": true,
+            "codec": "H264"
+          },
+          "allowedParameters": {
+            "duration": {
+              "type": "enum",
+              "values": [
+                "4",
+                "5",
+                "6",
+                "7",
+                "8",
+                "9",
+                "10",
+                "11",
+                "12",
+                "13",
+                "14",
+                "15"
+              ]
+            },
+            "resolution": {
+              "type": "enum",
+              "values": [
+                "480p",
+                "720p"
+              ]
+            },
+            "aspect_ratio": {
+              "type": "enum",
+              "values": [
+                "21:9",
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16"
+              ]
+            }
+          },
+          "generationInput": {
+            "mode": "first_last_frame",
+            "outputDurationMs": 5000,
+            "maxTotalBytes": 41943040,
+            "bindings": [
+              {
+                "kind": "image",
+                "min": 1,
+                "max": 1,
+                "array": false,
+                "maxBytes": 20971520,
+                "mimeTypes": [
+                  "image/jpeg",
+                  "image/png",
+                  "image/webp"
+                ],
+                "field": "image_url",
+                "roles": [
+                  "first_frame"
+                ]
+              },
+              {
+                "kind": "image",
+                "min": 1,
+                "max": 1,
+                "array": false,
+                "maxBytes": 20971520,
+                "mimeTypes": [
+                  "image/jpeg",
+                  "image/png",
+                  "image/webp"
+                ],
+                "field": "end_image_url",
+                "roles": [
+                  "last_frame"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "seedance-mini-references",
+          "name": "Seedance 2.0 Mini · Image and video references",
+          "description": "Face-free tasks only. Verify the account's pricing/cost bound before enabling.",
+          "endpoint": "bytedance/seedance-2.0/mini/reference-to-video",
+          "kind": "video",
+          "maxCostCents": 300,
+          "priceVersion": "EXAMPLE-REPLACE-AFTER-PRICING-REVIEW",
+          "hardBoundConfirmed": false,
+          "parameters": {
+            "duration": "5",
+            "resolution": "720p",
+            "aspect_ratio": "16:9",
+            "generate_audio": true,
+            "codec": "H264"
+          },
+          "allowedParameters": {
+            "duration": {
+              "type": "enum",
+              "values": [
+                "4",
+                "5",
+                "6",
+                "7",
+                "8",
+                "9",
+                "10",
+                "11",
+                "12",
+                "13",
+                "14",
+                "15"
+              ]
+            },
+            "resolution": {
+              "type": "enum",
+              "values": [
+                "480p",
+                "720p"
+              ]
+            },
+            "aspect_ratio": {
+              "type": "enum",
+              "values": [
+                "21:9",
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16"
+              ]
+            }
+          },
+          "generationInput": {
+            "mode": "reference_to_video",
+            "referenceSyntax": "seedance",
+            "outputDurationMs": 5000,
+            "maxTotalBytes": 41943040,
+            "bindings": [
+              {
+                "kind": "image",
+                "min": 0,
+                "max": 9,
+                "array": true,
+                "maxBytes": 20971520,
+                "mimeTypes": [
+                  "image/jpeg",
+                  "image/png",
+                  "image/webp"
+                ],
+                "field": "image_urls",
+                "roles": [
+                  "character",
+                  "product",
+                  "scene",
+                  "style",
+                  "composition"
+                ]
+              },
+              {
+                "field": "video_urls",
+                "roles": [
+                  "motion"
+                ],
+                "kind": "video",
+                "array": true,
+                "min": 0,
+                "max": 3,
+                "maxBytes": 20971520,
+                "mimeTypes": [
+                  "video/mp4",
+                  "video/quicktime"
+                ],
+                "containers": [
+                  "mp4",
+                  "mov"
+                ],
+                "minDurationMs": 2000,
+                "maxDurationMs": 15000,
+                "maxTotalDurationMs": 15000,
+                "minDimension": 640,
+                "maxDimension": 1112,
+                "maxPixels": 927408
+              }
+            ]
+          }
+        },
+        {
           "id": "nano-banana-storyboard",
-          "name": "Nano Banana 2 · 多参考图编辑",
-          "description": "以原片构图帧和目标人物、产品图片生成待审阅分镜图；示例待核价",
+          "name": "Nano Banana 2 · Multi-reference image editing",
+          "description": "Generate storyboard images for review from source composition frames and target character or product images. Example profile; pricing review required.",
           "endpoint": "fal-ai/nano-banana-2/edit",
           "kind": "image",
           "maxCostCents": 100,
@@ -43,16 +374,29 @@
                 "maxBytes": 10485760,
                 "maxPixels": 16777216
               }
-            ]
+            ],
+            "referenceSyntax": "descriptive"
+          },
+          "allowedParameters": {
+            "aspect_ratio": {
+              "type": "enum",
+              "values": [
+                "16:9",
+                "9:16",
+                "1:1",
+                "4:3",
+                "3:4"
+              ]
+            }
           }
         },
         {
           "id": "minimax-storyboard-i2v",
-          "name": "MiniMax H3 · 首帧生视频",
-          "description": "5 秒 / 768P 示例，按需求调整档案和费用后重新报价；不是能力上限",
+          "name": "MiniMax H3 · First-frame image-to-video",
+          "description": "5-second / 768P example. Adjust the profile and cost to match requirements, then request a new quote. This is not the model's capability limit.",
           "endpoint": "minimax/h3/image-to-video",
           "kind": "video",
-          "maxCostCents": 100,
+          "maxCostCents": 300,
           "priceVersion": "EXAMPLE-REPLACE-AFTER-PRICING-REVIEW",
           "hardBoundConfirmed": false,
           "parameters": {
@@ -78,16 +422,24 @@
                 "maxBytes": 10485760,
                 "maxPixels": 16777216
               }
-            ]
+            ],
+            "referenceSyntax": "descriptive"
+          },
+          "allowedParameters": {
+            "duration": {
+              "type": "integer",
+              "min": 5,
+              "max": 15
+            }
           }
         },
         {
           "id": "minimax-storyboard-first-last",
-          "name": "MiniMax H3 · 首尾帧",
-          "description": "5 秒 / 768P 示例，按需求调整档案和费用后重新报价；不是能力上限",
+          "name": "MiniMax H3 · First and last frames",
+          "description": "5-second / 768P example. Adjust the profile and cost to match requirements, then request a new quote. This is not the model's capability limit.",
           "endpoint": "minimax/h3/image-to-video",
           "kind": "video",
-          "maxCostCents": 100,
+          "maxCostCents": 300,
           "priceVersion": "EXAMPLE-REPLACE-AFTER-PRICING-REVIEW",
           "hardBoundConfirmed": false,
           "parameters": {
@@ -125,16 +477,24 @@
                 "maxBytes": 10485760,
                 "maxPixels": 16777216
               }
-            ]
+            ],
+            "referenceSyntax": "descriptive"
+          },
+          "allowedParameters": {
+            "duration": {
+              "type": "integer",
+              "min": 5,
+              "max": 15
+            }
           }
         },
         {
           "id": "minimax-storyboard-references",
-          "name": "MiniMax H3 · 图像和动作参考",
-          "description": "5 秒 / 768P 示例，按需求调整档案和费用后重新报价；不是能力上限",
-          "endpoint": "minimax/h3/reference-to-video",
+          "name": "MiniMax H3 Max · Image and video references",
+          "description": "Joint character images and temporal video references. Select fractional duration, resolution and ratio explicitly. Preservation is a creative requirement, not an edit-only interface restriction.",
+          "endpoint": "minimax/h3-max/reference-to-video",
           "kind": "video",
-          "maxCostCents": 100,
+          "maxCostCents": 300,
           "priceVersion": "EXAMPLE-REPLACE-AFTER-PRICING-REVIEW",
           "hardBoundConfirmed": false,
           "parameters": {
@@ -179,7 +539,35 @@
                 "maxDurationMs": 15000,
                 "maxTotalDurationMs": 15000
               }
-            ]
+            ],
+            "referenceSyntax": "descriptive"
+          },
+          "allowedParameters": {
+            "duration": {
+              "type": "number",
+              "min": 1,
+              "max": 15
+            },
+            "resolution": {
+              "type": "enum",
+              "values": [
+                "480P",
+                "768P",
+                "1080P"
+              ]
+            },
+            "aspect_ratio": {
+              "type": "enum",
+              "values": [
+                "adaptive",
+                "21:9",
+                "16:9",
+                "4:3",
+                "1:1",
+                "3:4",
+                "9:16"
+              ]
+            }
           }
         },
         {

@@ -1,6 +1,6 @@
 {
   "name": "rikoko",
-  "version": "0.1.25",
+  "version": "0.1.32",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.28.2",
@@ -12,7 +12,8 @@
     "worker": "tsx apps/worker/src/index.ts",
     "stdio": "tsx packages/mcp/src/stdio.ts",
     "clients": "tsx scripts/clients.ts",
-    "build": "tsc --noEmit && vite build --config apps/studio/vite.config.ts && vite build --config apps/mcp-card/vite.config.ts",
+    "hermes:plugin": "tsx scripts/hermes-plugin.ts",
+    "build": "pnpm guides:check && tsc --noEmit && vite build --config apps/studio/vite.config.ts && vite build --config apps/mcp-card/vite.config.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
@@ -24,7 +25,9 @@
     "export:public": "tsx scripts/export-public.ts",
     "release:installer": "tsx scripts/build-installer.ts",
     "service": "tsx scripts/service.ts",
-    "pack:runtime": "pnpm build && node scripts/pack-runtime.mjs"
+    "pack:runtime": "pnpm build && node scripts/pack-runtime.mjs",
+    "guides:check": "tsx scripts/guides.ts",
+    "guides:manifest": "tsx scripts/guides.ts --write"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1149.0",
@@ -79,8 +82,8 @@
     "./worker/*": "./apps/worker/src/*.ts"
   },
   "files": [
-    "skills/rikoko/SKILL.md",
-    "skills/rikoko/references/*.md",
+    "integrations/hermes/*.js",
+    "scripts/hermes-plugin.ts",
     "packages/*/src/**/*",
     "packages/contracts/schemas/*.json",
     "packages/render/fonts/*",
@@ -94,6 +97,10 @@
     "python/pyproject.toml",
     "python/uv.lock",
     "LICENSE",
-    "THIRD_PARTY_NOTICES.md"
+    "THIRD_PARTY_NOTICES.md",
+    "packages/guidance/content/*.md",
+    "packages/guidance/manifest.json",
+    "packages/bootstrap/src/legacy-skill-manifests.json",
+    "THIRD_PARTY_LICENSES.txt"
   ]
 }

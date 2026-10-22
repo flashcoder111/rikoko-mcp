@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import type { Entity } from "../../../packages/contracts/src/index.js";
 import type { Proposal } from "../../../packages/core/src/workspace-contracts.js";
 import {
+  analysisCommand,
   analysisSettingLabels,
   parseAnalysisSetting,
   type AnalysisSetting,
@@ -18,6 +19,17 @@ import {
 import { AssetThumb, VideoPreview } from "./media";
 import { ArrowUp, Plus, Sparkles, ArrowUpRight } from "lucide-react";
 import Generation, { type GenerationRequest } from "./Generation";
+import {
+  creativeCommands,
+  draftCommand,
+  commandRequirement,
+  defaultGenerationModel,
+  textGenerationModel,
+  generationRole,
+  generationRoles,
+} from "../../../packages/core/src/commands.js";
+
+const composerCommands = [...creativeCommands, analysisCommand];
 
 export type ChatProps = {
   snapshot?: Snapshot;
@@ -46,18 +58,30 @@ export type ChatProps = {
 export default function Chat(props: ChatProps) {
   const { snapshot, draft, setDraft, attachments, proposal, busy } = props;
   const [creationMode, setCreationMode] = useState("edit");
-  const [modelId, setModelId] = useState("");
+  const [speechLanguage, setSpeechLanguage] = useState("zh");
+  const [speechVoice, setSpeechVoice] = useState("");
+  const [modelIds, setModelIds] = useState<Record<string, string>>({});
+  const modelId = modelIds[creationMode] ?? "";
+  function setModelId(id: string, role = creationMode) {
+    setModelIds((previous) => ({ ...previous, [role]: id }));
+  }
+  const [commandPanel, setCommandPanel] = useState<"help" | "models">();
   const [commandNotice, setCommandNotice] = useState("");
   const analysisCommandState = useRef({ version: 0, pending: false });
   const currentDraft = useRef(draft);
   currentDraft.current = draft;
+  const [menuDismissed, setMenuDismissed] = useState(false);
+  const command = draftCommand(draft);
+  const commandSuggestions =
+    command && !menuDismissed
+      ? composerCommands.filter((item) => item.name.startsWith(command.name))
+      : [];
   const models = (props.capabilities?.providers ?? []).filter(
-    (m) => m.kind === creationMode,
+    (m) => generationRole(m) === creationMode,
   );
-  const selectedModel =
-    models.find((m) => m.id === modelId) ??
-    models.find((m) => m.available) ??
-    models[0];
+  const selectedModel = modelId
+    ? models.find((m) => m.id === modelId)
+    : defaultGenerationModel(models);
   const official = props.capabilities?.generation.mode !== "custom";
   const [generation, setGeneration] = useState<GenerationRequest>();
   useEffect(() => {
@@ -65,8 +89,10 @@ export default function Chat(props: ChatProps) {
       version: analysisCommandState.current.version + 1,
       pending: false,
     };
-    setCommandNotice("");
     setCreationMode("edit");
+    setModelIds({});
+    setCommandPanel(undefined);
+    setCommandNotice("");
     setGeneration(undefined);
   }, [props.snapshot?.project.id]);
   const [showHistory, setShowHistory] = useState(false);
@@ -75,6 +101,91 @@ export default function Chat(props: ChatProps) {
   const current = snapshot?.revision;
   const job = latestJob(snapshot?.jobs ?? [], current?.id);
   const feed = useRef<HTMLDivElement>(null);
+  const promptInput = useRef<HTMLTextAreaElement>(null);
+  const commandMenu = useRef<HTMLDivElement>(null);
+  function changeMode(mode: string) {
+    setCreationMode(mode);
+  }
+  function chooseModel(id: string) {
+    const model = props.capabilities?.providers.find((m) => m.id === id);
+    if (!model?.available) {
+      setCommandNotice(
+        "该模型尚未接入或未启用，请从当前目录选择。原模型保持不变。",
+      );
+      return false;
+    }
+    if (!textGenerationModel(model)) {
+      setCommandNotice(
+        "该档案需要结构化参考输入，请在 Agent 中使用 /rikoko model 并附上素材；当前输入框仅支持文字生成。",
+      );
+      return false;
+    }
+    const role = generationRole(model);
+    setCreationMode(role);
+    setModelId(model.id, role);
+    setCommandNotice(`已选择 ${model.name}。发送创作要求即可生成。`);
+    return true;
+  }
+  function runCommand() {
+    if (!command) return false;
+    const { name, argument, prefix } = command;
+    const clear = () => setDraft(prefix);
+    if (["help", "models"].includes(name) || !name) {
+      if (argument) {
+        setCommandNotice("此指令无需参数。补充要求请使用 /brief。");
+        return true;
+      }
+      setCommandPanel(name === "models" ? "models" : "help");
+      setCommandNotice("");
+      clear();
+    } else if (name === "analysis") {
+      void runAnalysisCommand(argument, prefix, draft);
+    } else if (name === "model") {
+      setCommandPanel("models");
+      if (!argument) setCommandNotice("请从模型目录选择，或输入 /model auto。");
+      else if (argument.toLowerCase() === "auto") {
+        setModelId("", creationMode === "edit" ? "video" : creationMode);
+        if (creationMode === "edit") setCreationMode("video");
+        setCommandNotice(
+          "已恢复自动选择：无人脸视频优先使用 Seedance Mini；涉及人脸时停用 Seedance，推荐 MiniMax，也可选择 Kling，并与你确认。后期配音默认 ElevenLabs Eleven v3。",
+        );
+        clear();
+      } else if (chooseModel(argument)) clear();
+    } else if (["video", "image", "speech", "audio", "edit"].includes(name)) {
+      if (argument) {
+        setCommandNotice("切换方式无需参数；请换行填写创作要求。");
+        return true;
+      }
+      changeMode(name);
+      setCommandNotice("已切换创作方式，原有草稿与附件已保留。");
+      clear();
+    } else {
+      const result = commandRequirement(name, argument);
+      if ("error" in result) setCommandNotice(result.error);
+      else {
+        const label = result.text.split("：")[0] + "：";
+        const lines = prefix.split("\n");
+        const index =
+          name === "style"
+            ? lines.findIndex((line) => line.startsWith(label))
+            : -1;
+        if (index >= 0) lines[index] = result.text;
+        else lines.push(result.text);
+        const nextDraft = lines.filter(Boolean).join("\n");
+        if (nextDraft.length > 5000) {
+          setCommandNotice("创作要求超过 5000 字符，请缩短后重试。");
+          return true;
+        }
+        setDraft(nextDraft);
+        setCommandNotice(
+          name === "reference"
+            ? "已补充用途说明。请通过 + 上传文件；用途文字不会导入素材，也不会把附件自动传给生成模型。"
+            : "已补充到草稿，发送前仍可修改。时长、画幅等要求直接用自然语言描述即可。",
+        );
+      }
+    }
+    return true;
+  }
   async function runAnalysisCommand(
     argument: string,
     prefix: string,
@@ -105,7 +216,6 @@ export default function Chat(props: ChatProps) {
         analysisCommandState.current.pending = false;
     }
   }
-
   useEffect(() => {
     if (!showHistory)
       feed.current?.scrollTo({ top: feed.current.scrollHeight });
@@ -282,7 +392,7 @@ export default function Chat(props: ChatProps) {
                   disabled={!!busy}
                   onClick={props.onApply}
                 >
-                  应用并生成预览
+                  应用并合成预览
                 </button>
               </>
             )}
@@ -301,8 +411,14 @@ export default function Chat(props: ChatProps) {
           request={generation}
           onUse={props.onGeneratedAsset}
           onReprompt={(prompt, model, kind) => {
-            setCreationMode(kind ?? generation?.mediaKind ?? "video");
-            if (model) setModelId(model);
+            const selected = props.capabilities?.providers.find(
+              (m) => m.id === model,
+            );
+            const role = selected
+              ? generationRole(selected)
+              : (kind ?? generation?.mediaKind ?? "video");
+            setCreationMode(role);
+            if (model) setModelId(model, role);
             setDraft(prompt);
           }}
         />
@@ -311,36 +427,170 @@ export default function Chat(props: ChatProps) {
         className="composer"
         onSubmit={(e) => {
           e.preventDefault();
-          if (
-            busy ||
-            (!draft.trim() && !(creationMode === "edit" && attachments.length))
-          )
+          if (busy) return;
+          if (runCommand()) return;
+          if (!draft.trim() && !(creationMode === "edit" && attachments.length))
             return;
-          const lines = draft.split("\n");
-          const command = lines.at(-1)?.match(/^\/analysis(?:[ \t]+(.*))?$/i);
-          if (command) {
-            void runAnalysisCommand(
-              command[1] ?? "",
-              lines.slice(0, -1).join("\n"),
-              draft,
-            );
-            return;
-          }
           if (creationMode !== "edit") {
-            if (!selectedModel?.available) return;
+            if (
+              !selectedModel?.available ||
+              !textGenerationModel(selectedModel)
+            )
+              return;
             setGeneration({
               prompt: draft.trim(),
               model: selectedModel.id,
               modelName: selectedModel.name,
+              modelExplicit: !!modelId,
               description: selectedModel.description,
               mediaKind: selectedModel.kind,
               billingSource: official ? "credits" : "external",
               nonce: crypto.randomUUID(),
+              ...(creationMode === "speech"
+                ? {
+                    speech: {
+                      language: speechLanguage,
+                      voice: speechVoice.trim() || "default",
+                    },
+                  }
+                : {}),
             });
             setDraft("");
           } else props.onSend();
         }}
       >
+        {(commandPanel || commandSuggestions.length > 0) && (
+          <div
+            ref={commandMenu}
+            className="composer-commands"
+            aria-label="rikoko 指令"
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                setCommandPanel(undefined);
+                setMenuDismissed(true);
+                promptInput.current?.focus();
+              }
+              if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+              const buttons = [
+                ...e.currentTarget.querySelectorAll<HTMLButtonElement>(
+                  ":scope > button:not(:disabled), .composer-model-group > button:not(:disabled)",
+                ),
+              ];
+              const index = buttons.indexOf(
+                document.activeElement as HTMLButtonElement,
+              );
+              if (!buttons.length) return;
+              e.preventDefault();
+              buttons[
+                (index + (e.key === "ArrowDown" ? 1 : buttons.length - 1)) %
+                  buttons.length
+              ]?.focus();
+            }}
+          >
+            <div className="composer-commands-heading">
+              <strong>
+                {commandPanel === "models" ? "当前模型" : "创作指令"}
+              </strong>
+              <button
+                type="button"
+                onClick={() => {
+                  setCommandPanel(undefined);
+                  setMenuDismissed(true);
+                }}
+              >
+                收起
+              </button>
+            </div>
+            {commandPanel === "models" ? (
+              <>
+                {!props.capabilities?.providers.some((m) =>
+                  ["video", "image", "audio"].includes(m.kind),
+                ) && <p>暂无生成模型。接入后会自动显示在这里。</p>}
+                {generationRoles.map((role) => (
+                  <div className="composer-model-group" key={role.id}>
+                    <strong>{role.label}</strong>
+                    {!props.capabilities?.providers.some(
+                      (m) => generationRole(m) === role.id,
+                    ) && <p>暂无已接入模型</p>}
+                    {props.capabilities?.providers
+                      .filter((m) => generationRole(m) === role.id)
+                      .map((model) => (
+                        <button
+                          type="button"
+                          key={model.id}
+                          aria-pressed={modelIds[role.id] === model.id}
+                          disabled={
+                            !!busy ||
+                            !model.available ||
+                            !textGenerationModel(model)
+                          }
+                          onClick={() => {
+                            if (
+                              chooseModel(model.id) &&
+                              command?.name === "model"
+                            )
+                              setDraft(command.prefix);
+                          }}
+                        >
+                          <strong>{model.name}</strong>
+                          <span>
+                            {model.id} ·{" "}
+                            {!model.available
+                              ? "未启用"
+                              : !textGenerationModel(model)
+                                ? "需在 Agent 中绑定参考素材"
+                                : "可用"}
+                          </span>
+                          <span>{model.description}</span>
+                          {model.fixedParameters &&
+                            Object.keys(model.fixedParameters).length > 0 && (
+                              <span>
+                                {Object.entries(model.fixedParameters)
+                                  .map(
+                                    ([key, value]) =>
+                                      `${({ duration: "时长（秒）", aspect_ratio: "画幅", resolution: "分辨率", width: "宽度", height: "高度", num_images: "图片数量" } as Record<string, string>)[key] ?? key}：${value}`,
+                                  )
+                                  .join(" · ")}
+                              </span>
+                            )}
+                        </button>
+                      ))}
+                  </div>
+                ))}
+                <p>
+                  列表来自当前连接。未接入的模型不会被自动替代；选择模型不产生费用。
+                </p>
+              </>
+            ) : (
+              (commandPanel === "help"
+                ? composerCommands
+                : commandSuggestions
+              ).map((item) => (
+                <button
+                  type="button"
+                  key={item.name}
+                  disabled={!!busy}
+                  onClick={() => {
+                    setDraft(
+                      [
+                        command?.prefix ?? draft,
+                        `/${item.name}${item.usage.includes("<") ? " " : ""}`,
+                      ]
+                        .filter(Boolean)
+                        .join("\n"),
+                    );
+                    setCommandPanel(undefined);
+                    setMenuDismissed(false);
+                    promptInput.current?.focus();
+                  }}
+                >
+                  <strong>{item.usage}</strong>
+                  <span>{item.description}</span>
+                </button>
+              ))
+            )}
+          </div>
+        )}
         {commandNotice && (
           <p className="composer-note" role="status">
             {commandNotice}
@@ -377,21 +627,87 @@ export default function Chat(props: ChatProps) {
         >
           创作要求
         </label>
+        {creationMode === "speech" && (
+          <div className="composer-speech-controls">
+            <label>
+              配音语言
+              <select
+                aria-label="配音语言"
+                value={speechLanguage}
+                onChange={(e) => setSpeechLanguage(e.target.value)}
+                disabled={!!busy}
+              >
+                {[
+                  ["zh", "中文"],
+                  ["en", "English"],
+                  ["ja", "日本語"],
+                  ["ko", "한국어"],
+                  ["de", "Deutsch"],
+                  ["fr", "Français"],
+                  ["es", "Español"],
+                ].map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              音色
+              <input
+                aria-label="配音音色"
+                value={speechVoice}
+                onChange={(e) => setSpeechVoice(e.target.value)}
+                placeholder="使用模型预设音色"
+                maxLength={80}
+                disabled={!!busy}
+              />
+            </label>
+            <span>用于后期修改或替换配音；视频原生声音默认保留。</span>
+          </div>
+        )}
         <textarea
+          ref={promptInput}
           id={props.embedded ? "studio-prompt" : "chat-prompt"}
           placeholder={
             current
               ? "描述修改，例如：删除最后一个镜头…"
               : creationMode === "image"
                 ? "描述你想生成的图片…"
-                : creationMode === "audio"
-                  ? "输入配音文案，或描述音乐和音效…"
-                  : "描述你想做的视频，不需要先选模板…"
+                : creationMode === "speech"
+                  ? "输入需要朗读的配音文案…"
+                  : creationMode === "audio"
+                    ? "描述音乐或音效…"
+                    : "描述你想做的视频，不需要先选模板…"
           }
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            setCommandPanel(undefined);
+            setMenuDismissed(false);
+          }}
           rows={2}
           onKeyDown={(e) => {
+            if (e.nativeEvent.isComposing) return;
+            if (
+              e.key === "ArrowDown" &&
+              commandMenu.current &&
+              command &&
+              !command.argument
+            ) {
+              const first =
+                commandMenu.current.querySelector<HTMLButtonElement>(
+                  ":scope > button:not(:disabled), .composer-model-group > button:not(:disabled)",
+                );
+              if (first) {
+                e.preventDefault();
+                first.focus();
+              }
+            }
+            if (e.key === "Escape") {
+              setCommandPanel(undefined);
+              setMenuDismissed(true);
+            }
             if (
               e.key === "Enter" &&
               !e.shiftKey &&
@@ -404,6 +720,17 @@ export default function Chat(props: ChatProps) {
           maxLength={5000}
         />
         <div className="composer-bottom">
+          <button
+            type="button"
+            aria-label="查看斜杠指令"
+            disabled={!!busy}
+            onClick={() => {
+              setCommandPanel(commandPanel ? undefined : "help");
+              setMenuDismissed(false);
+            }}
+          >
+            /
+          </button>
           <label className={`upload-button ${busy ? "disabled" : ""}`}>
             <Plus size={19} />
             <span className="sr-only">上传素材</span>
@@ -426,11 +753,13 @@ export default function Chat(props: ChatProps) {
           <select
             aria-label="创作方式"
             value={creationMode}
-            onChange={(e) => setCreationMode(e.target.value)}
+            onChange={(e) => changeMode(e.target.value)}
           >
-            <option value="video">视频生成</option>
-            <option value="image">图片生成</option>
-            <option value="audio">音频生成</option>
+            {generationRoles.map((role) => (
+              <option key={role.id} value={role.id}>
+                {role.label}
+              </option>
+            ))}
             <option value="edit">自动创作与修改</option>
           </select>
           {creationMode !== "edit" && (
@@ -440,11 +769,16 @@ export default function Chat(props: ChatProps) {
               disabled={!models.length}
               onChange={(e) => setModelId(e.target.value)}
             >
-              {!models.length && <option value="">暂无可用模型</option>}
+              {!selectedModel && <option value="">请选择可用模型</option>}
               {models.map((m) => (
-                <option key={m.id} value={m.id} disabled={!m.available}>
+                <option
+                  key={m.id}
+                  value={m.id}
+                  disabled={!m.available || !textGenerationModel(m)}
+                >
                   {m.name}
                   {m.available ? "" : " · 未启用"}
+                  {m.generationInput ? " · 需参考素材" : ""}
                 </option>
               ))}
             </select>
@@ -455,7 +789,10 @@ export default function Chat(props: ChatProps) {
               !!busy ||
               (!draft.trim() &&
                 !(creationMode === "edit" && attachments.length)) ||
-              (creationMode !== "edit" && !selectedModel?.available)
+              (!command &&
+                creationMode !== "edit" &&
+                (!selectedModel?.available ||
+                  !textGenerationModel(selectedModel)))
             }
             type="submit"
           >
@@ -466,7 +803,7 @@ export default function Chat(props: ChatProps) {
         <p className="composer-note">
           {creationMode !== "edit"
             ? `${official ? "官方套餐额度" : "自有服务 · 供应商账户付费"} · ${selectedModel?.description || "生成前确认费用"}`
-            : "Shift + Enter 换行 · 修改保留历史版本"}
+            : "输入 / 查看指令 · Shift + Enter 换行 · 修改保留历史版本"}
         </p>
         {creationMode !== "edit" && !selectedModel?.available && (
           <div className="model-empty">

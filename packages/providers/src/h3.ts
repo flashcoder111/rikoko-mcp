@@ -1,3 +1,13 @@
+/** Reference controls mirror the current fal H3 Max API. Reference clips remain <=15 seconds combined. */
+export const minimaxReferenceControls = {
+  duration: { type: "number" as const, min: 1, max: 15 },
+  resolution: { type: "enum" as const, values: ["480P", "768P", "1080P"] },
+  aspect_ratio: {
+    type: "enum" as const,
+    values: ["adaptive", "21:9", "16:9", "4:3", "1:1", "3:4", "9:16"],
+  },
+};
+
 import type { Model } from "./index.js";
 /** Fixed profiles checked against fal's public schema/prices on 2026-10-11.
  * https://fal.ai/models/minimax/h3/text-to-video

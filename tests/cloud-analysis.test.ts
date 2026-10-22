@@ -94,7 +94,7 @@ it("routes official analysis, remaps a source-bound report, caches it and reject
     expect(remoteInput.detail).toBe("overview");
     const job = await callTool(service, c, "job_submit", {
       input: prepared.input,
-      quoteId: prepared.quote.id,
+      quoteId: prepared.quoteId,
       idempotencyKey: "analysis",
     });
     report = bindReferenceReport(
@@ -183,7 +183,7 @@ it("routes official analysis, remaps a source-bound report, caches it and reject
     });
     const detailedJob = await callTool(service, c, "job_submit", {
       input: detailed.input,
-      quoteId: detailed.quote.id,
+      quoteId: detailed.quoteId,
       idempotencyKey: "detailed-analysis",
     });
     await expect(
@@ -200,7 +200,7 @@ it("routes official analysis, remaps a source-bound report, caches it and reject
     await expect(
       callTool(service, c, "job_submit", {
         input: another.input,
-        quoteId: another.quote.id,
+        quoteId: another.quoteId,
         idempotencyKey: "drift",
       }),
     ).rejects.toMatchObject({ code: "REFERENCE_CHANGED" });

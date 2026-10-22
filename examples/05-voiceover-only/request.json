@@ -4,5 +4,5 @@
   "runner": "pnpm demo",
   "caseSource": "scripts/demo.ts:E05",
   "usesPaidProvider": false,
-  "description": "系统安装的 en/zh TTS 真正合成音频"
+  "description": "验证本地配音已移除；云端 Eleven v3 配音需要独立报价确认，离线演示不购买"
 }

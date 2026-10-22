@@ -108,6 +108,37 @@ describe("authorization, budgets and durable jobs", () => {
     ).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
     expect((await service.usage(context)).reservedCents).toBe(0);
   });
+  it("submits without a public quote and deduplicates concurrent retries before internal pricing", async () => {
+    const input = { kind: "render", composition };
+    const jobs = await Promise.all(
+      Array.from({ length: 8 }, () =>
+        service.submit(context, {
+          input,
+          idempotencyKey: "direct-once",
+        }),
+      ),
+    );
+    expect(new Set(jobs.map((job) => job.id)).size).toBe(1);
+    expect(await service.list(context, "quote")).toHaveLength(1);
+    await expect(
+      service.submit(context, {
+        input: { ...input, composition: { ...composition, title: "Changed" } },
+        idempotencyKey: "direct-once",
+      }),
+    ).rejects.toMatchObject({ code: "IDEMPOTENCY_CONFLICT" });
+    const key = await service.issueKey(context, {
+      name: "read only",
+      scopes: ["read"],
+      budgetCents: 10,
+    });
+    await expect(
+      service.submit(await service.authenticate(key.key), {
+        input,
+        idempotencyKey: "forbidden-direct",
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(await service.list(context, "quote")).toHaveLength(1);
+  });
   it("binds a quote to its input and rejects unavailable paid models without submitting", async () => {
     const input = { kind: "render", composition };
     const q = await service.quote(context, input);

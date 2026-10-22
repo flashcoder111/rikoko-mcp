@@ -7,6 +7,7 @@ export default defineConfig({
   build: { outDir: "dist", emptyOutDir: true },
   server: {
     proxy: {
+      "/fonts": "http://127.0.0.1:4310",
       "/api": "http://127.0.0.1:4310",
       "/share": "http://127.0.0.1:4310",
       "/auth": "http://127.0.0.1:4310",

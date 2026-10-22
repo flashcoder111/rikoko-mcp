@@ -8,6 +8,7 @@ import {
   type ResolvedReference,
 } from "../../providers/src/generation-input.js";
 import { sha256 } from "../../storage/src/index.js";
+import { assertVideoPolicy } from "../../providers/src/video-policy.js";
 import { validateStoryboardInput } from "./storyboard-state.js";
 import type { Service } from "./index.js";
 import { validatePreparedGeneration } from "./generation-preparation.js";
@@ -30,6 +31,7 @@ export async function generationReferences(
     return list;
   });
   validateGenerationAssets(service.provider.validate(input), input, assets);
+  assertVideoPolicy(service.provider.validate(input), input, assets);
   const resolved: ResolvedReference[] = [];
   for (let i = 0; i < refs.length; i++) {
     const asset = assets[i],

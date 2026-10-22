@@ -1,5 +1,15 @@
 import { validateRemakeEvidence } from "../../core/src/reference-handoff.js";
+import { remapVideoPolicy } from "../../contracts/src/video-policy.js";
+import {
+  assertMethodMode,
+  assertMethodSource,
+} from "../../core/src/production-method.js";
 import { randomUUID } from "node:crypto";
+import { assertCriticalImageReviews } from "../../core/src/critical-image-review.js";
+import { assertPreviousEndAnchor } from "../../core/src/production-continuity.js";
+import { assertEditorialSeparation } from "../../core/src/production-plan.js";
+import { assertShotReferenceChoice } from "../../core/src/shot-reference-choice.js";
+import type { ProductionPlan } from "../../core/src/production-plan.js";
 import {
   AppError,
   operationSchema,
@@ -111,11 +121,15 @@ export class PreparationClient {
             record.plan,
           )
         : undefined;
+    // Conversation-facing rationale stays on the host. Execution constraints,
+    // references, method and shots remain intact in the cloud contract.
+    const { creativeChoices: _creativeChoices, ...executionPlan } =
+      record.plan ?? {};
     const content =
       kind === "plan"
         ? remakeEvidence
-          ? { plan: record.plan, remakeEvidence }
-          : record.plan
+          ? { plan: executionPlan, remakeEvidence }
+          : executionPlan
         : scope;
     const result = await this.request("/v1/production-context", {
       protocol: cloudPreparationProtocol,
@@ -124,7 +138,7 @@ export class PreparationClient {
       kind,
       version,
       ...(kind === "plan"
-        ? { plan: record.plan, ...(remakeEvidence ? { remakeEvidence } : {}) }
+        ? { plan: executionPlan, ...(remakeEvidence ? { remakeEvidence } : {}) }
         : { scope: content }),
     });
     const id = `context-${fingerprint(["link", c.accountId, clientId, kind, record.id])}`;
@@ -174,6 +188,7 @@ export class PreparationClient {
         c.accountId,
         input,
       );
+      await assertCriticalImageReviews(tx, c.accountId, input);
       let localPlan: Entity | null | undefined, remotePlan, remakeEvidence;
       if (data.plan) {
         localPlan = await tx.get(
@@ -187,6 +202,40 @@ export class PreparationClient {
             "Read the current plan version",
             409,
           );
+        assertMethodMode(
+          localPlan.plan,
+          data.direction?.mode ?? input.mode,
+          data.plan.stage ?? "video",
+        );
+        if (localPlan.plan.method?.source)
+          assertMethodSource(
+            localPlan.plan,
+            await tx.get(
+              localPlan.plan.method.source.assetId,
+              c.accountId,
+              "asset",
+            ),
+          );
+        if ((data.plan.stage ?? "video") === "video") {
+          const shot = (localPlan.plan as ProductionPlan).shots.find(
+            (s) => s.id === data.plan!.shotId,
+          );
+          if (!shot)
+            throw new AppError("INVALID_SHOT", "Choose a shot from this plan");
+          assertShotReferenceChoice(shot, input.mode ?? data.direction?.mode);
+          assertEditorialSeparation(
+            localPlan.plan,
+            data.plan.shotId,
+            input.prompt,
+          );
+          await assertPreviousEndAnchor(
+            tx,
+            c.accountId,
+            localPlan.plan,
+            data.plan.shotId,
+            input.production?.projectId,
+          );
+        }
         remakeEvidence = await validateRemakeEvidence(
           this.service,
           tx,
@@ -225,6 +274,8 @@ export class PreparationClient {
         remote.input.model !== input.model ||
         remote.input.prompt !== input.prompt ||
         remote.input.mode !== input.mode ||
+        fingerprint(remote.input.videoPolicy ?? null) !==
+          fingerprint(input.videoPolicy ?? null) ||
         fingerprint(remote.input.references ?? []) !==
           fingerprint(input.references ?? []) ||
         fingerprint(remote.input.production ?? null) !==
@@ -324,6 +375,9 @@ export class PreparationClient {
     verifyRecord(bound);
     const expected = {
       ...draft.input,
+      ...(draft.input.videoPolicy
+        ? { videoPolicy: remapVideoPolicy(draft.input.videoPolicy, mappings) }
+        : {}),
       preparedRequestId: bound.id,
       ...(draft.input.references
         ? {

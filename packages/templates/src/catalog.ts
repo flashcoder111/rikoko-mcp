@@ -2,6 +2,7 @@ import { Database } from "../../db/src/index.js";
 import { AppError } from "../../contracts/src/index.js";
 import { fingerprint } from "../../core/src/index.js";
 import { templateSchema, type Template } from "./schema.js";
+import { promptTemplateSchema, type PromptTemplate } from "./prompt-schema.js";
 export class Catalog {
   constructor(public db: Database) {}
   async initialize() {
@@ -21,8 +22,16 @@ export class Catalog {
     });
   }
   async save(raw: unknown) {
-    const t = templateSchema.parse(raw),
+    const t =
+        (raw as { kind?: string })?.kind === "prompt"
+          ? promptTemplateSchema.parse(raw)
+          : templateSchema.parse(raw),
       hash = fingerprint(t);
+    if (t.id.startsWith("personal-"))
+      throw new AppError(
+        "INVALID_INPUT",
+        "Official template IDs cannot use the personal- namespace",
+      );
     return this.db.transaction(async (tx) => {
       const prior = await tx.query(
         "SELECT hash FROM cloud_template_versions WHERE template_id=$1 AND version=$2",
@@ -51,7 +60,7 @@ export class Catalog {
       ).rows[0];
       if (!v) throw new AppError("NOT_FOUND", "模板版本不存在", 404);
       // Asset records are admitted only by the verified R2 upload completion flow.
-      for (const asset of (v.definition as Template).assets) {
+      for (const asset of (v.definition as Template).assets ?? []) {
         const record = await tx.get(asset.id, undefined, "cloud-asset");
         if (
           !record ||
@@ -137,7 +146,12 @@ export class Catalog {
             }
           : {}),
       }));
-      return { schemaVersion: 1, revision, templates };
+      return {
+        schemaVersion: 1,
+        revision,
+        templates: templates.filter((t) => t.kind !== "prompt"),
+        promptTemplates: templates.filter((t) => t.kind === "prompt"),
+      };
     });
   }
   async get(id: string, version: number) {
@@ -149,7 +163,9 @@ export class Catalog {
         )
       ).rows[0];
       if (!row) throw new AppError("NOT_FOUND", "模板版本不可用", 404);
-      return { ...row.definition, hash: row.hash } as Template & {
+      return { ...row.definition, hash: row.hash } as (
+        Template | PromptTemplate
+      ) & {
         hash: string;
       };
     });
