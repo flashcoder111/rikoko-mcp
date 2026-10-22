@@ -77,11 +77,11 @@ FFmpeg/ffprobe 优先复用。缺失时使用 Homebrew、apt 或 dnf；系统软
 
 升级仅面向安装器托管的本地 PGlite 实例，不处理源码目录、外部 PostgreSQL 或云端部署；数据与配置中的符号链接和特殊文件会被拒绝，需要先由用户整理。当前发行工具只生成本地文件，不上传、不创建 Git 仓库或分支、不部署 API。
 
-## Windows 原生安装预览（0.1.31）
+## Windows 原生安装预览（0.1.32）
 
-本轮只实现代码与本地发行物，不执行安装、不启动安装自检、不注册宿主配置。Windows 10/11 x64、64 位 Windows PowerShell 5.1+ 是此预览的目标环境，ARM64 尚不在原生安装器范围内。
+此安装器仍为实验性预览，尚未完成 Windows 实机安装验收。Windows 10/11 x64、64 位 Windows PowerShell 5.1+ 是此预览的目标环境，ARM64 尚不在原生安装器范围内。
 
-`pnpm release:installer` 现在同时生成 `install.sh` 与 `install.ps1`，两者内置同一版本、下载地址与 SHA-256。源码中的 PowerShell 文件是模板，会拒绝直接执行。**目前公开官网仍固定到 v0.1.12；该版本没有 Windows 原生安装器。新文件发布前不要展示 `https://rikoko.ai/install.ps1` 或假定 latest 已含新文件。**
+`pnpm release:installer` 现在同时生成 `install.sh` 与 `install.ps1`，两者内置同一版本、下载地址与 SHA-256。源码中的 PowerShell 文件是模板，会拒绝直接执行。0.1.32 发行物包含原生 PowerShell 安装器；请从 [v0.1.32 Release](https://github.com/flashcoder111/rikoko-mcp/releases/tag/v0.1.32) 下载并核对 `release.json`。公开下载不代表已通过 Windows 实机验证。
 
 发布相应发行物后，使用发行工具输出的 `windowsCommand` 下载并运行完整脚本；也可以下载该发行物的 `install.ps1`，在其目录运行：
 
@@ -100,7 +100,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Client co
 
 正常用户运行安装器时仍会执行既有连接检查与免费样片自检；本轮开发没有执行它们。未验证 PowerShell 的实际执行、依赖下载、Windows 媒体能力或客户端 UI，不将静态检查等同于安装成功。
 
-发布前的 Windows 用户可在已有、初始化完成的 WSL 发行版中使用公开安装器：
+使用 WSL 的 Windows 用户可在已有、初始化完成的发行版中使用 Bash 安装器：
 
 ```powershell
 wsl.exe -- bash -lc "curl -fsSL https://rikoko.ai/install.sh | bash"

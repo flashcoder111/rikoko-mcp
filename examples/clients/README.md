@@ -119,6 +119,6 @@ Streamable HTTP 端点为 `/mcp`，用 Bearer Key 认证。HTTP 与 stdio 都不
 
 ### Windows native preview
 
-The 0.1.31 PowerShell installer is implemented locally but unpublished and not validated on Windows. It targets Windows 10/11 x64. It keeps Codex under `%USERPROFILE%\.codex`, Claude Code at `%USERPROFILE%\.claude.json`, and Claude Desktop at `%APPDATA%\Claude\claude_desktop_config.json`. If Desktop's Edit Config opens a different location, set `RIKOKO_CLAUDE_DESKTOP_CONFIG` to that absolute file path. Existing entries are preserved and conflicting rikoko entries are rejected. See [Windows installation preview](../../docs/architecture/installation.md#windows-原生安装预览0131).
+The 0.1.32 Release includes an experimental PowerShell installer that has not been validated on Windows. It targets Windows 10/11 x64. It keeps Codex under `%USERPROFILE%\.codex`, Claude Code at `%USERPROFILE%\.claude.json`, and Claude Desktop at `%APPDATA%\Claude\claude_desktop_config.json`. If Desktop's Edit Config opens a different location, set `RIKOKO_CLAUDE_DESKTOP_CONFIG` to that absolute file path. Existing entries are preserved and conflicting rikoko entries are rejected. See [Windows installation preview](../../docs/architecture/installation.md#windows-原生安装预览0132).
 
-The public WSL installer configures clients inside WSL; it does not register a Windows desktop client. Native Windows downloads must not be advertised until the matching release is published.
+The public WSL installer configures clients inside WSL; it does not register a Windows desktop client. Download the native installer from the matching 0.1.32 Release; publication does not establish Windows installation or client validation.
