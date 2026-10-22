@@ -1,30 +1,30 @@
 # rikoko
 
-第一次使用请看[中文使用教程](docs/tutorials/使用教程.md)，包含首个本地样片、Agent 接入、工作台剪辑、声音调整、导出和版本恢复的图文步骤。
+rikoko is a self-hostable video creation MCP. Create and revise videos in an Agent conversation, then fine-tune them in the local timeline. Projects, media, versions, and FFmpeg rendering stay local. Official cloud services provide template update distribution and unified model API billing.
 
-rikoko 是可自部署的视频创作 MCP。在本地通过 Agent 对话创建、修改视频，在时间线中继续精修。项目、素材、版本和 FFmpeg 渲染保留在本地。官方云服务只承担模板更新分发和统一模型 API 收费。
+Keep requests and revisions in your existing conversation. If required media is missing, the Agent asks for it there and preserves the request. On completion, it delivers a video attachment or media link, relevant copy, and a clickable local workspace link for further editing. It does not automatically open a browser or MCP window. You can request links only; the workspace link is still included.
 
-所有要求和后续修改都在原 Agent 对话中完成。缺少必需素材时在原对话请求补充，并保留创作要求继续处理。完成后交付视频附件或媒体链接、相关文案，并始终附上可点击的本地浏览器工作台链接，供用户自行打开修改；不自动打开浏览器、弹出 MCP 窗口或另开网页。用户可要求只返回链接，回复中仍附工作台链接。
+Local editing, caption composition, rendering, and template synchronization do not consume official API credits. External model calls and host Agent fees are billed separately. Existing media can be edited and exported without activating the official API.
 
-本地剪辑、字幕编排、渲染和模板同步不消耗官方 API 额度。外部模型调用及宿主 Agent 的服务费用分别计算。无需开通官方 API，即可使用已有素材完成编辑和导出。
+For illustrated instructions covering the first local sample, Agent setup, editing, audio, export, and version recovery, see the [getting-started tutorial (Chinese)](docs/tutorials/使用教程.md).
 
-## 一行安装
+## One-line installation
 
-在 macOS 或 Linux/WSL 的终端执行：
+Run in a macOS or Linux/WSL terminal:
 
 ```sh
 curl -fsSL https://github.com/flashcoder111/rikoko-mcp/releases/latest/download/install.sh | bash
 ```
 
-自动下载并校验 GitHub 版本包、准备环境、注册检测到的 Codex/Claude MCP、启动本地服务并导出免费样片。随后重载客户端 MCP，在原对话中要求使用 rikoko。指定客户端时，将末尾改为 `bash -s -- --client codex`、`bash -s -- --client claude-code` 或 macOS 的 `bash -s -- --client claude-desktop`。
+The installer downloads and verifies a GitHub Release, prepares the environment, registers detected Codex/Claude MCP clients, starts the local service, and exports a free sample. Reload your client's MCP connection, then ask it to use rikoko. To select a client, replace the final `bash` with `bash -s -- --client codex`, `bash -s -- --client claude-code`, or, on macOS, `bash -s -- --client claude-desktop`.
 
-新版安装器可在原目录备份数据后升级，自检失败自动恢复旧版本；中断恢复使用 `--recover`。升级前关闭客户端并结束任务，详见安装说明。
+The newer installer supports in-place upgrades with data backups and automatic rollback if checks fail. Use `--recover` after an interrupted upgrade. Finish running tasks and close clients before upgrading; see the installation guide.
 
-默认使用本地编辑与渲染，无需模型 Key；AI 生成通过 config 配置自己的供应商。未检测到客户端时仍可安装和使用本地工作台。自定义目录与服务管理见[安装说明](docs/architecture/installation.md)。
+Local editing and rendering require no model API key. Configure your own provider for AI generation. You can install and use the local workspace even if no client is detected. See [Installation](docs/architecture/installation.md) for custom directories, service management, and the experimental Windows installer.
 
-## 手动运行源码
+## Run from source
 
-需要 Node ≥22.19、pnpm 10.28.2、uv、Python 3.12/3.13，以及支持 libx264 的 FFmpeg/ffprobe。
+Requirements: Node ≥22.19, pnpm 10.28.2, uv, Python 3.12/3.13, and FFmpeg/ffprobe with libx264.
 
 ```sh
 pnpm install --frozen-lockfile
@@ -34,29 +34,37 @@ pnpm demo
 pnpm dev
 ```
 
-打开 `http://127.0.0.1:4310`，使用启动时生成的 `.data/local-admin.key` 登录自己的工作空间。演示与开发服务分开运行，不要让两个进程同时打开同一数据库目录。不要共享或提交本地 Key。
+Open `http://127.0.0.1:4310` and sign in to your workspace with the key generated in `.data/local-admin.key`. Run the demo and development service separately; two processes must not open the same database directory. Do not share or commit the local key.
 
-本地演示不调用付费模型，仅使用明确标注的测试音。独立配音默认通过 fal 使用 ElevenLabs Eleven v3；不提供本地系统配音。
+The local demo uses labeled test tones and does not call paid models. Standalone voiceovers default to ElevenLabs Eleven v3 through fal; local system TTS is not provided.
 
-## 模板与 API 分开配置
+## Configure templates and model APIs separately
 
-应用内置 9 个本地成片模板、15 张原创插画和实际渲染的示例 MP4，无需配置云端或模型 Key。Agent 根据文字描述自动选择结构、填充文案并复用画面，用户无需进入模板选择页。素材库的用途分类、标签与收藏辅助自动检索，详见[模板与素材复用](docs/tutorials/模板与素材复用.md)。
+The app includes nine local composition templates, 15 original illustrations, and rendered MP4 previews, with no cloud or model key required. The Agent selects a structure from your description, fills in copy, and reuses visuals. Media categories, tags, and favorites support automatic retrieval. See [Templates and media reuse (Chinese)](docs/tutorials/模板与素材复用.md).
 
-仅设置 `TEMPLATE_API_URL=https://templates.example.com` 可启用额外模板源，不改变模型费用来源。只有用户要求更新并调用 `template_sync` 时才请求模板目录；已有作品固定使用原模板快照。
+Set `TEMPLATE_API_URL=https://templates.example.com` to add a template source without changing model billing. The catalog is requested only when the user asks for updates and `template_sync` is called. Existing projects retain their original template snapshots.
 
-官方生成服务使用 `GENERATION_API_URL` 和 `GENERATION_API_KEY`。也可通过 `RIKOKO_CONFIG_FILE` 指向 config：`mode=official` 使用平台用户 Key，`mode=custom` 使用自己配置的供应商。`templates.url` 独立指定模板源，`templates=false` 禁用模板连接。
+The official generation service uses `GENERATION_API_URL` and `GENERATION_API_KEY`. Alternatively, point `RIKOKO_CONFIG_FILE` to a config file: `mode=official` uses a platform user key, while `mode=custom` uses your configured providers. `templates.url` sets the template source independently; `templates=false` disables it.
 
-这些域名是占位示例，需替换为实际可用服务。密钥由进程环境注入，本程序不自动加载 `.env`。不要把真实密钥写入 JSON 配置或公开文件。
+Example domains are placeholders and must be replaced with available services. Inject secrets through the process environment; `.env` is not loaded automatically. Do not place real keys in model configuration JSON or public files. Managed installations use a separate private credentials file as described in the installation guide.
 
-官方与自有模式均不在失败时自动切换付费来源。官方 Key 仅发送到生成 API origin；模板同步不携带该 Key。官方余额为零时，已有素材的本地处理和模板更新仍可继续。
+Neither mode automatically switches billing sources after a failure. The official key is sent only to the generation API origin and is not included in template synchronization. A zero official balance does not prevent local processing of existing media or template updates.
 
-模型接入详见 [配置说明](docs/architecture/model-services.md)。本项目使用 `RIKOKO_*` 环境变量和 `rikoko` MCP 配置名；第三方来源与本项目无从属关系。
+See [Model services (Chinese)](docs/architecture/model-services.md) for provider configuration. The project uses `RIKOKO_*` environment variables and the MCP configuration name `rikoko`. Third-party references do not imply affiliation.
 
-## Agent 接入
+## Connect an Agent
 
-手动运行源码时，保持本地服务运行，再执行 `pnpm clients install codex`、`pnpm clients install claude-desktop` 或 `pnpm clients install claude-code`。一行安装版自动完成这些步骤并管理服务启动。Hermes 在实际运行它的主机配置。安装器保留其他 MCP 配置，首次签发的本地专用 Key 默认付费预算为零。安装后重载宿主 MCP 连接；真实客户端支持程度需按所用版本验证。
+When running from source, keep the local service running, then execute `pnpm clients install codex`, `pnpm clients install claude-desktop`, or `pnpm clients install claude-code`. The one-line installer handles these steps and service startup automatically. Configure Hermes on the host where it actually runs.
 
-## 开发与贡献
+The installer preserves other MCP configurations. New local client keys have a paid budget of zero. Reload the host's MCP connection after installation. Client capabilities must be verified against the version in use. See [Client setup](examples/clients/README.md).
+
+## MCP director guides
+
+No separate Skill installation is required. Ask the host Agent to use rikoko; it reads `rikoko_guide` from the execution backend and retains creative decisions. `capabilities` reports the guide version. See the client setup guide for legacy Skill migration and backend/bridge compatibility checks.
+
+For face-free video tasks, the default is compatible Seedance Mini. Any face in the request or reference media, or unknown face status, blocks all Seedance variants. The Agent recommends MiniMax or offers Kling and obtains or reuses an explicit model choice. Choosing a model does not configure credentials or authorize a paid budget.
+
+## Development and contributions
 
 ```sh
 pnpm typecheck
@@ -65,10 +73,6 @@ pnpm test:media
 pnpm build
 ```
 
-见 [贡献说明](CONTRIBUTING.md)、[开源边界](docs/open-source/boundaries.md) 与 [第三方说明](THIRD_PARTY_NOTICES.md)。此源码快照不包含官方云后台、运行数据、供应商密钥、研究资料或开发样片。
+See [Contributing](CONTRIBUTING.md), [Open-source boundaries](docs/open-source/boundaries.md), and [Third-party notices](THIRD_PARTY_NOTICES.md). This source snapshot excludes the official cloud backend, runtime data, provider keys, research, and development samples.
 
-源码内包含 Apache-2.0 许可文本，第三方组件仍遵循各自条款。模型权重与第三方媒体不随源码自动获得许可。当前发行物为本地整理与验证的快照，真实付费生成、在线支付和生产部署不因源码可构建而视为已验收。
-
-## MCP director guides
-
-No separate Skill installation is required. Ask the host Agent to use rikoko; it reads `rikoko_guide` from the execution backend and retains creative decisions. `capabilities` reports the guide version. See the client installation guide for legacy Skill migration and backend/bridge compatibility checks.
+The source includes the Apache-2.0 license text. Third-party components remain subject to their own terms; model weights and third-party media are not automatically licensed with the source. A successful build does not establish acceptance of paid generation, online payments, or production deployment.

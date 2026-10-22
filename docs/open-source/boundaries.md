@@ -1,15 +1,15 @@
-# 本地开源与官方云服务边界
+# Local open-source and official cloud boundaries
 
-本地开源部分包括工作台、MCP、项目/素材/版本、渲染、模板格式、同步客户端及模型适配器。官方云服务仅提供模板更新分发和统一模型 API 收费。模板定义和素材分别标注权利来源。
+The local open-source component includes the workspace, MCP, projects/media/versions, rendering, template format, synchronization client, and model adapters. Official cloud services provide template update distribution and unified model API billing. Template definitions and media carry their own rights attribution.
 
-用户作品与本地素材不为模板同步而上传。API 请求只提交模型所需输入，生成结果下载到本地。供应商结果地址可能过期；官方服务没有长期保存作品的承诺。
+Template synchronization does not upload user projects or local media. Model API requests submit only the inputs required by the model, and generated outputs are downloaded locally. Provider result URLs may expire; the official service does not promise long-term project storage.
 
-公共客户端公开服务协议与调用逻辑；官方发布后台、账户运营及供应商成本管理独立维护。客户端不能自行修改官方价格或余额。自带 Key 的调用由用户自己的供应商账户付费。
+The public client exposes service protocols and request logic. The official publishing backend, account operations, and provider cost management are maintained separately. Clients cannot change official prices or balances. Requests using a user's own key are charged to that user's provider account.
 
-发行物使用明确文件清单，不包括官方云后台、真实配置、数据库、运行日志、研究资料或第三方开发样片。正式对外发布仍需核对实际复用代码及全部素材的许可，不能把文件排除检查视为完整权利审计。
+Releases use an explicit file manifest and exclude the official cloud backend, real configuration, databases, runtime logs, research, and third-party development samples. Public distribution still requires review of reused code and all media licenses; file-exclusion checks are not a complete rights audit.
 
-新安装和当前运行代码统一使用 `RIKOKO_CONFIG_FILE`、`RIKOKO_*` 和 MCP 注册名 `rikoko`。从旧版升级需要迁移旧的宿主配置与凭据；产品来源和第三方依赖按实际复用关系说明。
+New installations and current runtime code use `RIKOKO_CONFIG_FILE`, `RIKOKO_*`, and the MCP registration name `rikoko`. Upgrades from older versions require migration of legacy host configuration and credentials. Project provenance and third-party dependencies are described according to actual reuse.
 
-## 项目命名
+## Naming
 
-项目名称统一为小写 `rikoko`，视频 MCP 的产品介绍、页面文案、教程和 Agent 对话均使用 `rikoko` 或 `rikoko MCP`。新代码中的模型配置、MCP 注册名和 prompt、Keychain 标识与浏览器存储键统一使用 `rikoko`；通用 `VIDEOWORKBENCH_*` 接口沿用。第三方参考来源和历史验收记录保持原名。
+Use the lowercase name `rikoko` or `rikoko MCP` in product descriptions, pages, tutorials, and Agent conversations. New model configuration, MCP registration names and prompts, Keychain identifiers, and browser storage keys use `rikoko`. Generic `VIDEOWORKBENCH_*` interfaces remain supported. Preserve the original names in third-party references and historical acceptance records.

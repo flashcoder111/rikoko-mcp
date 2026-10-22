@@ -1,9 +1,9 @@
-# 贡献说明
+# Contributing
 
-欢迎贡献本地编辑能力、模型适配器、可复现的模板和文档修正。模板分发与模型收费是两项独立服务；请保持本地创作流程可独立运行。
+Contributions to local editing, model adapters, reproducible templates, and documentation are welcome. Template distribution and model billing are separate services; keep local creation usable independently.
 
-修改前先运行相关测试，并为配置、费用、权限、任务恢复等行为补充回归测试。提交前运行 `pnpm typecheck`、相关 `pnpm test` 和 `pnpm build`；媒体处理改动还需运行 `pnpm test:media`。使用隔离目录与模拟供应商，不将自动测试指向真实收费服务。
+Run relevant tests before making changes, and add regression coverage for configuration, costs, permissions, and job recovery where applicable. Before submitting, run `pnpm typecheck`, the relevant `pnpm test` suites, and `pnpm build`. Media-processing changes also require `pnpm test:media`. Use isolated directories and mock providers; do not point automated tests at real paid services.
 
-请保留上游版权及许可信息，在第三方说明中记录实际复用来源。只提交自己有权再分发的源码、模板和素材。不要提交 API Key、个人数据、数据库、`.env`、`*.local.json` 或真实任务日志。
+Preserve upstream copyright and license notices, and record reused sources in [Third-party notices](THIRD_PARTY_NOTICES.md). Submit only code, templates, and media you have the right to redistribute. Do not commit API keys, personal data, databases, `.env`, `*.local.json`, or real job logs.
 
-复现问题时提供版本、步骤与去除敏感信息的错误。费用问题请保留任务 ID 供受控核对，不公开供应商密钥或支付资料。
+When reporting a bug, include the version, reproduction steps, and a redacted error message. Keep job IDs available for private billing investigation, and leave provider keys and payment details out of public reports.
