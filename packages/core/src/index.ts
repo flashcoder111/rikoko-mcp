@@ -52,6 +52,7 @@ export class Service {
   public allowLegacyGeneration =
     process.env.RIKOKO_ALLOW_LEGACY_GENERATION === "true";
   public localVideoDownloads: boolean;
+  public directMedia = false;
   constructor(
     public db: Database,
     public storage: Storage,

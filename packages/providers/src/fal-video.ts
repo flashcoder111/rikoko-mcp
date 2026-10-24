@@ -202,8 +202,16 @@ export class FalVideoProvider extends FalProvider {
         u.username ||
         u.password ||
         u.hash ||
-        !u.hostname.endsWith(".fal.media") ||
-        (!upload && (u.search || !u.pathname.startsWith("/files/")))
+        !(
+          u.hostname.endsWith(".fal.media") ||
+          (!upload &&
+            this.options.directMediaHost &&
+            u.hostname === this.options.directMediaHost &&
+            u.searchParams.has("X-Amz-Signature"))
+        ) ||
+        (!upload &&
+          u.hostname.endsWith(".fal.media") &&
+          (u.search || !u.pathname.startsWith("/files/")))
       )
         throw Error();
       return u.toString();
@@ -246,6 +254,23 @@ export class FalVideoProvider extends FalProvider {
     } finally {
       await reader.cancel().catch(() => {});
     }
+  }
+  async prepareRemote(
+    input: Operation,
+    uri: string,
+    mime: string,
+  ): Promise<PreparedMedia> {
+    this.validate(input);
+    if (
+      !this.options.directMediaHost ||
+      new URL(uri).hostname !== this.options.directMediaHost ||
+      !Object.hasOwn(mimeExtensions, mime)
+    )
+      throw new AppError(
+        "INVALID_MEDIA",
+        "Remote media access is not configured",
+      );
+    return { name: "r2-reference", uri: this.mediaUrl(uri), mime, ready: true };
   }
   async prepare(
     input: Operation,

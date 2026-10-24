@@ -139,7 +139,7 @@ export class FalProvider {
     protected key?: string,
     private enabled = false,
     protected fetcher: typeof fetch = fetch,
-    private options: { testing?: boolean } = {},
+    protected options: { testing?: boolean; directMediaHost?: string } = {},
   ) {}
   describe() {
     return this.models.map((m) => ({
@@ -524,6 +524,11 @@ export type MediaProvider = Pick<
   referenceDelivery?(input: Operation): "data_uri" | "signed_url";
   validateSource?(input: Operation, asset: Entity): void;
   analysisSettings?(input: Operation): ReferenceSettings;
+  prepareRemote?(
+    input: Operation,
+    uri: string,
+    mime: string,
+  ): Promise<PreparedMedia>;
   prepare?(
     input: Operation,
     bytes?: Uint8Array,

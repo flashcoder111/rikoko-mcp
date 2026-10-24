@@ -1,3 +1,4 @@
+import { directStorageUrl } from "./direct-media.js";
 import { publicErrorSchema } from "../../contracts/src/error-contract.js";
 import { AppError } from "../../contracts/src/index.js";
 export function cloudOrigin(value: string) {
@@ -66,8 +67,58 @@ export async function cloudRequest(
   } finally {
     await reader?.cancel();
   }
-  if (options.binary && response.ok)
+  if (options.binary && response.ok) {
+    if (
+      size <= 32768 &&
+      response.headers.get("content-type")?.includes("application/json")
+    ) {
+      let metadata: any;
+      try {
+        metadata = JSON.parse(Buffer.concat(chunks).toString());
+      } catch {
+        throw new AppError(
+          "CLOUD_RESPONSE_INVALID",
+          "Invalid result metadata",
+          502,
+        );
+      }
+      if (metadata?.delivery === "r2") {
+        const url = directStorageUrl(metadata.url);
+        const stored = await fetcher(url, {
+          redirect: "error",
+          signal: AbortSignal.timeout(180000),
+        });
+        if (
+          !stored.ok ||
+          !stored.headers.get("content-type")?.startsWith("video/")
+        )
+          throw new AppError("RESULT_UNAVAILABLE", "R2 video unavailable", 502);
+        const body = stored.body?.getReader(),
+          parts: Uint8Array[] = [];
+        let count = 0;
+        try {
+          while (body) {
+            const part = await body.read();
+            if (part.done) break;
+            count += part.value.byteLength;
+            if (count > 100 * 1024 * 1024)
+              throw new AppError(
+                "CLOUD_RESPONSE_TOO_LARGE",
+                "R2 video exceeds size limit",
+                502,
+              );
+            parts.push(part.value);
+          }
+        } finally {
+          await body?.cancel();
+        }
+        if (!count)
+          throw new AppError("RESULT_UNAVAILABLE", "R2 video is empty", 502);
+        return { response: stored, data: new Uint8Array(Buffer.concat(parts)) };
+      }
+    }
     return { response, data: new Uint8Array(Buffer.concat(chunks)) };
+  }
   let data: any;
   try {
     data = JSON.parse(Buffer.concat(chunks).toString());

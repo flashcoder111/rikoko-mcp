@@ -48,6 +48,8 @@ The official generation service uses `GENERATION_API_URL` and `GENERATION_API_KE
 
 Example domains are placeholders and must be replaced with available services. Inject secrets through the process environment; `.env` is not loaded automatically. Do not place real keys in model configuration JSON or public files. Managed installations use a separate private credentials file as described in the installation guide.
 
+Official cloud reference uploads go directly from the local rikoko client to signed R2 URLs; cloud-generated videos download from R2 directly to the local library. The business API exchanges authorization and metadata. Account tokens are never sent to R2. TikTok links imported through MCP are downloaded on the user's machine, then uploaded directly to R2 when cloud analysis is requested; the official cloud web app imports them through its media Worker. Gemini reads the R2 video URL. TikTok page links and temporary CDN links are not a reliable direct Gemini input.
+
 Neither mode automatically switches billing sources after a failure. The official key is sent only to the generation API origin and is not included in template synchronization. A zero official balance does not prevent local processing of existing media or template updates.
 
 See [Model services (Chinese)](docs/architecture/model-services.md) for provider configuration. The project uses `RIKOKO_*` environment variables and the MCP configuration name `rikoko`. Third-party references do not imply affiliation.

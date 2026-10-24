@@ -23,6 +23,7 @@ import { assessGenerationOutput } from "../../core/src/generation-output.js";
 import { checkGenerationTarget } from "../../providers/src/generation-target.js";
 import { PreparationClient } from "./preparation.js";
 import type { Transaction } from "../../db/src/index.js";
+import { directReferenceUpload } from "./direct-media.js";
 import { cloudOrigin, cloudRequest } from "./http.js";
 export type GatewayCredential =
   string | { id: string; ownerAccountId: string; token: () => Promise<string> };
@@ -483,10 +484,27 @@ export class GatewayClient {
             "Reference bytes do not match local metadata",
             409,
           );
+        const source = await this.service.scoped(c, "read", (tx) =>
+          tx.get(asset.id, c.accountId, "asset"),
+        );
+        if (
+          !source ||
+          source.sha256 !== asset.sha256 ||
+          source.bytes !== asset.bytes ||
+          source.storageKey !== asset.storageKey ||
+          typeof source.mime !== "string"
+        )
+          throw new AppError(
+            "REFERENCE_CHANGED",
+            "Reference metadata changed; request a new quote",
+            409,
+          );
+        const mime = source.mime;
         const intent = await this.request("/v1/reference-uploads", {
           name: asset.name.slice(0, 120),
           bytes: asset.bytes,
           sha256: asset.sha256,
+          mime,
           source: "rikoko-reference",
           license:
             asset.license ?? asset.provenance?.license ?? "user-provided",
@@ -501,12 +519,27 @@ export class GatewayClient {
             "Invalid reference upload response",
             502,
           );
-        const { data: remote } = await cloudRequest(
-          this.origin,
-          `/v1/reference-uploads/${intent.id}`,
-          this.fetcher,
-          { key: await this.accessToken(), bytes },
-        );
+        let remote: any;
+        if (intent.upload) {
+          await directReferenceUpload(this.fetcher, intent.upload, bytes, mime);
+          remote = (
+            await cloudRequest(
+              this.origin,
+              `/v1/reference-uploads/${intent.id}/complete`,
+              this.fetcher,
+              { key: await this.accessToken(), body: {} },
+            )
+          ).data;
+        } else {
+          remote = (
+            await cloudRequest(
+              this.origin,
+              `/v1/reference-uploads/${intent.id}`,
+              this.fetcher,
+              { key: await this.accessToken(), bytes },
+            )
+          ).data;
+        }
         if (
           typeof remote.id !== "string" ||
           !/^[A-Za-z0-9_-]+$/.test(remote.id) ||

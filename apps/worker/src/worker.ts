@@ -117,7 +117,11 @@ export class Worker {
               durationMs: source.metadata.durationMs,
               hasAudio: source.metadata.hasAudio === true,
             };
-            if (input.kind === "reference_analyze" && !job.referenceTiming) {
+            if (
+              input.kind === "reference_analyze" &&
+              !job.referenceTiming &&
+              !this.service.directMedia
+            ) {
               const staged = await this.stage(job, input.assetId, work);
               await checkpoint({
                 referenceTiming: await referenceTiming(
@@ -127,20 +131,54 @@ export class Worker {
                 ),
               });
             }
+            if (
+              input.kind === "reference_analyze" &&
+              this.service.directMedia &&
+              !job.referenceTiming
+            )
+              await checkpoint({
+                referenceTiming: {
+                  status: "unavailable",
+                  method: "ffmpeg-scene-difference",
+                  threshold: 0.3,
+                  cutTimesMs: [],
+                  reason: "Remote media: scene timings are model estimates",
+                },
+              });
             if (job.cancelRequested || abort.signal.aborted)
               throw new AppError(
                 "CANCELLED",
                 "Job cancelled before analysis submission",
               );
-            if (!job.providerMedia?.ready) {
-              const prepared = await this.service.provider.prepare(
-                input,
-                job.providerMedia
-                  ? undefined
-                  : await this.service.storage.read(source.storageKey),
-                source.mime,
-                job.providerMedia,
-              );
+            if (!job.providerMedia?.ready || this.service.directMedia) {
+              const prepared = this.service.directMedia
+                ? await (() => {
+                    if (
+                      !this.service.provider.prepareRemote ||
+                      !this.service.storage.providerUrl
+                    )
+                      throw new AppError(
+                        "CAPABILITY_UNAVAILABLE",
+                        "Direct media preparation is unavailable",
+                      );
+                    return this.service.storage
+                      .providerUrl(source.storageKey)
+                      .then((uri) =>
+                        this.service.provider.prepareRemote!(
+                          input,
+                          uri,
+                          source.mime,
+                        ),
+                      );
+                  })()
+                : await this.service.provider.prepare(
+                    input,
+                    job.providerMedia
+                      ? undefined
+                      : await this.service.storage.read(source.storageKey),
+                    source.mime,
+                    job.providerMedia,
+                  );
               await checkpoint({
                 providerMedia: prepared,
                 phase: "provider_preparing",
