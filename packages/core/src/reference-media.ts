@@ -145,6 +145,20 @@ export async function extractReferenceMedia(
             },
           },
         );
+        if (clip)
+          await service.scoped(c, "write", (tx) =>
+            tx.put({
+              id: `source-excerpt-${asset.id}`,
+              type: "source-excerpt",
+              accountId: c.accountId,
+              createdAt: new Date().toISOString(),
+              assetId: asset.id,
+              sha256: asset.sha256,
+              ...common,
+              startMs: s.motionRange!.startMs,
+              endMs: s.motionRange!.endMs,
+            }),
+          );
         return {
           ...common,
           assetId: asset.id,

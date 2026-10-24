@@ -1,3 +1,4 @@
+import { attachFixtureAnalysis } from "./video-workflow-fixture.js";
 import { faceFreeFixturePolicy } from "./video-policy-fixture.js";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
@@ -13,7 +14,7 @@ import {
 } from "../packages/contracts/src/index.js";
 import { referenceReportSchema } from "../packages/contracts/src/reference-analysis.js";
 import { callStoryboardTool } from "../packages/mcp/src/storyboard-tools.js";
-import { callTool } from "../packages/mcp/src/tools.js";
+import { callTool } from "./prepared-request-fixture.js";
 import { media } from "../packages/render/src/media.js";
 import { Worker } from "../apps/worker/src/worker.js";
 import { GatewayClient } from "../packages/cloud-client/src/gateway.js";
@@ -296,22 +297,36 @@ async function invoke(
               ]
             : []),
         ];
+  const targetPlan: any = {
+    title: "Target bottle",
+    width: 144,
+    height: 144,
+    shots: [
+      {
+        id: "target-lift",
+        initialState: { bottle: "on the table" },
+        action: "Lift our bottle to chest height",
+        endState: { bottle: "held at chest height" },
+        durationMs: shot.durationMs,
+        references: refs,
+      },
+    ],
+  };
+  const motion = refs.find((r) => r.role === "motion");
+  if (motion) {
+    await attachFixtureAnalysis(
+      service,
+      c,
+      targetPlan,
+      await service.get(c, "asset", motion.assetId),
+    );
+    targetPlan.shots[0].sourceVideo = {
+      strategy: "reference",
+      assetId: motion.assetId,
+    };
+  }
   const plan: any = await callTool(service, c, "production_plan_save", {
-    plan: {
-      title: "Target bottle",
-      width: 144,
-      height: 144,
-      shots: [
-        {
-          id: "target-lift",
-          initialState: { bottle: "on the table" },
-          action: "Lift our bottle to chest height",
-          endState: { bottle: "held at chest height" },
-          durationMs: shot.durationMs,
-          references: refs,
-        },
-      ],
-    },
+    plan: targetPlan,
   });
   const drafts: any = await callTool(service, c, "production_shot_prompts", {
     planId: plan.id,

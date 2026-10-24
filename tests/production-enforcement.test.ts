@@ -7,7 +7,7 @@ import { Database } from "../packages/db/src/index.js";
 import { Service, fingerprint } from "../packages/core/src/index.js";
 import { LocalStorage } from "../packages/storage/src/index.js";
 import { FalProvider } from "../packages/providers/src/index.js";
-import { callTool } from "../packages/mcp/src/tools.js";
+import { callTool } from "./prepared-request-fixture.js";
 import { resultText } from "../packages/mcp/src/presentation.js";
 import { validateWorkspace } from "../packages/core/src/production-review.js";
 import { referenceShotPrompts } from "../packages/core/src/reference-prompts.js";
@@ -98,7 +98,7 @@ it("requires an explicit target for standalone video generation", async () => {
     }),
   ).rejects.toMatchObject({ code: "GENERATION_TARGET_REQUIRED" });
 });
-it("permits old clients only through explicit server configuration", async () => {
+it("does not allow the legacy switch to bypass preparation", async () => {
   service.allowLegacyGeneration = true;
   try {
     await expect(
@@ -107,7 +107,7 @@ it("permits old clients only through explicit server configuration", async () =>
         model: "text-video",
         prompt: "Close lid",
       }),
-    ).resolves.toHaveProperty("id");
+    ).rejects.toMatchObject({ code: "GENERATION_PREPARATION_REQUIRED" });
   } finally {
     service.allowLegacyGeneration = false;
   }

@@ -1,3 +1,5 @@
+import { attachFixtureAnalysis } from "./video-workflow-fixture.js";
+import { callTool } from "../packages/mcp/src/tools.js";
 import { faceFreeFixturePolicy } from "./video-policy-fixture.js";
 import { expect, it, vi } from "vitest";
 import { Database } from "../packages/db/src/index.js";
@@ -82,6 +84,16 @@ it("requires a decision for current request-bound source shots, while legacy pla
     requestId: "request",
     expectedVersion: 1,
     excludedAssets: [],
+  };
+  await expect(
+    bindProductionRequest(tx, "owner", parsed, binding),
+  ).rejects.toMatchObject({ code: "VIDEO_ANALYSIS_REQUIRED" });
+  parsed.remake = {
+    analysisAssetId: "analysis",
+    analysisSha256: "a".repeat(64),
+    productFacts: [],
+    requirements: [],
+    unknownDecisions: [],
   };
   await expect(
     bindProductionRequest(tx, "owner", parsed, binding),
@@ -174,17 +186,43 @@ it("keeps both product bytes and source clip through cloud declaration, binding 
       endState: "Patty rests on bun",
       references: [
         {
-          assetId: "host-product",
+          assetId: assets[0].id,
           role: "product",
           instruction: "Appearance only",
         },
-        { ...motion, assetId: "host-video" },
+        { ...motion, assetId: assets[1].id },
       ],
     };
-    const compiled = compilePrompt(direction);
+    const request: any = await callTool(service, c, "workspace_request_save", {
+      message: "Transfer the source choreography to the new product",
+      assetIds: assets.map((a) => a.id),
+    });
+    const fullPlan: any = plan(
+      { strategy: "reference", assetId: assets[1].id },
+      direction.references,
+    );
+    await attachFixtureAnalysis(service, c, fullPlan, assets[1]);
+    const saved: any = await callTool(service, c, "production_plan_save", {
+      plan: fullPlan,
+      request: { requestId: request.requestId, expectedVersion: 1 },
+    });
+    const previews: any = await callTool(
+      service,
+      c,
+      "production_shot_prompts",
+      {
+        planId: saved.id,
+        expectedVersion: 1,
+        shotId: "lift",
+        subject: "Burger",
+        mode: "reference_to_video",
+      },
+    );
+    const compiled = previews.video;
     const draft = await prepareCloudGeneration(service, c, {
       protocol: cloudPreparationProtocol,
       request: {
+        plan: { planId: saved.id, expectedVersion: 1, shotId: "lift" },
         input: {
           kind: "generate",
           mode: "reference_to_video",
@@ -197,7 +235,7 @@ it("keeps both product bytes and source clip through cloud declaration, binding 
               id: direction.references[i].assetId,
             })),
           ),
-          references: compiled.bindings.map(({ assetId, role }) => ({
+          references: compiled.bindings.map(({ assetId, role }: any) => ({
             assetId,
             role,
           })),
@@ -211,7 +249,7 @@ it("keeps both product bytes and source clip through cloud declaration, binding 
     });
     expect(
       draft.input.videoPolicy!.references.map((r: any) => r.assetId),
-    ).toEqual(["host-product", "host-video"]);
+    ).toEqual(assets.map((a) => a.id));
     const wrong = await service.registerAsset(
       c.accountId,
       Buffer.from("other clip"),

@@ -27,6 +27,10 @@ import {
 import { Service } from "../../../packages/core/src/index.js";
 import { connectServices } from "../../../packages/cloud-client/src/index.js";
 import { resolveCloudConfig } from "../../../packages/cloud-client/src/config.js";
+import {
+  AccountConnection,
+  registerAccountConnection,
+} from "../../../packages/cloud-client/src/account-connection.js";
 export async function openRuntime() {
   const config = process.env.RIKOKO_CONFIG_FILE
     ? await loadModelConfig(process.env.RIKOKO_CONFIG_FILE)
@@ -97,6 +101,36 @@ export async function openRuntime() {
         `Local API key saved to ${resolve(dataDir, "local-admin.key")}`,
       );
     }
+  }
+  if (service.localVideoDownloads) {
+    const owner = await db.transaction(
+      async (tx) =>
+        (
+          await tx.query(
+            "SELECT account_id AS id FROM api_keys ORDER BY created_at,id LIMIT 1",
+          )
+        ).rows[0],
+    );
+    if (!owner) throw new Error("Local account owner is missing");
+    const connection = new AccountConnection({
+      directory: resolve(dataDir, "account"),
+      website: process.env.RIKOKO_ACCOUNT_WEBSITE_URL ?? "https://rikoko.ai",
+      activate: ({ apiOrigin, id, token }) => {
+        service.billingSource = "credits";
+        setServiceInfo(service, {
+          mode: "official",
+          plans,
+          officialOrigin: apiOrigin,
+        });
+        connectServices(service, {
+          templateOrigin: cloudConfig.templateOrigin,
+          gatewayOrigin: apiOrigin,
+          gatewayKey: { id, ownerAccountId: owner.id, token },
+        });
+      },
+    });
+    await connection.restore();
+    registerAccountConnection(service, connection);
   }
   return { db, service, dataDir };
 }

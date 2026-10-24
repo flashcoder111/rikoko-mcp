@@ -1,3 +1,4 @@
+import { syncProductionChange } from "./production-scope.js";
 import { randomUUID } from "node:crypto";
 import {
   validateUserRequirements,
@@ -225,6 +226,7 @@ export async function workspaceRequestSave(
         : undefined,
     };
     await tx.put(record);
+    await syncProductionChange(service, tx, c, "request", record);
     return requestView(record);
   });
 }

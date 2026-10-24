@@ -1,3 +1,9 @@
+import { tracedPreparation } from "./generation-trace.js";
+import {
+  bindVideoWorkflow,
+  validateVideoWorkflow,
+  videoRequestLinkSchema,
+} from "./video-workflow.js";
 import { validateRemakeEvidence } from "./reference-handoff.js";
 import { assertVideoPolicy } from "../../providers/src/video-policy.js";
 import {
@@ -48,6 +54,7 @@ const adapterContractVersion = "generation-payload-v3-face-policy";
 export const generationPrepareSchema = z
   .object({
     input: operationSchema,
+    request: videoRequestLinkSchema.optional(),
     direction: promptInputSchema.optional(),
     plan: z
       .object({
@@ -123,6 +130,7 @@ export function preparationRecordHash(
     parentPreparation,
     cloud,
     remakeEvidence,
+    workflow,
   } = record;
   return fingerprint({
     protocol,
@@ -138,11 +146,12 @@ export function preparationRecordHash(
     parentPreparation,
     cloud,
     remakeEvidence,
+    workflow,
   });
 }
 
 /** Persist the exact logical operation. Does not upload, quote, reserve or call a model. */
-export async function prepareGeneration(
+async function prepareGenerationImpl(
   service: Service,
   c: Context,
   raw: unknown,
@@ -441,12 +450,21 @@ export async function prepareGeneration(
       overridden: !compiled || compiled.prompt !== input.prompt,
       overrideReason: data.promptOverride?.reason ?? null,
     };
+    const workflow = await bindVideoWorkflow(
+      service,
+      tx,
+      c,
+      { ...data, input },
+      model.kind,
+      declaredAssets,
+    );
     const record = {
       id: preparedRequestId,
       type: "generation-preparation",
       accountId: c.accountId,
       createdAt: new Date().toISOString(),
       protocol: preparationProtocol,
+      workflow,
       referenceState: declaredAssets ? "declared" : "bound",
       scopeHash: scope?.hash,
       remakeEvidence,
@@ -595,8 +613,21 @@ export async function validatePreparedGeneration(
         record.plan.shotId,
         operation.production?.projectId,
       );
+    // New unrelated excerpts must not invalidate an already frozen shot.
+    // Previously bound excerpts must still exist with exactly the same lineage.
+    const comparableEvidence = evidence
+      ? {
+          ...evidence,
+          sourceExcerpts: record.remakeEvidence?.sourceExcerpts?.filter(
+            (saved: any) =>
+              (evidence.sourceExcerpts ?? []).some(
+                (current) => fingerprint(current) === fingerprint(saved),
+              ),
+          ),
+        }
+      : evidence;
     if (
-      fingerprint(evidence ?? null) !==
+      fingerprint(comparableEvidence ?? null) !==
       fingerprint(record.remakeEvidence ?? null)
     )
       fail(
@@ -612,8 +643,10 @@ export async function validatePreparedGeneration(
       "PREPARED_MODEL_CHANGED",
       "Effective model configuration changed; prepare and quote again",
     );
-  if (record.referenceState === "declared" && options.allowDeclared)
+  if (record.referenceState === "declared" && options.allowDeclared) {
+    await validateVideoWorkflow(service, tx, accountId, record);
     return record;
+  }
   const current = await generationReferenceSnapshots(tx, accountId, operation);
   if (fingerprint(current.references) !== fingerprint(record.references))
     fail(
@@ -632,6 +665,7 @@ export async function validatePreparedGeneration(
       operation,
       current.assets,
     );
+  await validateVideoWorkflow(service, tx, accountId, record);
   await validateStoryboardInput(
     tx,
     accountId,
@@ -643,4 +677,15 @@ export async function validatePreparedGeneration(
   if (!record.parentPreparation)
     await assertCriticalImageReviews(tx, accountId, operation);
   return record;
+}
+
+export async function prepareGeneration(
+  service: Service,
+  c: Context,
+  raw: unknown,
+  declaredAssets?: Entity[],
+) {
+  return tracedPreparation(service, c, raw, () =>
+    prepareGenerationImpl(service, c, raw, declaredAssets),
+  );
 }

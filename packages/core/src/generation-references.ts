@@ -66,5 +66,24 @@ export async function generationReferences(
     }
     resolved.push({ ...refs[i], url });
   }
+  if (input.preparedRequestId)
+    await service.db.transaction(async (tx) => {
+      const current = await tx.get(job.id, job.accountId, "job");
+      if (current)
+        await tx.put({
+          ...current,
+          referenceDeliveryEvidence: {
+            stage: "resolved_before_provider_submission",
+            at: new Date().toISOString(),
+            preparedRequestId: input.preparedRequestId,
+            references: assets.map((a, i) => ({
+              assetId: a.id,
+              kind: a.kind,
+              role: refs[i].role,
+              sha256: a.sha256,
+            })),
+          },
+        });
+    });
   return resolved;
 }

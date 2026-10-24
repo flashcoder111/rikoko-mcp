@@ -68,3 +68,7 @@ Track all job IDs commissioned for this task, including reference analysis, imag
 ## Creative authority
 
 Choose the story, target shots, reference responsibilities and editing yourself. Template and director-kit recommendations are optional. Required source evidence, actual asset bindings, model limits, critical-image checks and user constraints are enforced separately. Suggestions returned by tools never execute a next step or authorize spending.
+
+## Connect a rikoko account
+
+When the user asks to connect their rikoko account, call `account_connect`. It opens browser authorization on the same computer and returns an authorization URL as a fallback. The user signs in or reuses the website session, reviews the connection spending limit, and authorizes. After consent call `account_connection_status` to confirm the real shared credit balance. Never ask the user to paste an API key or expose credentials. `account_disconnect` revokes this installation’s connection when requested. Connecting does not authorize paid generation. Remote/shared runtimes cannot use this local account flow.

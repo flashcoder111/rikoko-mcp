@@ -22,7 +22,7 @@ export const productionRequestSchema = z
   })
   .strict();
 
-/** Local request evidence stays local; cloud execution receives the bound plan. */
+/** Bind every original attachment; cloud v2 mirrors this original request separately. */
 export async function bindProductionRequest(
   tx: Transaction,
   accountId: string,
@@ -82,7 +82,23 @@ export async function bindProductionRequest(
         },
       );
     assets.push({ assetId, sha256: asset.sha256 });
-    if (asset.kind === "video" && used.has(assetId)) hasSourceVideo = true;
+    if (asset.kind === "video") {
+      hasSourceVideo = true;
+      if (!plan.remake)
+        throw new AppError(
+          "VIDEO_ANALYSIS_REQUIRED",
+          "Analyze the original video before planning; video attachments cannot be excluded or treated only as still images",
+          409,
+          { stage: "analysis" },
+        );
+      if (exclusions.has(assetId))
+        throw new AppError(
+          "SOURCE_VIDEO_REFERENCE_REQUIRED",
+          "The original video cannot be excluded from its generation workflow",
+          409,
+          { stage: "reference_delivery" },
+        );
+    }
   }
   if (
     hasSourceVideo &&

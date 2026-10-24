@@ -1,4 +1,8 @@
 import {
+  generationTraceGet,
+  tracedPreparation,
+} from "../../core/src/generation-trace.js";
+import {
   productionRequestSchema,
   bindProductionRequest,
   validateProductionRequest,
@@ -104,6 +108,11 @@ function targetNeighbor(
 }
 
 export const productionTools = {
+  generation_trace_get: {
+    schema: z.object({ id: idSchema }).strict(),
+    description:
+      "Read the owned immutable request, verified Gemini report, host plan, compiled prompt, actual reference bindings and execution status by preparation/job/failure trace ID. Missing legacy evidence stays missing. No model call.",
+  },
   video_model_resolve: {
     schema: videoModelResolveSchema,
     description:
@@ -162,7 +171,7 @@ export const productionTools = {
   generation_prepare: {
     schema: generationPrepareSchema,
     description:
-      "Persist a frozen local or cloud generation request without uploading, quoting or generating. Supply input plus direction from prompt preview; plan={planId,expectedVersion,shotId,stage?} binds saved target intent; stage=video|first_frame|last_frame must match its draft and model kind. Remake prompts must match the compiled draft exactly; revise the plan instead of overriding. For other work, handwritten or changed prompts require promptOverride.reason. Returns referenceDelivery (prepared_not_submitted, video count, asset hashes, provider fields and analysis-only exclusions), preparedRequestId inside exact input, request hash, template/compiler versions, real provider field/array bindings, public output parameters and hashed private configuration. Critical video-reference images require a current hash-bound quick review even without storyboard; unknown is blocked before generation. Previous-end anchors must be actual media_inspect frames from the preceding shot. Pass input unchanged directly to job_submit; quote_create is optional only if the user asks for pricing; never remove its preparation ID. Plan, asset or model changes require preparation again. Cloud returns a server-owned prepared draft without uploading; quote binds verified uploaded bytes to an immutable derivative. input.production binds the persistent project scope and requires the matching plan.",
+      "Persist a frozen local or cloud generation request without uploading, quoting or generating. For EVERY video supply request={requestId,expectedVersion} from workspace_request_save with the verbatim brief and all attachments. Video attachments require verified recreate analysis, a bound remake plan and the actual source video as motion/source_video; stills/reconstruct/analysis_only cannot substitute. Use generation_trace_get for diagnosis. Supply input plus direction from prompt preview; plan={planId,expectedVersion,shotId,stage?} binds saved target intent; stage=video|first_frame|last_frame must match its draft and model kind. Remake prompts must match the compiled draft exactly; revise the plan instead of overriding. For other work, handwritten or changed prompts require promptOverride.reason. Returns referenceDelivery (prepared_not_submitted, video count, asset hashes, provider fields and analysis-only exclusions), preparedRequestId inside exact input, request hash, template/compiler versions, real provider field/array bindings, public output parameters and hashed private configuration. Critical video-reference images require a current hash-bound quick review even without storyboard; unknown is blocked before generation. Previous-end anchors must be actual media_inspect frames from the preceding shot. Pass input unchanged directly to job_submit; quote_create is optional only if the user asks for pricing; never remove its preparation ID. Plan, asset or model changes require preparation again. Cloud returns a server-owned prepared draft without uploading; quote binds verified uploaded bytes to an immutable derivative. input.production binds the persistent project scope and requires the matching plan.",
   },
   production_plan_validate: {
     schema: productionPlanSchema,
@@ -215,7 +224,7 @@ export const productionTools = {
       "Read deterministic delivery checks: source ranges, discarded operation/hold frames, crop, placeholders, shot order, source-bound music cues/mix and ending duration. Returns inspection requests, plan-derived qualityReview obligations and productionScopeHash for final media_review.expectedProductionScopeHash. finalReady means technical delivery readiness; reviewAccepted separately describes optional review. Unreviewed output can be delivered. Do not run final AI review or auto-regenerate. Explicit visualKind=graphic marks intentional title/brand cards.",
   },
 };
-export async function callProductionTool(
+async function callProductionToolImpl(
   service: Service,
   c: Context,
   name: keyof typeof productionTools,
@@ -254,6 +263,8 @@ export async function callProductionTool(
       throw new AppError("CAPABILITY_UNAVAILABLE", "Unknown prompt model");
     return promptReferenceSyntax(model);
   };
+  if (name === "generation_trace_get")
+    return generationTraceGet(service, c, data.id);
   if (name === "production_method_resolve") {
     const source = data.sourceAssetId
       ? await service.get(c, "asset", data.sourceAssetId)
@@ -726,4 +737,17 @@ export async function callProductionTool(
     referenceDelivery: referenceDelivery(result),
     guidance: preparedGuidance(result),
   };
+}
+
+export async function callProductionTool(
+  service: Service,
+  c: Context,
+  name: keyof typeof productionTools,
+  raw: unknown,
+): Promise<any> {
+  if (name === "production_plan_save")
+    return tracedPreparation(service, c, raw, () =>
+      callProductionToolImpl(service, c, name, raw),
+    );
+  return callProductionToolImpl(service, c, name, raw);
 }

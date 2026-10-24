@@ -6,7 +6,7 @@ import { Database } from "../packages/db/src/index.js";
 import { Service } from "../packages/core/src/index.js";
 import { LocalStorage } from "../packages/storage/src/index.js";
 import { FalProvider } from "../packages/providers/src/index.js";
-import { callTool } from "../packages/mcp/src/tools.js";
+import { callTool } from "./prepared-request-fixture.js";
 import type { Context } from "../packages/contracts/src/index.js";
 import { createMcpServer } from "../packages/mcp/src/index.js";
 import { Client } from "@modelcontextprotocol/client";

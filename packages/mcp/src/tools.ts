@@ -80,6 +80,7 @@ import { templateLibrary } from "../../templates/src/library.js";
 import { rankTemplates, relevantAssets } from "../../templates/src/matching.js";
 import { revokeDelivery, workspaceResult } from "../../core/src/delivery.js";
 import { taskUsage } from "../../core/src/task-usage.js";
+import { requireLocalConnection } from "../../cloud-client/src/account-connection.js";
 import {
   runtimeVersion,
   runtimeGuideVersion,
@@ -95,6 +96,21 @@ import {
   adaptReference,
 } from "./reference-tools.js";
 export const tools = {
+  account_connect: {
+    schema: z.object({}).strict(),
+    description:
+      "Connect the user's rikoko account when requested. Opens browser authorization on this computer, reuses website sign-in and shares the account credit balance. Return the authorizationUrl as a clickable link if the browser does not open. Call account_connection_status after consent. Local owner only; no API key copy, no purchase or generation.",
+  },
+  account_connection_status: {
+    schema: z.object({}).strict(),
+    description:
+      "Check browser authorization and the connected rikoko account's real available credits. May renew the connection; never exposes credentials or starts generation.",
+  },
+  account_disconnect: {
+    schema: z.object({}).strict(),
+    description:
+      "Revoke and remove this local rikoko account connection when the user requests disconnection. Does not spend credits or switch to another provider. Requires network access for revocation.",
+  },
   rikoko_guide: {
     schema: guideSchema,
     description:
@@ -490,6 +506,12 @@ export async function callTool(
       raw,
     );
   switch (name) {
+    case "account_connect":
+      return (await requireLocalConnection(service, c)).start();
+    case "account_connection_status":
+      return (await requireLocalConnection(service, c)).status();
+    case "account_disconnect":
+      return (await requireLocalConnection(service, c)).disconnect();
     case "update_check":
       await service.scoped(c, "read", async () => {});
       return updateChecker.check(data.force);

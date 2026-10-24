@@ -8,7 +8,7 @@ import { Database } from "../packages/db/src/index.js";
 import { Service, fingerprint } from "../packages/core/src/index.js";
 import { LocalStorage } from "../packages/storage/src/index.js";
 import { FalProvider, type Model } from "../packages/providers/src/index.js";
-import { callTool } from "../packages/mcp/src/tools.js";
+import { callTool } from "./prepared-request-fixture.js";
 import { Worker } from "../apps/worker/src/worker.js";
 import { connectServices } from "../packages/cloud-client/src/index.js";
 import * as prompts from "../packages/core/src/production-prompts.js";

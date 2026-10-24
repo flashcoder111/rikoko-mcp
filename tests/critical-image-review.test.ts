@@ -8,7 +8,7 @@ import { Database } from "../packages/db/src/index.js";
 import { Service } from "../packages/core/src/index.js";
 import { LocalStorage } from "../packages/storage/src/index.js";
 import { FalProvider } from "../packages/providers/src/index.js";
-import { callTool } from "../packages/mcp/src/tools.js";
+import { callTool } from "./prepared-request-fixture.js";
 import { compilePrompt } from "../packages/core/src/production-prompts.js";
 import { generationReferences } from "../packages/core/src/generation-references.js";
 import { PreparationClient } from "../packages/cloud-client/src/preparation.js";
@@ -99,7 +99,18 @@ async function fixture() {
     references: [{ role: "first_frame", assetId: asset.id }],
     videoPolicy: faceFreeFixturePolicy([asset]),
   };
-  return { asset, raw: { input, direction } };
+  const request: any = await callTool(service, c, "workspace_request_save", {
+    message: "Animate the original still",
+    assetIds: [asset.id],
+  });
+  return {
+    asset,
+    raw: {
+      input,
+      direction,
+      request: { requestId: request.requestId, expectedVersion: 1 },
+    },
+  };
 }
 async function unknown(assetId: string) {
   return callTool(service, c, "media_review", {
@@ -196,6 +207,7 @@ async function stageFixture() {
     review,
     stateChecks,
     raw: {
+      request: f.raw.request,
       input: { ...f.raw.input, prompt: drafts.video.prompt },
       direction: drafts.video.direction,
       plan: {
@@ -269,7 +281,7 @@ it("cannot accept unknown stage or use generic image acceptance instead of the s
 it("checks a chosen stage frame before cloud synchronization or uploads", async () => {
   const f = await stageFixture();
   const request = vi.fn(async (_path: string) => ({
-    protocol: "rikoko-cloud-preparation-v1",
+    protocol: "rikoko-cloud-preparation-v2",
   }));
   const client = new PreparationClient(
     service,
@@ -316,7 +328,7 @@ it("rejects mismatched saved choices in real local and cloud preparation", async
     code: "SHOT_REFERENCE_CHOICE_MISMATCH",
   });
   const request = vi.fn(async (_path: string) => ({
-    protocol: "rikoko-cloud-preparation-v1",
+    protocol: "rikoko-cloud-preparation-v2",
   }));
   const client = new PreparationClient(
     service,
@@ -411,7 +423,7 @@ it("rechecks review revocation at quote, submit and worker dispatch", async () =
 it("blocks cloud preparation before context sync, upload or remote generation preparation", async () => {
   const { raw } = await fixture();
   const request = vi.fn(async () => ({
-    protocol: "rikoko-cloud-preparation-v1",
+    protocol: "rikoko-cloud-preparation-v2",
   }));
   const client = new PreparationClient(
     service,

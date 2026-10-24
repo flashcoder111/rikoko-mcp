@@ -7,17 +7,17 @@ export function requireGenerationPreparation(
   allowLegacy: boolean,
   preparing = false,
 ) {
-  if (input.kind !== "generate" || modelKind !== "video" || allowLegacy) return;
-  if (!preparing && input.references?.length && !input.preparedRequestId)
-    throw new AppError(
-      "GENERATION_PREPARATION_REQUIRED",
-      "Reference video generation requires generation_prepare before quotation or submission",
-      409,
-    );
-  if (!input.target)
+  if (input.kind !== "generate" || modelKind !== "video") return;
+  if (!input.target && !allowLegacy)
     throw new AppError(
       "GENERATION_TARGET_REQUIRED",
       "Supply target dimensions or prepare with a saved target plan; never infer the user's canvas from a provider default",
+      409,
+    );
+  if (!preparing && !input.preparedRequestId)
+    throw new AppError(
+      "GENERATION_PREPARATION_REQUIRED",
+      "Video generation requires generation_prepare before quotation or submission",
       409,
     );
 }

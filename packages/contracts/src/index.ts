@@ -424,6 +424,7 @@ export class AppError extends Error {
       signal?: string;
       currentVersion?: number;
       recordId?: string;
+      generationTraceId?: string;
       issues?: { path: string; code: string; message: string }[];
     },
   ) {

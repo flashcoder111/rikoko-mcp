@@ -18,8 +18,7 @@ beforeEach(async () => {
   dir = await mkdtemp(join(tmpdir(), "cloud-reference-"));
   db = await Database.open();
   service = new Service(db, new LocalStorage(dir));
-  // These upload/idempotency contracts exercise the explicit legacy migration mode.
-  service.allowLegacyGeneration = true;
+  // Image transport contracts; video preparation is covered in cloud-preparation and video-workflow.
   c = await service.authenticate((await service.createAccount("Local", 0)).key);
   asset = await service.registerAsset(c.accountId, bytes, {
     name: "reference.png",
@@ -38,11 +37,11 @@ beforeEach(async () => {
         {
           id: "reference-model",
           name: "MiniMax reference",
-          kind: "video",
+          kind: "image",
           available: true,
           generationInput: {
-            mode: "image_to_video",
-            references: [{ roles: ["first_frame"], kind: "image" }],
+            mode: "image_edit",
+            references: [{ roles: ["product"], kind: "image" }],
           },
         },
       ]);
@@ -78,9 +77,9 @@ afterEach(async () => {
 const input = () => ({
   kind: "generate",
   model: "reference-model",
-  mode: "image_to_video",
+  mode: "image_edit",
   prompt: "Animate the product",
-  references: [{ assetId: asset.id, role: "first_frame" }],
+  references: [{ assetId: asset.id, role: "product" }],
   videoPolicy: faceFreeFixturePolicy([asset]),
 });
 it("submits directly through the cloud and retries without another quote or purchase", async () => {
@@ -99,9 +98,9 @@ it("submits directly through the cloud and retries without another quote or purc
 it("uploads owned bytes once, binds remote references to the quote and retries without repurchasing", async () => {
   const q = await gateway.quote(c, input());
   expect(remote[0].input.references).toEqual([
-    { assetId: "remote-asset", role: "first_frame" },
+    { assetId: "remote-asset", role: "product" },
   ]);
-  expect(remote[0].input.mode).toBe("image_to_video");
+  expect(remote[0].input.mode).toBe("image_edit");
   const p = { input: input(), quoteId: q.id, idempotencyKey: "one" };
   const job = await gateway.submit(c, p);
   expect((await gateway.submit(c, p)).id).toBe(job.id);

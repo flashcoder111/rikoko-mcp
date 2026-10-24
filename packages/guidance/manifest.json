@@ -1,6 +1,6 @@
 {
   "guideProtocol": "rikoko-director-guide-v1",
-  "guideVersion": "8410fa35e77c295221f8915d3813557191826b567bd800f2f2d5d9fe399b3794",
+  "guideVersion": "918a491dce0d040eb18de69dc2f161c1ee7f4fdb4d2baee3bee831fc978b6dc0",
   "topics": {
     "analysis-preflight": "163eeb108e2422a8a9b18086e2dbe90e6193b6cb29c46a7d17a8c48ae8f70a10",
     "commands": "8ee4e022676b141179717f2e12a16aaacf6a0de910bea9d39595f5a60bb8207b",
@@ -12,13 +12,13 @@
     "host-hermes": "0d23d58c6d63b6205720996380041f20fe4ba918fda53d88ebcc551b9dee3978",
     "image-direction": "cd1aff90e9e61b01c697a81973da0f1a5e4ca820694844cd4fce0b4528a29ba3",
     "media-operations": "0b8489c050825d4dbb9d03487231a735bb715651664dbeb9fe458d51bb4f69a7",
-    "overview": "936b2c70e49f1461686ff77aa8ed7a1b6855c28ef0a363e129a29890c9495fd6",
+    "overview": "093ff7d9e3256147cb65ac88677d53b4fb66d367ec78c5420c22862dd22cd61e",
     "process-broll": "55ffb1c13c848e70328744e43e4cfe2b9d5e9207750b38760c8841da282e5062",
-    "production-method": "b87355fc110bf9e266ef3ca1307f78e046d0eb947b0cc64f07ff2ae3532f5c12",
+    "production-method": "947ebf987f09d74e290fa3a6424816559a33293795ccaeb6d49b89a46c9a0558",
     "production-quality": "ce79afebecaa3884a36f6458a03b94d183a3e4b37ac11bab5882262fb5324d9b",
     "talking-head-ads": "63d4f204a1de1df2102b624c260813a7841063276882be63ee726721ea775ab8",
     "ugc-ads": "07bcbc316c0d5a54dbb5e6beb25c2da95b0d6051b969a302a1d0f8081642ef56",
-    "video-direction": "3235b8616675d58b2bc5a2d122aa90c2d014571f2e4aa68dc5a0f1b1608ea9e8",
+    "video-direction": "b42f4932ef803ebafe30a402f31b634eb1d8469c9fdc95b9ff1fe24f03b2cdb1",
     "visual-review": "f5a047b976901a845887096099f5e66be03c172d6614668c432303db6c8d74e1"
   }
 }

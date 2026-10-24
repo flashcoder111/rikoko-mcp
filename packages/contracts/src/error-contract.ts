@@ -28,6 +28,7 @@ export const publicErrorSchema = z.object({
       signal: z.string().optional(),
       currentVersion: z.number().optional(),
       recordId: z.string().optional(),
+      generationTraceId: z.string().optional(),
       issues: z
         .array(
           z.object({ path: z.string(), code: z.string(), message: z.string() }),

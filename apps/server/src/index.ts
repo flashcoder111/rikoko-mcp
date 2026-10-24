@@ -5,6 +5,7 @@ import { writeFile, readFile, unlink } from "node:fs/promises";
 import { openRuntime } from "./runtime.js";
 import { createApp } from "./app.js";
 import { Worker } from "../../worker/src/worker.js";
+import { accountConnection } from "../../../packages/cloud-client/src/account-connection.js";
 // Bind before opening PGlite: only one concurrent managed launcher can proceed.
 await assertUpgradeAccess(
   dirname(resolve(process.env.DATA_DIR ?? ".data")),
@@ -33,6 +34,7 @@ async function shutdown() {
   if (stopping) return;
   stopping = true;
   worker?.stop();
+  if (runtime) accountConnection(runtime.service)?.close();
   const closed = new Promise<void>((done) => server.close(() => done()));
   await Promise.all([running, closed]);
   await runtime?.db.close();

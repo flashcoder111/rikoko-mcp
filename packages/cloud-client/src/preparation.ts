@@ -1,3 +1,8 @@
+import { tracedPreparation } from "../../core/src/generation-trace.js";
+import {
+  bindVideoWorkflow,
+  videoRequestSnapshot,
+} from "../../core/src/video-workflow.js";
 import { validateRemakeEvidence } from "../../core/src/reference-handoff.js";
 import { remapVideoPolicy } from "../../contracts/src/video-policy.js";
 import {
@@ -78,14 +83,14 @@ export class PreparationClient {
     if (!(await this.supported(c)))
       throw new AppError(
         "PREPARATION_PROTOCOL_UNSUPPORTED",
-        "Reconnect a cloud runtime supporting rikoko-cloud-preparation-v1. Keep preparedRequestId; do not bypass preparation.",
+        "Reconnect a cloud runtime supporting rikoko-cloud-preparation-v2. Keep preparedRequestId; do not bypass preparation.",
         409,
       );
   }
   async sync(
     tx: Transaction,
     c: Context,
-    kind: "plan" | "scope",
+    kind: "plan" | "scope" | "request",
     record: Entity,
   ): Promise<string> {
     const links = (await tx.list(c.accountId, "cloud-production-link")).filter(
@@ -111,7 +116,7 @@ export class PreparationClient {
       scope = { ...record.productionScope, planId };
     }
     const version =
-      kind === "plan" ? record.version : record.productionScope.version;
+      kind !== "scope" ? record.version : record.productionScope.version;
     const remakeEvidence =
       kind === "plan"
         ? await validateRemakeEvidence(
@@ -123,23 +128,36 @@ export class PreparationClient {
         : undefined;
     // Conversation-facing rationale stays on the host. Execution constraints,
     // references, method and shots remain intact in the cloud contract.
-    const { creativeChoices: _creativeChoices, ...executionPlan } =
-      record.plan ?? {};
+    const executionPlan = record.plan ?? {};
+    const requestSnapshot =
+      kind === "request"
+        ? await videoRequestSnapshot(tx, c.accountId, {
+            requestId: record.id,
+            expectedVersion: record.version,
+          })
+        : undefined;
     const content =
-      kind === "plan"
-        ? remakeEvidence
-          ? { plan: executionPlan, remakeEvidence }
-          : executionPlan
-        : scope;
+      kind === "request"
+        ? requestSnapshot
+        : kind === "plan"
+          ? remakeEvidence
+            ? { plan: executionPlan, remakeEvidence }
+            : executionPlan
+          : scope;
     const result = await this.request("/v1/production-context", {
       protocol: cloudPreparationProtocol,
       clientId,
       localId: record.id,
       kind,
       version,
-      ...(kind === "plan"
-        ? { plan: executionPlan, ...(remakeEvidence ? { remakeEvidence } : {}) }
-        : { scope: content }),
+      ...(kind === "request"
+        ? { request: requestSnapshot }
+        : kind === "plan"
+          ? {
+              plan: executionPlan,
+              ...(remakeEvidence ? { remakeEvidence } : {}),
+            }
+          : { scope: content }),
     });
     const id = `context-${fingerprint(["link", c.accountId, clientId, kind, record.id])}`;
     if (
@@ -164,6 +182,11 @@ export class PreparationClient {
     return result.id;
   }
   async prepare(c: Context, raw: unknown) {
+    return tracedPreparation(this.service, c, raw, () =>
+      this.prepareImpl(c, raw),
+    );
+  }
+  private async prepareImpl(c: Context, raw: unknown) {
     const data = generationPrepareSchema.parse(raw);
     if (data.input.kind !== "generate" || data.input.preparedRequestId)
       throw new AppError("INVALID_INPUT", "Prepare a fresh generation request");
@@ -189,6 +212,7 @@ export class PreparationClient {
         input,
       );
       await assertCriticalImageReviews(tx, c.accountId, input);
+
       let localPlan: Entity | null | undefined, remotePlan, remakeEvidence;
       if (data.plan) {
         localPlan = await tx.get(
@@ -242,11 +266,28 @@ export class PreparationClient {
           c.accountId,
           localPlan.plan,
         );
+      }
+      const models = await this.request("/v1/generation-models");
+      const model = Array.isArray(models)
+        ? models.find((m: any) => m.id === input.model)
+        : undefined;
+      if (!model || !["image", "video", "audio"].includes(model.kind))
+        throw new AppError(
+          "CAPABILITY_UNAVAILABLE",
+          "Unknown generation model",
+        );
+      const workflow = await bindVideoWorkflow(
+        this.service,
+        tx,
+        c,
+        data,
+        model.kind,
+      );
+      if (localPlan)
         remotePlan = {
           ...data.plan,
           planId: await this.sync(tx, c, "plan", localPlan),
         };
-      }
       const remoteInput = { ...input };
       delete remoteInput.storyboard;
       if (scope)
@@ -254,16 +295,37 @@ export class PreparationClient {
           ...input.production!,
           projectId: await this.sync(tx, c, "scope", scope.project),
         };
+      const remoteRequest = workflow
+        ? {
+            requestId: await this.sync(
+              tx,
+              c,
+              "request",
+              (await tx.get(
+                workflow.requestLink.requestId,
+                c.accountId,
+                "workspace-request",
+              ))!,
+            ),
+            expectedVersion: workflow.requestLink.expectedVersion,
+          }
+        : undefined;
       const remote = await this.request("/v1/generation-preparations", {
         protocol: cloudPreparationProtocol,
         request: {
           ...data,
           input: remoteInput,
+          ...(remoteRequest ? { request: remoteRequest } : {}),
           ...(remotePlan ? { plan: remotePlan } : {}),
         },
         references: snapshots.assets.map(referenceDeclaration),
       });
       verifyRecord(remote);
+      if (
+        fingerprint(remote.workflow?.request ?? null) !==
+        fingerprint(workflow?.request ?? null)
+      )
+        invalid("Cloud changed or removed the original request snapshot");
       if (
         fingerprint(remote.remakeEvidence ?? null) !==
         fingerprint(remakeEvidence ?? null)
@@ -303,6 +365,7 @@ export class PreparationClient {
         accountId: c.accountId,
         createdAt: new Date().toISOString(),
         input: localInput,
+        workflow,
         inputHash: fingerprint(localInput),
         plan: localPlan
           ? { ...data.plan, planHash: fingerprint(localPlan.plan) }

@@ -285,6 +285,9 @@ export class Worker {
               result.data = bindTranscript(result.data, source);
             }
             if (input.kind === "reference_analyze") {
+              await checkpoint({
+                analysisRawReport: structuredClone(result.data),
+              });
               const source = await this.service.db.transaction((tx) =>
                 tx.get(input.assetId, job!.accountId, "asset"),
               );

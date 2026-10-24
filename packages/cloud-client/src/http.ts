@@ -1,3 +1,4 @@
+import { publicErrorSchema } from "../../contracts/src/error-contract.js";
 import { AppError } from "../../contracts/src/index.js";
 export function cloudOrigin(value: string) {
   const u = new URL(value);
@@ -78,6 +79,7 @@ export async function cloudRequest(
       data.error?.code ?? "CLOUD_ERROR",
       data.error?.message ?? "云端请求失败",
       response.status,
+      publicErrorSchema.shape.details.safeParse(data.error?.details).data,
     );
   return { response, data };
 }

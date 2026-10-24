@@ -1,3 +1,4 @@
+import { videoRequestSnapshotSchema } from "./video-workflow.js";
 import {
   remakeEvidenceSchema,
   validateRemakeEvidence,
@@ -28,7 +29,7 @@ import { validateGenerationAssets } from "../../providers/src/generation-input.j
 import { checkGenerationTarget } from "../../providers/src/generation-target.js";
 import { assertProductionQualityRetained } from "./production-editing.js";
 
-export const cloudPreparationProtocol = "rikoko-cloud-preparation-v1";
+export const cloudPreparationProtocol = "rikoko-cloud-preparation-v2";
 const digest = z.string().regex(/^[a-f0-9]{64}$/);
 const metadataSchema = z
   .object({
@@ -265,6 +266,13 @@ export const productionContextSchema = z.discriminatedUnion("kind", [
   z
     .object({
       ...contextBase,
+      kind: z.literal("request"),
+      request: videoRequestSnapshotSchema,
+    })
+    .strict(),
+  z
+    .object({
+      ...contextBase,
       kind: z.literal("plan"),
       plan: productionPlanSchema,
       remakeEvidence: remakeEvidenceSchema.optional(),
@@ -294,14 +302,41 @@ export async function syncCloudProductionContext(
   const data = productionContextSchema.parse(raw);
   return service.scoped(c, "write", async (tx) => {
     const id = `context-${fingerprint([c.accountId, data.clientId, data.kind, data.localId])}`;
-    const type = data.kind === "plan" ? "production-plan" : "project";
+    const type =
+      data.kind === "request"
+        ? "workspace-request"
+        : data.kind === "plan"
+          ? "production-plan"
+          : "project";
     const old = await tx.get(id, c.accountId, type);
     const content =
-      data.kind === "plan"
-        ? data.remakeEvidence
-          ? { plan: data.plan, remakeEvidence: data.remakeEvidence }
-          : data.plan
-        : data.scope;
+      data.kind === "request"
+        ? data.request
+        : data.kind === "plan"
+          ? data.remakeEvidence
+            ? { plan: data.plan, remakeEvidence: data.remakeEvidence }
+            : data.plan
+          : data.scope;
+    if (data.kind === "request") {
+      if (
+        data.request.version !== data.version ||
+        (old?.hostRequest &&
+          old.hostRequest.assets.some(
+            (a: any) =>
+              !data.request.assets.some(
+                (b) =>
+                  b.assetId === a.assetId &&
+                  b.sha256 === a.sha256 &&
+                  b.kind === a.kind,
+              ),
+          ))
+      )
+        throw new AppError(
+          "REQUEST_ASSET_CHANGED",
+          "A mirrored request cannot remove or replace its original attachments",
+          409,
+        );
+    }
     if (data.kind === "plan") {
       assertProductionQualityRetained(old?.plan, data.plan);
       if (!!data.plan.remake !== !!data.remakeEvidence)
@@ -388,15 +423,17 @@ export async function syncCloudProductionContext(
       createdAt: old?.createdAt ?? new Date().toISOString(),
       version: data.version,
       contentHash,
-      ...(data.kind === "plan"
-        ? {
-            plan: data.plan,
-            planHash: fingerprint(data.plan),
-            ...(data.remakeEvidence
-              ? { hostRemakeEvidence: data.remakeEvidence }
-              : {}),
-          }
-        : { productionScope: data.scope }),
+      ...(data.kind === "request"
+        ? { hostRequest: data.request }
+        : data.kind === "plan"
+          ? {
+              plan: data.plan,
+              planHash: fingerprint(data.plan),
+              ...(data.remakeEvidence
+                ? { hostRemakeEvidence: data.remakeEvidence }
+                : {}),
+            }
+          : { productionScope: data.scope }),
     });
     return { id, version: data.version, contentHash, ...acknowledgement };
   });

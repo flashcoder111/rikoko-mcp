@@ -61,7 +61,7 @@ export const productionAssetAssignSchema = z
 type Sync = (
   tx: Transaction,
   c: Context,
-  kind: "plan" | "scope",
+  kind: "plan" | "scope" | "request",
   record: Entity,
 ) => Promise<void>;
 const synchronizers = new WeakMap<Service, Sync>();
@@ -73,7 +73,7 @@ export async function syncProductionChange(
   service: Service,
   tx: Transaction,
   c: Context,
-  kind: "plan" | "scope",
+  kind: "plan" | "scope" | "request",
   record: Entity,
 ) {
   const links = (await tx.list(c.accountId, "cloud-production-link")).filter(

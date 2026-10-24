@@ -22,6 +22,22 @@ export const remakeEvidenceSchema = z
     upstreamModel: z.string().min(1).max(2000),
     analysisVersion: z.string().min(1).max(2000),
     priceVersion: z.string().min(1).max(2000),
+    report: referenceReportSchema.optional(),
+    componentReports: z.array(referenceReportSchema).max(100).optional(),
+    sourceExcerpts: z
+      .array(
+        z
+          .object({
+            assetId: id,
+            sha256: digest,
+            sourceSha256: digest,
+            startMs: z.number().int().nonnegative(),
+            endMs: z.number().int().positive(),
+          })
+          .strict(),
+      )
+      .max(100)
+      .optional(),
     dependencies: z
       .array(z.object({ assetId: id, sha256: digest }).strict())
       .min(2)
@@ -102,6 +118,7 @@ async function trustedReport(
   source: Entity;
   report: ReferenceReport;
   dependencies: { assetId: string; sha256: string }[];
+  componentReports: ReferenceReport[];
 }> {
   if (stack.has(assetId) || stack.size > 1)
     throw new AppError(
@@ -125,6 +142,7 @@ async function trustedReport(
       "Use a recreate report with complete action stages for a remake",
       409,
     );
+  const componentReports: ReferenceReport[] = [];
   const dependencies = [
     { assetId: asset.id, sha256: asset.sha256 },
     { assetId: source.id, sha256: source.sha256 },
@@ -171,6 +189,7 @@ async function trustedReport(
           409,
         );
       dependencies.push(...child.dependencies);
+      componentReports.push(child.report, ...child.componentReports);
     }
   } else {
     const direct = await tx.get(
@@ -198,7 +217,7 @@ async function trustedReport(
         409,
       );
   }
-  return { ...current, dependencies };
+  return { ...current, dependencies, componentReports };
 }
 export async function referenceEvidence(
   service: Service,
@@ -208,6 +227,9 @@ export async function referenceEvidence(
 ) {
   const result = await trustedReport(service, tx, accountId, assetId);
   const { asset, source, report } = result;
+  const excerpts = (await tx.list(accountId, "source-excerpt")).filter(
+    (e) => e.sourceAssetId === source.id && e.sourceSha256 === source.sha256,
+  );
   const binding = remakeEvidenceSchema.parse({
     protocol: "rikoko-remake-handoff-v1",
     analysisAssetId: asset.id,
@@ -219,6 +241,15 @@ export async function referenceEvidence(
       report.provenance.upstreamModel ?? report.provenance.endpoint,
     analysisVersion: report.provenance.analysisVersion,
     priceVersion: report.provenance.priceVersion,
+    report,
+    componentReports: result.componentReports,
+    sourceExcerpts: excerpts.slice(0, 100).map((e) => ({
+      assetId: e.assetId,
+      sha256: e.sha256,
+      sourceSha256: e.sourceSha256,
+      startMs: e.startMs,
+      endMs: e.endMs,
+    })),
     dependencies: [
       ...new Map(result.dependencies.map((d) => [d.assetId, d])).values(),
     ],
@@ -334,6 +365,10 @@ export async function validateRemakeEvidence(
 ) {
   if (!plan.remake) return undefined;
   const remake = plan.remake;
+  let verified: {
+    binding: z.infer<typeof remakeEvidenceSchema>;
+    report: ReferenceReport;
+  };
   if (mirrored) {
     const binding = remakeEvidenceSchema.parse(mirrored);
     requireGeminiUnderstanding(binding.upstreamModel);
@@ -346,14 +381,17 @@ export async function validateRemakeEvidence(
         "Cloud mirror does not match the host-validated report",
         409,
       );
-    return binding;
-  }
-  const { binding, report } = await referenceEvidence(
-    service,
-    tx,
-    accountId,
-    remake.analysisAssetId,
-  );
+    // Legacy evidence stays readable. Video execution separately requires the full report.
+    if (!binding.report) return binding;
+    verified = { binding, report: binding.report };
+  } else
+    verified = await referenceEvidence(
+      service,
+      tx,
+      accountId,
+      remake.analysisAssetId,
+    );
+  const { binding, report } = verified;
   if (binding.analysisSha256 !== remake.analysisSha256)
     throw new AppError(
       "REMAKE_SOURCE_CHANGED",

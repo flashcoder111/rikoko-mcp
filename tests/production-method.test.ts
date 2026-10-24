@@ -1,3 +1,4 @@
+import { attachFixtureAnalysis } from "./video-workflow-fixture.js";
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -103,6 +104,7 @@ it("carries source editing from method choice to prepared request and native-spe
       "Only replace the foreground person, retain original movement and composition",
     assetIds: [original.id],
   });
+  await attachFixtureAnalysis(service, c, resolved.plan, original);
   const saved = await callTool(service, c, "production_plan_save", {
     plan: resolved.plan,
     request: {
@@ -374,8 +376,27 @@ it("keeps full preservation intent while selecting MiniMax joint references and 
   const miniService = new Service(db, new LocalStorage(dir), provider);
   const request = await callTool(miniService, c, "workspace_request_save", {
     message: "Swap both identities, preserve original timing",
-    assetIds: [original.id, a.id, b.id],
+    assetIds: [original.id],
   });
+  await attachFixtureAnalysis(miniService, c, plan, original);
+  for (const [clip, startMs] of [
+    [a, 0],
+    [b, 4958],
+  ] as const)
+    await miniService.scoped(c, "write", (tx) =>
+      tx.put({
+        id: "source-excerpt-" + clip.id,
+        type: "source-excerpt",
+        accountId: c.accountId,
+        createdAt: new Date().toISOString(),
+        assetId: clip.id,
+        sha256: clip.sha256,
+        sourceAssetId: original.id,
+        sourceSha256: original.sha256,
+        startMs,
+        endMs: startMs + clip.metadata.durationMs,
+      }),
+    );
   const saved = await callTool(miniService, c, "production_plan_save", {
     plan,
     request: {

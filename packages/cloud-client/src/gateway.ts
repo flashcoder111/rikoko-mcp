@@ -24,6 +24,8 @@ import { checkGenerationTarget } from "../../providers/src/generation-target.js"
 import { PreparationClient } from "./preparation.js";
 import type { Transaction } from "../../db/src/index.js";
 import { cloudOrigin, cloudRequest } from "./http.js";
+export type GatewayCredential =
+  string | { id: string; ownerAccountId: string; token: () => Promise<string> };
 import {
   compatibleAnalysisProtocol,
   analysisProtocolMessage,
@@ -35,40 +37,58 @@ export class GatewayClient {
   constructor(
     private service: Service,
     private origin: string,
-    private key: string,
+    private key: GatewayCredential,
     private fetcher: typeof fetch = fetch,
   ) {
     cloudOrigin(origin);
     this.preparations = new PreparationClient(
       service,
       origin,
-      key,
+      this.credentialIdentity(),
       (path, body) => this.request(path, body),
     );
+  }
+  private credentialIdentity() {
+    return typeof this.key === "string" ? this.key : this.key.id;
+  }
+  private assertOwner(c: Context) {
+    if (typeof this.key !== "string" && this.key.ownerAccountId !== c.accountId)
+      throw new AppError(
+        "FORBIDDEN",
+        "This rikoko connection belongs to another local workspace",
+        403,
+      );
+  }
+  private accessToken() {
+    return typeof this.key === "string" ? this.key : this.key.token();
   }
   private async request(path: string, body?: unknown) {
     return (
       await cloudRequest(this.origin, path, this.fetcher, {
-        key: this.key,
+        key: await this.accessToken(),
         body,
       })
     ).data;
   }
   preparationSupported(c: Context) {
+    this.assertOwner(c);
     return this.preparations.supported(c);
   }
   prepare(c: Context, raw: unknown) {
+    this.assertOwner(c);
     return this.preparations.prepare(c, raw);
   }
   syncProductionChange(
     tx: Transaction,
     c: Context,
-    kind: "plan" | "scope",
+    kind: "plan" | "scope" | "request",
     record: Entity,
   ) {
+    this.assertOwner(c);
     return this.preparations.sync(tx, c, kind, record).then(() => {});
   }
   async models(c: Context) {
+    this.assertOwner(c);
     await this.service.scoped(c, "read", async () => {});
     const models = await this.request("/v1/generation-models");
     if (!Array.isArray(models))
@@ -109,6 +129,7 @@ export class GatewayClient {
     });
   }
   async usage(c: Context) {
+    this.assertOwner(c);
     await this.service.scoped(c, "read", async () => {});
     return this.request("/v1/usage");
   }
@@ -137,6 +158,7 @@ export class GatewayClient {
     );
   }
   async quote(c: Context, raw: unknown) {
+    this.assertOwner(c);
     await this.service.scoped(c, "write", async () => {});
     const input = operationSchema.parse(raw);
     const prepared = await this.preparations.validate(c, input);
@@ -276,6 +298,7 @@ export class GatewayClient {
     c: Context,
     p: { quoteId?: string; idempotencyKey: string; input: unknown },
   ) {
+    this.assertOwner(c);
     await this.service.scoped(c, "write", async () => {});
     const input = operationSchema.parse(p.input);
 
@@ -445,7 +468,7 @@ export class GatewayClient {
     });
   }
   private async upload(c: Context, asset: Entity): Promise<string> {
-    const id = `cloud-ref-${fingerprint([c.accountId, this.origin, sha256(this.key), asset.id, asset.sha256, asset.bytes])}`;
+    const id = `cloud-ref-${fingerprint([c.accountId, this.origin, sha256(this.credentialIdentity()), asset.id, asset.sha256, asset.bytes])}`;
     const cached = await this.service.scoped(c, "read", (tx) =>
       tx.get(id, c.accountId, "cloud-reference"),
     );
@@ -482,7 +505,7 @@ export class GatewayClient {
           this.origin,
           `/v1/reference-uploads/${intent.id}`,
           this.fetcher,
-          { key: this.key, bytes },
+          { key: await this.accessToken(), bytes },
         );
         if (
           typeof remote.id !== "string" ||
@@ -511,6 +534,7 @@ export class GatewayClient {
     return pending;
   }
   async get(c: Context, id: string) {
+    this.assertOwner(c);
     const local = await this.service.get(c, "job", id);
     if (local.cloudOrigin !== this.origin || !local.remoteJobId)
       throw new AppError("CLOUD_SOURCE_CHANGED", "任务来自其他云端配置", 409);
@@ -547,7 +571,7 @@ export class GatewayClient {
               path,
               this.fetcher,
               {
-                key: this.key,
+                key: await this.accessToken(),
                 binary: true,
               },
             );
@@ -788,6 +812,7 @@ export class GatewayClient {
     action: "cancel" | "resume" | "reconcile",
     body: unknown = {},
   ) {
+    this.assertOwner(c);
     await this.service.scoped(c, "write", async () => {});
     const local = await this.service.get(c, "job", id);
     if (local.cloudOrigin !== this.origin || !local.remoteJobId)

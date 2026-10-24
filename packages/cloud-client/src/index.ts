@@ -1,7 +1,7 @@
 import { setProductionSynchronizer } from "../../core/src/production-scope.js";
 import type { Service } from "../../core/src/index.js";
 import { TemplateClient } from "./templates.js";
-import { GatewayClient } from "./gateway.js";
+import { GatewayClient, type GatewayCredential } from "./gateway.js";
 const connections = new WeakMap<
   Service,
   { templates?: TemplateClient; gateway?: GatewayClient }
@@ -11,7 +11,7 @@ export function connectServices(
   config: {
     templateOrigin?: string;
     gatewayOrigin?: string;
-    gatewayKey?: string;
+    gatewayKey?: GatewayCredential;
   },
   fetcher: typeof fetch = fetch,
 ) {

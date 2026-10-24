@@ -140,7 +140,11 @@ it("preserves saved sceneDirection and its exact prompt across cloud preparation
     subject: "Blue box",
     mode: "text_to_video",
   });
+  const request: any = await callTool(local, c, "workspace_request_save", {
+    message: sceneDirection,
+  });
   const result = await gateway.prepare(c, {
+    request: { requestId: request.requestId, expectedVersion: 1 },
     input: { kind: "generate", model: "video", prompt: preview.video.prompt },
     direction: preview.video.direction,
     plan: { planId: saved.id, expectedVersion: saved.version, shotId: "open" },
@@ -216,7 +220,7 @@ async function formal() {
         request.body.kind === "plan",
     )
     .at(-1)!;
-  expect(sent.body.plan.creativeChoices).toBeUndefined();
+  expect(sent.body.plan.creativeChoices).toEqual(plan.plan.creativeChoices);
   expect(sent.body.plan.shots).toEqual(plan.plan.shots);
   return { plan, project, p };
 }

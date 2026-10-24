@@ -9,7 +9,7 @@ import { Database } from "../packages/db/src/index.js";
 import { Service } from "../packages/core/src/index.js";
 import { LocalStorage } from "../packages/storage/src/index.js";
 import { FalProvider } from "../packages/providers/src/index.js";
-import { callTool } from "../packages/mcp/src/tools.js";
+import { callTool } from "./prepared-request-fixture.js";
 import { media } from "../packages/render/src/media.js";
 import { workspaceResult } from "../packages/core/src/delivery.js";
 import { connectServices } from "../packages/cloud-client/src/index.js";
@@ -330,7 +330,10 @@ it("preflights exact dynamic output parameters and rejects mismatched aspect wit
     }),
   ).rejects.toMatchObject({ code: "GENERATION_ASPECT_MISMATCH" });
   await expect(
-    service.quote(c, { ...input, parameters: { aspect_ratio: "16:9" } }),
+    callTool(service, c, "generation_prepare", {
+      input: { ...input, parameters: { aspect_ratio: "16:9" } },
+      promptOverride: { reason: "Check incompatible aspect" },
+    }),
   ).rejects.toMatchObject({ code: "GENERATION_ASPECT_MISMATCH" });
   const contained: any = await callTool(service, c, "generation_prepare", {
     promptOverride: { reason: "Exercise explicit contain adaptation" },

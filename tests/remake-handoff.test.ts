@@ -32,6 +32,27 @@ beforeAll(async () => {
       [
         videoModel,
         {
+          ...videoModel,
+          id: "video-reference",
+          generationInput: {
+            mode: "reference_to_video",
+            referenceSyntax: "descriptive",
+            maxTotalBytes: 10000000,
+            outputDurationMs: 5000,
+            bindings: [
+              {
+                roles: ["motion"],
+                kind: "video",
+                field: "reference_video_urls",
+                array: true,
+                min: 1,
+                max: 1,
+                maxBytes: 10000000,
+              },
+            ],
+          },
+        },
+        {
           id: "image",
           kind: "image",
           endpoint: "fixture/image",
@@ -261,9 +282,13 @@ async function fixture(
   };
   return { source, report, asset, plan };
 }
-async function save(plan: any) {
-  return callTool(service, c, "production_plan_save", { plan }) as Promise<any>;
+async function save(plan: any, request?: any) {
+  return callTool(service, c, "production_plan_save", {
+    plan,
+    ...(request ? { request } : {}),
+  }) as Promise<any>;
 }
+
 it("assembles independent target shots with direct production mapping and an initial scoped workspace", async () => {
   const { asset, plan } = await fixture();
   const shot = plan.shots[0];
@@ -343,16 +368,63 @@ it("assembles independent target shots with direct production mapping and an ini
   expect(network).not.toHaveBeenCalled();
 });
 async function prepared(plan: any) {
-  const saved = await save(plan);
+  const asset = await service.get(c, "asset", plan.remake.analysisAssetId);
+  const report = JSON.parse(
+    Buffer.from(await service.storage.read(asset.storageKey)).toString(),
+  );
+  const request: any = await callTool(service, c, "workspace_request_save", {
+    message: "Recreate the original box opening",
+    assetIds: [report.source.assetId],
+  });
+  for (const shot of plan.shots) {
+    shot.references ??= [];
+    shot.references.push({
+      assetId: report.source.assetId,
+      role: "motion",
+      transfer: "action",
+      instruction: "Original movement",
+    });
+    shot.sourceVideo = {
+      strategy: "reference",
+      assetId: report.source.assetId,
+    };
+  }
+  const saved = await save(plan, {
+    requestId: request.requestId,
+    expectedVersion: 1,
+  });
   const prompts: any = await callTool(service, c, "production_shot_prompts", {
     planId: saved.id,
     expectedVersion: saved.version,
     shotId: "target-open",
     subject: "Target box",
-    mode: "text_to_video",
+    mode: "reference_to_video",
   });
+  const source = await service.get(
+    c,
+    "asset",
+    plan.shots[0].sourceVideo.assetId,
+  );
   const p: any = await callTool(service, c, "generation_prepare", {
-    input: { kind: "generate", model: "video", prompt: prompts.video.prompt },
+    input: {
+      kind: "generate",
+      model: "video-reference",
+      mode: "reference_to_video",
+      prompt: prompts.video.prompt,
+      references: [{ assetId: source.id, role: "motion" }],
+      videoPolicy: {
+        faces: "absent",
+        reason: "Box fixture",
+        references: [
+          {
+            assetId: source.id,
+            sha256: source.sha256,
+            faces: "absent",
+            reason: "Box fixture",
+          },
+        ],
+      },
+    },
     direction: prompts.video.direction,
     plan: { planId: saved.id, expectedVersion: 1, shotId: "target-open" },
   });
@@ -584,7 +656,7 @@ it("rechecks source bytes before quote and worker submission without buying twic
     tx.put({ ...source, sha256: "f".repeat(64) }),
   );
   await expect(service.quote(c, p.input)).rejects.toMatchObject({
-    code: "SOURCE_MISMATCH",
+    code: "REQUEST_ASSET_CHANGED",
   });
   await new Worker(service).tick();
   expect(await service.get(c, "job", job.id)).toMatchObject({
@@ -670,7 +742,7 @@ it("rechecks reference evidence when assigning an existing plan to a formal proj
     }),
   ).rejects.toMatchObject({ code: "SOURCE_MISMATCH" });
 });
-it("requires source-bound evidence to survive cloud plan sync and execution", async () => {
+it("rejects a cloud remake when its host-only report has no completed cloud analysis", async () => {
   const { connectServices } =
     await import("../packages/cloud-client/src/index.js");
   const {
@@ -735,14 +807,17 @@ it("requires source-bound evidence to survive cloud plan sync and execution", as
       { gatewayOrigin: "https://cloud.example.com", gatewayKey: "fixture" },
       fetcher,
     ).gateway!;
-    const p: any = await gateway.prepare(c, {
-      input: { kind: "generate", model: "video", prompt: prompts.video.prompt },
-      direction: prompts.video.direction,
-      plan: { planId: saved.id, expectedVersion: 1, shotId: "target-open" },
-    });
-    expect(p.remakeEvidence.analysisSha256).toBe(plan.remake.analysisSha256);
-    expect(p.cloud.draft.remakeEvidence).toEqual(p.remakeEvidence);
-    await expect(gateway.quote(c, p.input)).resolves.toHaveProperty("id");
+    await expect(
+      gateway.prepare(c, {
+        input: {
+          kind: "generate",
+          model: "video",
+          prompt: prompts.video.prompt,
+        },
+        direction: prompts.video.direction,
+        plan: { planId: saved.id, expectedVersion: 1, shotId: "target-open" },
+      }),
+    ).rejects.toMatchObject({ code: "VIDEO_REQUEST_REQUIRED" });
     expect(requests.some((x) => x.includes("upload"))).toBe(false);
     expect(network).not.toHaveBeenCalled();
   } finally {

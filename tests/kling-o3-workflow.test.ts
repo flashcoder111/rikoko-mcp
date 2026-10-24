@@ -1,3 +1,4 @@
+import { attachFixtureAnalysis } from "./video-workflow-fixture.js";
 import { faceFreeFixturePolicy } from "./video-policy-fixture.js";
 import {
   afterAll,
@@ -131,13 +132,52 @@ async function preparedInput(sourceId: string, owner = context) {
       },
     ],
   };
-  const draft: any = await callTool(
+  const source = await service.get(owner, "asset", sourceId);
+  const plan: any = {
+    title: "Update appearance",
+    width: 720,
+    height: 720,
+    shots: [
+      {
+        id: "edit",
+        initialState: { product: "original" },
+        action: direction.action,
+        endState: direction.endState,
+        references: direction.references,
+        sourceVideo: { strategy: "reference", assetId: sourceId },
+      },
+    ],
+  };
+  await attachFixtureAnalysis(service, owner, plan, source);
+  const request: any = await callTool(
     service,
     owner,
-    "generation_prompt_preview",
-    { ...direction, model: "kling-o3-video-edit" },
+    "workspace_request_save",
+    {
+      message: "Replace product appearance, keep original movement",
+      assetIds: [sourceId],
+    },
   );
+  const saved: any = await callTool(service, owner, "production_plan_save", {
+    plan,
+    request: { requestId: request.requestId, expectedVersion: 1 },
+  });
+  const previews: any = await callTool(
+    service,
+    owner,
+    "production_shot_prompts",
+    {
+      planId: saved.id,
+      expectedVersion: 1,
+      shotId: "edit",
+      subject: direction.subject,
+      mode: "video_to_video",
+      model: "kling-o3-video-edit",
+    },
+  );
+  const draft = previews.video;
   const prepared: any = await callTool(service, owner, "generation_prepare", {
+    plan: { planId: saved.id, expectedVersion: 1, shotId: "edit" },
     direction: draft.direction,
     input: {
       ...input(sourceId),
@@ -263,6 +303,6 @@ it("rejects foreign references and changed sources without submitting to fal", a
       input: request,
       idempotencyKey: "changed",
     }),
-  ).rejects.toMatchObject({ code: "PREPARED_REFERENCE_CHANGED" });
+  ).rejects.toMatchObject({ code: "REQUEST_ASSET_CHANGED" });
   expect(posts).toHaveLength(0);
 });
