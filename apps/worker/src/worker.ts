@@ -258,6 +258,7 @@ export class Worker {
             assetUrl,
             references,
             analysisSource,
+            { idempotencyKey: job.id },
           );
           await checkpoint({
             ticket,

@@ -500,3 +500,57 @@ it("binds planned boundary checks to the intended shot without requiring video a
     code: "CRITICAL_IMAGE_REVIEW_REQUIRED",
   });
 });
+
+it("accepts an inspected identity reference without pretending that a still proves continuity", async () => {
+  const { asset, raw } = await fixture();
+  const review: any = await acceptFixtureImage(service, c, asset);
+  await callTool(service, c, "media_review", {
+    assetId: asset.id,
+    inspectionIds: review.inspectionIds,
+    decision: "accepted",
+    reviewer: "host_agent",
+    checks: {
+      framing: true,
+      noArtifacts: true,
+      continuity: {
+        status: "not_applicable",
+        reason: "Static identity reference, not a video sequence",
+      },
+      actionComplete: { status: "not_applicable", reason: "Still image" },
+    },
+    notes: "Subject visible; background has not been removed.",
+  });
+  const check = (role: string) =>
+    service.scoped(c, "read", (tx) =>
+      assertCriticalImageReviews(tx, c.accountId, {
+        ...raw.input,
+        mode: "reference_to_video",
+        references: [{ assetId: asset.id, role }],
+      } as any),
+    );
+  await expect(check("character")).resolves.toBeUndefined();
+  await expect(check("product")).resolves.toBeUndefined();
+  await expect(check("first_frame")).rejects.toMatchObject({
+    code: "CRITICAL_IMAGE_REVIEW_REQUIRED",
+  });
+  await expect(
+    callTool(service, c, "media_review", {
+      assetId: asset.id,
+      inspectionIds: review.inspectionIds,
+      decision: "accepted",
+      reviewer: "host_agent",
+      checks: {
+        framing: true,
+        noArtifacts: true,
+        continuity: true,
+        actionComplete: { status: "not_applicable", reason: "Still image" },
+      },
+      notes: "Trying to promote unchanged evidence",
+    }),
+  ).rejects.toMatchObject({ code: "REVIEW_NEW_EVIDENCE_REQUIRED" });
+  await unknown(asset.id);
+  await expect(check("character")).rejects.toMatchObject({
+    code: "CRITICAL_IMAGE_REVIEW_REQUIRED",
+  });
+  expect(network).not.toHaveBeenCalled();
+});

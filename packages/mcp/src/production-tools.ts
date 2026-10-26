@@ -82,6 +82,7 @@ import {
   inspectMedia,
   inspectSchema,
 } from "../../core/src/media-inspection.js";
+import { cropMedia, mediaCropSchema } from "../../core/src/media-crop.js";
 import {
   reviewMedia,
   mediaReviewSchema,
@@ -213,6 +214,11 @@ export const productionTools = {
     description:
       "Extract native MCP images/grid and persist hash-bound inspection evidence from an owned image/video. Use count (default 3, max 12) for uniform samples OR ordered timesMs (max 12) for key action events within startMs/endMs. Times are requested seeks, not verified frame PTS; unsampled intervals remain unknown. Default: inspect critical images once for subject, major defects and starting state; reuse checks for unchanged bytes and use. Video review is optional only on user request. For an explicitly requested action review inspect critical intervals with gaps <=250 ms, using multiple bounded calls as needed. claimedStatic checks differences, never proves no motion. Local FFmpeg, no model call. Each frame has an owned assetId and source provenance; use that asset directly for previous_end, at the retained edit endpoint, instead of reimporting a PNG. Inspect pixels before media_review. Statistics never establish semantic correctness.",
   },
+  media_crop: {
+    schema: mediaCropSchema,
+    description:
+      "Crop an inspected owned image to an explicit pixel rectangle. Produces a real reusable image asset and hash-bound derivation without any model call. Choose the rectangle from visible pixels, preserve the requested subject, and inspect the result before reference use. This removes only pixels outside the rectangle, not background within it. Reference the returned assetId; retain the original as analysis_only when binding the user's attachments. Identical retries reuse the derivative.",
+  },
   media_review: {
     schema: mediaReviewSchema,
     description:
@@ -242,6 +248,7 @@ async function callProductionToolImpl(
   if (name === "production_asset_assign")
     return assignProductionAsset(service, c, data);
   if (name === "media_inspect") return inspectMedia(service, c, data);
+  if (name === "media_crop") return cropMedia(service, c, data);
   if (name === "media_review") return reviewMedia(service, c, data);
   if (name === "workspace_validate")
     return validateWorkspace(service, c, data.revisionId);
@@ -447,10 +454,15 @@ async function callProductionToolImpl(
       });
     const shot = record.plan.shots.find((s: any) => s.id === data.shotId);
     if (!shot) throw new AppError("INVALID_SHOT", "Unknown target shot");
-    await service.scoped(c, "read", (tx) =>
+    const evidence = await service.scoped(c, "read", (tx) =>
       validateRemakeEvidence(service, tx, c.accountId, record.plan),
     );
-    const direction = productionShotDirection(record.plan, shot);
+    const direction = productionShotDirection(
+      record.plan,
+      shot,
+      "video",
+      evidence?.report,
+    );
     assertMethodMode(record.plan, data.mode);
     const videoSyntax = await syntaxFor(data.model);
     const imageSyntax = await syntaxFor(data.imageModel);

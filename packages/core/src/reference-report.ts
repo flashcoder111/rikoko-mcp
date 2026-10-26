@@ -18,6 +18,30 @@ export function bindReferenceReport(
   try {
     if (!settings) throw Error("Missing reference analysis profile");
     const content = referenceContentSchema.parse(data);
+    // Models sometimes cite the neighboring shot as continuity context. A
+    // boundary touch cannot support this interval. Drop only redundant exact
+    // boundary citations when an actual overlapping citation remains; never
+    // invent evidence, alter times, or excuse unknown/distant references.
+    // Parsing clones the input, so the worker's analysisRawReport stays intact.
+    const evidence = new Map(content.evidence.map((e) => [e.id, e]));
+    for (const item of [
+      ...content.shots,
+      ...content.events,
+      ...content.narrativeBeats,
+      ...content.speech,
+    ]) {
+      if (
+        !item.evidenceIds.some((id) => {
+          const e = evidence.get(id);
+          return e && e.startMs < item.endMs && e.endMs > item.startMs;
+        })
+      )
+        continue;
+      item.evidenceIds = item.evidenceIds.filter((id) => {
+        const e = evidence.get(id);
+        return !e || (e.endMs !== item.startMs && e.startMs !== item.endMs);
+      });
+    }
     const startMs = input.range?.startMs ?? 0,
       endMs = input.range?.endMs ?? source.metadata.durationMs;
     const gaps: { startMs: number; endMs: number }[] = [];

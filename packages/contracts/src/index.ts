@@ -270,7 +270,7 @@ export const operationSchema = z.discriminatedUnion("kind", [
       kind: z.literal("generate"),
       videoPolicy: videoPolicySchema.optional(),
       model: z.string().min(1).max(120),
-      prompt: z.string().min(1).max(5000),
+      prompt: z.string().min(1).max(20000),
       parameters: z.record(z.string(), z.json()).default({}),
       mode: generationModeSchema.optional(),
       references: z.array(generationReferenceSchema).min(1).max(12).optional(),

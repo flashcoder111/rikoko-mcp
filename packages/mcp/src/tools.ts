@@ -757,6 +757,8 @@ export async function callTool(
         },
         visualReview: {
           schemaVersion: 2,
+          deterministicImagePreparation: "media_crop",
+          staticReferenceContinuity: "not_applicable_with_reason",
           inspectionTool: "media_inspect",
           reviewTool: "media_review",
           checkStatuses: ["pass", "fail", "unknown", "not_applicable"],

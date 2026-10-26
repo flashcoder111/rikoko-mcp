@@ -400,6 +400,7 @@ describe("declared process state and shot actions", () => {
 
   it("rejects oversized compiled constraints explicitly instead of truncating them", () => {
     const input: any = fixture();
+    input.shots[0].sceneDirection = "z".repeat(19000);
     input.shots[0].process.operations[0].description = "x".repeat(500);
     input.shots[0].process.initialState.component.properties =
       Object.fromEntries(
@@ -417,7 +418,7 @@ describe("declared process state and shot actions", () => {
         subject: "Assembly",
         ...productionShotDirection(plan, plan.shots[0]),
       }),
-    ).toThrow(/split|5000/i);
+    ).toThrow(/split|20000/i);
   });
 
   it("requires own snapshot entries even when object IDs match JavaScript prototype names", () => {

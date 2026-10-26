@@ -71,7 +71,7 @@ export const promptInputSchema = z
       .string()
       .trim()
       .min(1)
-      .max(3000)
+      .max(20000)
       .optional()
       .describe(
         "Complete shot-local scene prose: subject/setting, starting arrangement, visible action and timing, settled ending and camera. Replaces their separate prose in the video prompt; structured state remains available for validation. Explicit constraints, process, kit and reference bindings still apply.",
@@ -190,10 +190,10 @@ export function compilePrompt(
   ]
     .filter(Boolean)
     .join("\n");
-  if (prompt.length > 5000)
+  if (prompt.length > 20000)
     throw new AppError(
       "PROMPT_TOO_LONG",
-      "Split the shot or shorten its declared direction to fit 5000 characters; process and editing constraints are never truncated",
+      "Shorten the declared direction to fit 20000 characters; constraints are never truncated and additional segments require an accepted budget",
     );
   return {
     templateVersion: input.sceneDirection

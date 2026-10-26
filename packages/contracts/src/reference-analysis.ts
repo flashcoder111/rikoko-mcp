@@ -71,7 +71,7 @@ export const referenceOperationSchema = z
   .strict();
 export type ReferenceOperation = z.infer<typeof referenceOperationSchema>;
 // This version is part of quotes and cache keys. Prompt/schema changes invalidate old results.
-export const REFERENCE_ANALYSIS_VERSION = "reference-v2.4-source-evidence";
+export const REFERENCE_ANALYSIS_VERSION = "reference-v2.5-evidence-intervals";
 // Wire capabilities, independent of package and prompt versions. Cloud catalogs
 // advertise this contract so clients can reject incompatible deployments early.
 export const referenceAnalysisProtocol = {

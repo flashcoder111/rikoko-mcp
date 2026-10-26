@@ -437,6 +437,24 @@ export async function reviewMedia(service: Service, c: Context, raw: unknown) {
       revisionHash: revision ? fingerprint(revision.composition) : undefined,
     });
     if (asset.kind === "image") {
+      const unsupportedUpgrade = previous.some(
+        (r) =>
+          r.sourceSha256 === asset.sha256 &&
+          fingerprint(r.production ?? null) ===
+            fingerprint(input.production ?? null) &&
+          r.productionScopeHash === production?.hash &&
+          input.inspectionIds.every((id) => r.inspectionIds.includes(id)) &&
+          Object.entries(checks).some(
+            ([key, check]) =>
+              check.status === "pass" &&
+              r.checks?.[key]?.status === "not_applicable",
+          ),
+      );
+      if (unsupportedUpgrade)
+        throw new AppError(
+          "REVIEW_NEW_EVIDENCE_REQUIRED",
+          "Do not relabel not_applicable as pass using the same image inspection and intended use; retain the honest check or supply new evidence",
+        );
       const latest = [...previous].sort(
         (a, b) =>
           b.createdAt.localeCompare(a.createdAt) ||

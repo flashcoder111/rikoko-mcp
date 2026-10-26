@@ -101,9 +101,13 @@ export async function assertCriticalImageReviews(
         input.production && ["first_frame", "last_frame"].includes(ref.role)
       ) ||
         !!latest.production) &&
-      ["framing", "continuity", "noArtifacts"].every(
+      ["framing", "noArtifacts"].every(
         (key) => latest.checks?.[key]?.status === "pass",
       ) &&
+      (latest.checks?.continuity?.status === "pass" ||
+        (!["first_frame", "last_frame"].includes(ref.role) &&
+          latest.checks?.continuity?.status === "not_applicable" &&
+          !!latest.checks.continuity.reason?.trim())) &&
       latest.inspectionIds?.length > 0;
     if (
       valid &&
@@ -136,7 +140,7 @@ export async function assertCriticalImageReviews(
   if (missing.length)
     throw new AppError(
       "CRITICAL_IMAGE_REVIEW_REQUIRED",
-      "Inspect these exact critical images with media_inspect and record media_review with framing, continuity and noArtifacts passing. For planned first/last frames pass the current production projectId, scopeVersion and shotId to bind the intended state. If pixels are unavailable, ask the user to judge the images. Completion, brightness, edge counts and white-pixel counts are not visual evidence. Do not regenerate automatically.",
+      "Inspect these exact critical images and record framing and noArtifacts passing. Static character/product/scene references may use continuity=not_applicable with a reason; they cannot certify future video consistency. First/last frames require continuity passing for their intended state; planned boundaries also require the current production projectId, scopeVersion and shotId. Unknown or failed checks remain blocked. A request to ignore a background is not evidence that it was removed. Do not relabel checks just to proceed or regenerate automatically.",
       409,
       {
         stage: "critical_image_review",

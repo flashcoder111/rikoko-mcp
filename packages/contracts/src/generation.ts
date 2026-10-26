@@ -65,6 +65,11 @@ const bindingSchema = z
       .min(1)
       .max(20 * 1024 * 1024),
     maxPixels: z.number().int().positive().max(40_000_000).optional(),
+    minPixels: z.number().int().positive().max(40_000_000).optional(),
+    minAspectRatio: z.number().positive().optional(),
+    maxAspectRatio: z.number().positive().optional(),
+    minFps: z.number().positive().optional(),
+    maxFps: z.number().positive().optional(),
     mimeTypes: z
       .array(z.string().regex(/^(?:image|video|audio)\/[a-z0-9.+-]+$/))
       .min(1)

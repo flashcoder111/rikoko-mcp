@@ -113,6 +113,23 @@ export function validateGenerationAssets(
         `Reference ${i + 1} dimensions are outside the configured limits or unknown: each side must be minimum ${b.minDimension ?? 1}px and maximum ${b.maxDimension ?? 4096}px. Resize a copy of the reference and import it before retrying.`,
       );
     bytes += a.bytes;
+    const pixels = a.metadata?.width * a.metadata?.height;
+    const ratio = a.metadata?.width / a.metadata?.height;
+    const fps = a.metadata?.fps;
+    if (
+      (b.minPixels !== undefined &&
+        (!Number.isFinite(pixels) || pixels < b.minPixels)) ||
+      (b.minAspectRatio !== undefined &&
+        (!Number.isFinite(ratio) || ratio < b.minAspectRatio)) ||
+      (b.maxAspectRatio !== undefined &&
+        (!Number.isFinite(ratio) || ratio > b.maxAspectRatio)) ||
+      (b.minFps !== undefined && (!Number.isFinite(fps) || fps < b.minFps)) ||
+      (b.maxFps !== undefined && (!Number.isFinite(fps) || fps > b.maxFps))
+    )
+      throw new AppError(
+        "REFERENCE_LIMIT",
+        "Reference dimensions, aspect ratio or frame rate are outside the configured limits or unknown",
+      );
     if (
       b.kind === "video" &&
       b.maxPixels &&

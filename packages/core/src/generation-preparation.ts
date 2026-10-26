@@ -259,6 +259,7 @@ async function prepareGenerationImpl(
         parsed,
         shot,
         data.plan.stage,
+        remakeEvidence?.report,
       );
       if (
         !data.direction ||

@@ -1,4 +1,6 @@
 import { z } from "zod";
+import type { ReferenceReport } from "../../contracts/src/reference-analysis.js";
+import { sourceTimelineDirection } from "./source-timeline.js";
 import { creativeChoiceSchema } from "./production-intent.js";
 import {
   productionMethodSchema,
@@ -52,6 +54,19 @@ export const productionPlanSchema = z
             id: idSchema,
             visualKind: z.enum(["media", "graphic"]).default("media"),
             sourceShotIds: z.array(idSchema).max(20).default([]),
+            sourceShotDirections: z
+              .array(
+                z
+                  .object({
+                    sourceShotId: idSchema,
+                    direction: z.string().trim().min(1).max(600),
+                    referenceAssetIds: z.array(idSchema).max(12).default([]),
+                  })
+                  .strict(),
+              )
+              .min(1)
+              .max(20)
+              .optional(),
             referenceChoice: referenceChoiceSchema.optional(),
             sourceVideo: z
               .discriminatedUnion("strategy", [
@@ -179,6 +194,34 @@ export function validateProductionPlan(raw: unknown) {
     }
     Object.assign(known, shot.initialState, shot.endState);
   }
+  for (const shot of plan.shots) {
+    const directions = shot.sourceShotDirections;
+    if (!directions) continue;
+    const ids = new Set(directions.map((d) => d.sourceShotId));
+    if (
+      !plan.method?.source ||
+      ids.size !== directions.length ||
+      ids.size !== shot.sourceShotIds.length ||
+      shot.sourceShotIds.some((id) => !ids.has(id)) ||
+      directions.some((d) =>
+        d.referenceAssetIds.some(
+          (id) =>
+            !shot.references.some(
+              (r) =>
+                r.assetId === id &&
+                r.usage !== "analysis_only" &&
+                !["motion", "source_video"].includes(r.role),
+            ),
+        ),
+      )
+    )
+      issues.push({
+        code: "SOURCE_SHOT_DIRECTION_INVALID",
+        shotId: shot.id,
+        message:
+          "Map every source shot once and use only this shot's actual visual references.",
+      });
+  }
   if (plan.remake) {
     const requirements = new Map(
       plan.remake.requirements.map((r) => [r.id, r]),
@@ -305,17 +348,23 @@ export function productionShotDirection(
   plan: ProductionPlan,
   shot: ProductionPlan["shots"][number],
   stage: "video" | "first_frame" | "last_frame" = "video",
+  report?: ReferenceReport,
 ) {
   if (plan.method?.kind === "source_edit" && stage === "video")
     return {
       sceneDirection: [
         methodDirection(plan.method),
+        sourceTimelineDirection(plan, shot, report),
         shot.sceneDirection?.startsWith(methodDirection(plan.method))
           ? shot.sceneDirection
               .slice(methodDirection(plan.method).length)
               .trim()
           : shot.sceneDirection,
         ...(shot.generationConstraints ?? []),
+        ...(shot.actionStages ?? []).map(
+          (action) => `Target action: ${action}`,
+        ),
+        ...(shot.camera ? [`Target camera: ${shot.camera}`] : []),
         editingShotDirection(plan, shot.id, true),
       ]
         .filter(Boolean)

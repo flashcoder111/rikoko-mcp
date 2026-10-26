@@ -105,6 +105,8 @@ export type ProviderUsage = {
   cost?: number;
 };
 export type ReferenceSource = { durationMs: number; hasAudio: boolean };
+/** Stable job identity; transports must not derive idempotency from prompt text. */
+export type SubmissionContext = { idempotencyKey: string };
 export type ReferenceSettings = {
   fps: number | null;
   mode: "static_video_and_audio" | "provider_controlled";
@@ -328,6 +330,7 @@ export class FalProvider {
     assetUrl?: string,
     references?: ResolvedReference[],
     _source?: ReferenceSource,
+    _context?: SubmissionContext,
   ): Promise<Ticket> {
     const m = this.validate(input);
     if (
