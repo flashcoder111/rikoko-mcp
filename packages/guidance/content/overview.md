@@ -1,6 +1,6 @@
 # rikoko
 
-Work in the user's current conversation. Gemini analyzes original video through rikoko; the host authors the target and quickly checks critical images once when it can actually see them; rikoko executes and records evidence. Use these guides for media work. The host retains creative decisions; the runtime validates and executes.
+Work in the user's current conversation. Gemini analyzes original video through rikoko by default; explicitly selected local Codex observations use the separate host-sampled contract; the host authors the target and quickly checks critical images once when it can actually see them; rikoko executes and records evidence. Use these guides for media work. The host retains creative decisions; the runtime validates and executes.
 
 ## Load the relevant guidance
 
@@ -45,7 +45,7 @@ For generation, turn the brief into readable target shots using the direction pl
 
 For physical processes, maintain object identity, inventory, support and completed operations across cuts; hidden does not mean absent. Budget one readable operation with approach, contact, completion and settle. A finished-product reference supplies appearance, not an assembly-stage anchor. Use the production-quality playbook (`rikoko_guide {topic:"production-quality"}`) to plan shared audio, evidence-backed timing cues, an intentional ending and optional event-specific review when requested. Keep creative choices separate from user requirements; never call intended beats measured or visual sampling an audio review.
 
-For remakes, obtain Gemini `recreate` analysis and read `reference_analysis_get section=handoff` through every `nextOffset`. Bind the report ID/hash, preserve/adapt/free requirements, source evidence and uncertainty decisions in `plan.remake`. Do not replace that record with a host summary. Analysis gaps that affect the target must be resolved before dependent production.
+For remakes, obtain source-bound `recreate` analysis through Gemini or the explicitly selected local Codex contract in analysis-preflight and read `reference_analysis_get section=handoff` through every `nextOffset`. Bind the report ID/hash, preserve/adapt/free requirements, source evidence and uncertainty decisions in `plan.remake`. Do not replace that record with an unregistered host summary. Analysis gaps that affect the target must be resolved before dependent production.
 
 Use `production_plan_validate/save` and the saved formal project scope. Compile each shot with `production_shot_prompts` using actual model IDs; `generation_prompt_preview` previews mode-specific wording. Use `generation_prepare` for each boundary-image/video stage with the exact prompt/direction, actual owned references and supported target specs. Revise the saved plan before changing a remake prompt. Source timing does not dictate target duration; sending source composition or motion to the model is an explicit input decision.
 

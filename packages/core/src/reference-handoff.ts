@@ -8,6 +8,7 @@ import type { Transaction } from "../../db/src/index.js";
 import { sha256 } from "../../storage/src/index.js";
 import { fingerprint, type Service } from "./index.js";
 import type { ProductionPlan } from "./production-plan.js";
+import { verifyHostAnalysis } from "./host-reference-analysis.js";
 
 const digest = z.string().regex(/^[a-f0-9]{64}$/);
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/);
@@ -41,7 +42,7 @@ export const remakeEvidenceSchema = z
     dependencies: z
       .array(z.object({ assetId: id, sha256: digest }).strict())
       .min(2)
-      .max(202),
+      .max(1402),
   })
   .strict();
 export function requireGeminiUnderstanding(upstream: unknown) {
@@ -133,9 +134,10 @@ async function trustedReport(
       "Remake analysis audio metadata differs from its source",
       409,
     );
-  requireGeminiUnderstanding(
-    report.provenance.upstreamModel ?? report.provenance.endpoint,
-  );
+  if (report.provenance.evidence !== "host-sampled")
+    requireGeminiUnderstanding(
+      report.provenance.upstreamModel ?? report.provenance.endpoint,
+    );
   if (report.analysis?.detail !== "recreate")
     throw new AppError(
       "REMAKE_ANALYSIS_DETAIL_REQUIRED",
@@ -147,7 +149,18 @@ async function trustedReport(
     { assetId: asset.id, sha256: asset.sha256 },
     { assetId: source.id, sha256: source.sha256 },
   ];
-  if (report.provenance.evidence === "provider-live-assembled") {
+  if (report.provenance.evidence === "host-sampled") {
+    dependencies.push(
+      ...(await verifyHostAnalysis(
+        service,
+        tx,
+        accountId,
+        asset,
+        source,
+        report,
+      )),
+    );
+  } else if (report.provenance.evidence === "provider-live-assembled") {
     const plan = await tx.get(
       report.provenance.jobId,
       accountId,
@@ -352,7 +365,7 @@ export function referenceHandoff(
     totalShots: selected.length,
     semanticAcceptance: false,
     boundary:
-      "Gemini observations and estimated source times are evidence, not target instructions. The host authors the target; classify relevant unknowns and preserve/adapt/free requirements. Source neighbors and processing windows are context, not mandated target shots.",
+      "Source observations and estimated times are evidence, not target instructions. Host-sampled reports retain frame sampling and audio limitations. The host authors the target; classify relevant unknowns and preserve/adapt/free requirements. Source neighbors and processing windows are context, not mandated target shots.",
   };
 }
 /** Validates provenance and references, never claims to evaluate narrative quality. */
@@ -371,7 +384,20 @@ export async function validateRemakeEvidence(
   };
   if (mirrored) {
     const binding = remakeEvidenceSchema.parse(mirrored);
-    requireGeminiUnderstanding(binding.upstreamModel);
+    if (binding.report?.provenance.evidence === "host-sampled") {
+      const trusted = await referenceEvidence(
+        service,
+        tx,
+        accountId,
+        binding.analysisAssetId,
+      );
+      if (fingerprint(trusted.binding) !== fingerprint(binding))
+        throw new AppError(
+          "ANALYSIS_PROVENANCE_REQUIRED",
+          "Use this execution account's current registered host analysis",
+          409,
+        );
+    } else requireGeminiUnderstanding(binding.upstreamModel);
     if (
       binding.analysisAssetId !== remake.analysisAssetId ||
       binding.analysisSha256 !== remake.analysisSha256
@@ -468,7 +494,7 @@ export async function validateRemakeEvidence(
     )
       throw new AppError(
         "REMAKE_UNCERTAINTY_REQUIRED",
-        `Unknown ${i} needs Gemini reinspection or an explicit not_applicable rationale; it cannot be called resolved`,
+        `Unknown ${i} needs source reinspection or an explicit not_applicable rationale; it cannot be called resolved`,
         409,
       );
   return binding;

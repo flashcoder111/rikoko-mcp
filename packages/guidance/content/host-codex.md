@@ -11,6 +11,8 @@ Read the backend guides with `rikoko_guide`. Discover the actual rikoko tools; n
 - `media_inspect` returns text metadata **and image content blocks**. When orchestrating tools in JavaScript, retain/render the image blocks using the host's supported image forwarding helper. Printing only `structuredContent` or serializing base64 does not show pixels to the model. Use the actual available helper, not an assumed global API.
 - If only text reaches the model, do not write a passing visual review. Reinspect using a supported image path/tool or request user review. A local image viewer alone cannot certify a complete video's motion or audio. Record exact inspection IDs and reviewed intervals through the common review contract.
 
+When the user selects local Codex source analysis, follow analysis-preflight and save viewed media_inspect evidence with reference_analysis_record. Keep host-sampled provenance and frame/audio limits explicit. A free-text summary or uploaded analysis JSON is not an executable analysis record.
+
 ## Delivery and recovery
 
 For technically ready final media, the stdio bridge can return a real `localPath`. Codex app can display supported local media using `![video](</absolute/returned/path.mp4>)`; use the exact returned path, including angle brackets for spaces. CLI or remote clients may need returned media links instead. Do not assume an absolute path returned by a remote service exists on the viewing machine.

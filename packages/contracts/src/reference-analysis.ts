@@ -155,9 +155,34 @@ export const timingSchema = z
     reason: z.string().max(300).optional(),
   })
   .strict();
+export const hostObservationSchema = z
+  .object({
+    host: z.literal("codex"),
+    imagesViewed: z.literal(true),
+    continuous: z.literal(false),
+    audioReviewed: z.literal(false),
+    timeBasis: z.literal("requested"),
+    inspectionIds: z.array(id).min(1).max(100),
+    frames: z
+      .array(
+        z
+          .object({
+            assetId: id,
+            sha256: z.string().regex(/^[a-f0-9]{64}$/),
+            requestedTimeMs: ms,
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(1200),
+    maxSampleGapMs: ms,
+    limitations: z.array(text).min(1).max(10),
+  })
+  .strict();
 export const referenceReportSchema = referenceContentSchema
   .extend({
     schemaVersion: z.literal(2),
+    hostObservation: hostObservationSchema.optional(),
     analysis: z
       .object({
         detail: analysisDetailSchema,
@@ -199,7 +224,11 @@ export const referenceReportSchema = referenceContentSchema
       .object({
         ...interval,
         fps: z.number().positive().max(30).nullable(),
-        mode: z.enum(["static_video_and_audio", "provider_controlled"]),
+        mode: z.enum([
+          "static_video_and_audio",
+          "provider_controlled",
+          "host_sampled_frames",
+        ]),
         rangeControl: z.enum(["api", "prompt"]).optional(),
         submittedRange: z.object(interval).strict().optional(),
         timing: z.literal("model_estimated"),
@@ -217,7 +246,11 @@ export const referenceReportSchema = referenceContentSchema
         analysisVersion: text,
         priceVersion: text,
         analyzedAt: z.string().datetime(),
-        evidence: z.enum(["provider-live", "provider-live-assembled"]),
+        evidence: z.enum([
+          "provider-live",
+          "provider-live-assembled",
+          "host-sampled",
+        ]),
       })
       .strict(),
     measurements: timingSchema,
@@ -225,6 +258,27 @@ export const referenceReportSchema = referenceContentSchema
   .strict()
   .superRefine((r, ctx) => {
     const fail = (message: string) => ctx.addIssue({ code: "custom", message });
+    if (r.provenance.evidence === "host-sampled") {
+      if (
+        !r.hostObservation ||
+        r.provenance.provider !== "host" ||
+        r.provenance.model !== "codex" ||
+        r.provenance.upstreamModel !== "host_codex" ||
+        r.coverage.mode !== "host_sampled_frames" ||
+        r.coverage.fps !== null
+      )
+        fail(
+          "Host observations require distinct provenance and sampled-frame coverage",
+        );
+      if (
+        r.speech.length ||
+        r.audio.evidenceIds.length ||
+        r.evidence.some((e) => e.modality !== "visual") ||
+        r.events.some((e) => e.type === "sound")
+      )
+        fail("Frame-only host observations cannot establish audio evidence");
+    } else if (r.hostObservation || r.coverage.mode === "host_sampled_frames")
+      fail("Provider analysis cannot claim host inspection provenance");
     const { startMs, endMs } = r.coverage;
     if (endMs <= startMs || endMs > r.source.durationMs)
       fail("Coverage exceeds source");

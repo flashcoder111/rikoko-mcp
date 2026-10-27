@@ -111,11 +111,7 @@
                       "maxLength": 300
                     }
                   },
-                  "required": [
-                    "description",
-                    "subjectMotion",
-                    "cameraMotion"
-                  ],
+                  "required": ["description", "subjectMotion", "cameraMotion"],
                   "additionalProperties": false
                 }
               },
@@ -142,11 +138,7 @@
                     }
                   }
                 },
-                "required": [
-                  "fromPrevious",
-                  "toNext",
-                  "constraints"
-                ],
+                "required": ["fromPrevious", "toNext", "constraints"],
                 "additionalProperties": false
               }
             },
@@ -247,13 +239,7 @@
           },
           "type": {
             "type": "string",
-            "enum": [
-              "action",
-              "text",
-              "transition",
-              "sound",
-              "other"
-            ]
+            "enum": ["action", "text", "transition", "sound", "other"]
           },
           "description": {
             "type": "string",
@@ -297,10 +283,7 @@
           }
         }
       },
-      "required": [
-        "description",
-        "evidenceIds"
-      ],
+      "required": ["description", "evidenceIds"],
       "additionalProperties": false
     },
     "speech": {
@@ -338,13 +321,7 @@
             }
           }
         },
-        "required": [
-          "startMs",
-          "endMs",
-          "text",
-          "speaker",
-          "evidenceIds"
-        ],
+        "required": ["startMs", "endMs", "text", "speaker", "evidenceIds"],
         "additionalProperties": false
       }
     },
@@ -365,10 +342,7 @@
           }
         }
       },
-      "required": [
-        "description",
-        "evidenceIds"
-      ],
+      "required": ["description", "evidenceIds"],
       "additionalProperties": false
     },
     "evidence": {
@@ -394,11 +368,7 @@
           },
           "modality": {
             "type": "string",
-            "enum": [
-              "visual",
-              "audio",
-              "audiovisual"
-            ]
+            "enum": ["visual", "audio", "audiovisual"]
           },
           "observation": {
             "type": "string",
@@ -407,11 +377,7 @@
           },
           "confidence": {
             "type": "string",
-            "enum": [
-              "low",
-              "medium",
-              "high"
-            ]
+            "enum": ["low", "medium", "high"]
           }
         },
         "required": [
@@ -457,13 +423,7 @@
             "maximum": 30
           }
         },
-        "required": [
-          "startMs",
-          "endMs",
-          "question",
-          "reason",
-          "suggestedFps"
-        ],
+        "required": ["startMs", "endMs", "question", "reason", "suggestedFps"],
         "additionalProperties": false
       }
     },
@@ -471,16 +431,98 @@
       "type": "number",
       "const": 2
     },
+    "hostObservation": {
+      "type": "object",
+      "properties": {
+        "host": {
+          "type": "string",
+          "const": "codex"
+        },
+        "imagesViewed": {
+          "type": "boolean",
+          "const": true
+        },
+        "continuous": {
+          "type": "boolean",
+          "const": false
+        },
+        "audioReviewed": {
+          "type": "boolean",
+          "const": false
+        },
+        "timeBasis": {
+          "type": "string",
+          "const": "requested"
+        },
+        "inspectionIds": {
+          "minItems": 1,
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+          }
+        },
+        "frames": {
+          "minItems": 1,
+          "maxItems": 1200,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "assetId": {
+                "type": "string",
+                "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "requestedTimeMs": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 3600000
+              }
+            },
+            "required": ["assetId", "sha256", "requestedTimeMs"],
+            "additionalProperties": false
+          }
+        },
+        "maxSampleGapMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600000
+        },
+        "limitations": {
+          "minItems": 1,
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        }
+      },
+      "required": [
+        "host",
+        "imagesViewed",
+        "continuous",
+        "audioReviewed",
+        "timeBasis",
+        "inspectionIds",
+        "frames",
+        "maxSampleGapMs",
+        "limitations"
+      ],
+      "additionalProperties": false
+    },
     "analysis": {
       "type": "object",
       "properties": {
         "detail": {
           "type": "string",
-          "enum": [
-            "overview",
-            "shots",
-            "recreate"
-          ]
+          "enum": ["overview", "shots", "recreate"]
         },
         "focus": {
           "maxItems": 6,
@@ -499,11 +541,7 @@
         },
         "method": {
           "type": "string",
-          "enum": [
-            "whole_video",
-            "focused_range",
-            "segmented"
-          ]
+          "enum": ["whole_video", "focused_range", "segmented"]
         },
         "parts": {
           "maxItems": 100,
@@ -540,11 +578,7 @@
               },
               "boundary": {
                 "type": "string",
-                "enum": [
-                  "start",
-                  "cut_candidate",
-                  "window"
-                ]
+                "enum": ["start", "cut_candidate", "window"]
               },
               "summary": {
                 "type": "string",
@@ -568,10 +602,7 @@
                     }
                   }
                 },
-                "required": [
-                  "description",
-                  "evidenceIds"
-                ],
+                "required": ["description", "evidenceIds"],
                 "additionalProperties": false
               }
             },
@@ -587,11 +618,7 @@
           }
         }
       },
-      "required": [
-        "detail",
-        "focus",
-        "method"
-      ],
+      "required": ["detail", "focus", "method"],
       "additionalProperties": false
     },
     "source": {
@@ -618,13 +645,7 @@
           "const": "source_ms"
         }
       },
-      "required": [
-        "assetId",
-        "sha256",
-        "durationMs",
-        "hasAudio",
-        "timebase"
-      ],
+      "required": ["assetId", "sha256", "durationMs", "hasAudio", "timebase"],
       "additionalProperties": false
     },
     "coverage": {
@@ -656,15 +677,13 @@
           "type": "string",
           "enum": [
             "static_video_and_audio",
-            "provider_controlled"
+            "provider_controlled",
+            "host_sampled_frames"
           ]
         },
         "rangeControl": {
           "type": "string",
-          "enum": [
-            "api",
-            "prompt"
-          ]
+          "enum": ["api", "prompt"]
         },
         "submittedRange": {
           "type": "object",
@@ -680,10 +699,7 @@
               "maximum": 3600000
             }
           },
-          "required": [
-            "startMs",
-            "endMs"
-          ],
+          "required": ["startMs", "endMs"],
           "additionalProperties": false
         },
         "timing": {
@@ -707,22 +723,12 @@
                 "maximum": 3600000
               }
             },
-            "required": [
-              "startMs",
-              "endMs"
-            ],
+            "required": ["startMs", "endMs"],
             "additionalProperties": false
           }
         }
       },
-      "required": [
-        "startMs",
-        "endMs",
-        "fps",
-        "mode",
-        "timing",
-        "gaps"
-      ],
+      "required": ["startMs", "endMs", "fps", "mode", "timing", "gaps"],
       "additionalProperties": false
     },
     "provenance": {
@@ -774,10 +780,7 @@
         },
         "evidence": {
           "type": "string",
-          "enum": [
-            "provider-live",
-            "provider-live-assembled"
-          ]
+          "enum": ["provider-live", "provider-live-assembled", "host-sampled"]
         }
       },
       "required": [
@@ -798,10 +801,7 @@
       "properties": {
         "status": {
           "type": "string",
-          "enum": [
-            "measured",
-            "unavailable"
-          ]
+          "enum": ["measured", "unavailable"]
         },
         "method": {
           "type": "string",
@@ -826,12 +826,7 @@
           "maxLength": 300
         }
       },
-      "required": [
-        "status",
-        "method",
-        "threshold",
-        "cutTimesMs"
-      ],
+      "required": ["status", "method", "threshold", "cutTimesMs"],
       "additionalProperties": false
     }
   },

@@ -160,6 +160,21 @@ export async function bindVideoWorkflow(
         analysis.report,
         ...(evidence.componentReports ?? []),
       ]) {
+        if (report.provenance.evidence === "host-sampled") {
+          const registered = await referenceEvidence(
+            service,
+            tx,
+            c.accountId,
+            evidence.analysisAssetId,
+          );
+          if (fingerprint(registered.report) !== fingerprint(report))
+            stop(
+              "ANALYSIS_PROVENANCE_REQUIRED",
+              "Use the registered host report on this execution account",
+              "analysis",
+            );
+          continue;
+        }
         if (report.provenance.evidence === "provider-live-assembled") continue;
         const job = await tx.get(report.provenance.jobId, c.accountId, "job");
         const normalized = (r: any) => ({

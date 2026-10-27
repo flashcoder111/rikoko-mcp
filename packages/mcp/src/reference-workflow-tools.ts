@@ -24,6 +24,10 @@ import { referenceTiming } from "../../render/src/reference-timing.js";
 import { sha256 } from "../../storage/src/index.js";
 import { readReferenceReport } from "./reference-tools.js";
 import { resolveAnalysisDetail } from "./reference-settings.js";
+import {
+  hostAnalysisSchema,
+  recordHostAnalysis,
+} from "../../core/src/host-reference-analysis.js";
 
 const planSchema = referenceOperationSchema.omit({ kind: true });
 const prepareSchema = z
@@ -40,6 +44,11 @@ const mergeSchema = z
   })
   .strict();
 export const referenceWorkflowTools = {
+  reference_analysis_record: {
+    schema: hostAnalysisSchema,
+    description:
+      "When the user selects local Codex analysis, save its visual observations from actual media_inspect images already viewed. Requires owned source-bound inspection records covering the source with requested seek gaps <=500 ms. content must contain recreate shot details, evidence and honest unknowns. Records host-sampled provenance, never a Gemini job; no provider call or charge. Frame-only: do not claim audio, continuous action or frame-exact timing. Register on the execution account; cloud mirrors alone cannot establish this provenance. Keep the original brief, model policy, actual source-video reference, plan and budget checks.",
+  },
   reference_analysis_plan: {
     schema: planSchema,
     description:
@@ -480,6 +489,8 @@ export async function callReferenceWorkflowTool(
   raw: unknown,
 ) {
   await service.scoped(c, "write", async () => {});
+  if (name === "reference_analysis_record")
+    return recordHostAnalysis(service, c, raw);
   if (name === "reference_analysis_plan") return planAnalysis(service, c, raw);
   if (name === "reference_analysis_prepare")
     return prepareAnalysis(service, c, raw);

@@ -2,7 +2,13 @@
 
 Read this before analyzing attachments or diagnosing a rejected analysis preflight. It applies to every host; use the current host adapter for paths and image visibility.
 
-## Import and scope
+## Explicit local Codex analysis
+
+When the user explicitly selects local Codex analysis, use `media_inspect` and actually view the returned images, then `reference_analysis_record` with `host=codex`, `imagesViewed=true`, all inspection IDs and honest recreate content. Cover the source with requested seek gaps no greater than 500 ms; use denser samples for critical motion. Sampling coverage does not prove continuous motion or action correctness. The record retains source/frame hashes, requested seek times, estimated shot boundaries, unknowns and unreviewed audio. Do not claim speech or sound from frames.
+
+This is a distinct `host-sampled` record with no provider job or analysis charge. It does not relabel host observations as Gemini output. Register on the runtime/account that executes the generation; a cloud mirror or uploaded JSON alone cannot establish inspection provenance. Read its complete handoff and use the usual request, remake plan, face policy, real source-video reference, preparation and budget checks. Existing Gemini analysis remains supported; do not silently switch a failed paid analysis to host analysis without the user's selection.
+
+## Provider analysis import and scope
 
 Confirm that the attachment became an owned asset with actual probe metadata (MIME, dimensions and duration), not merely a visible thumbnail. Read import roots from the exposed `asset_import_file` description. If a path is outside them, copy only the accessible user-selected file into an allowed directory or explain the required upload. Keep `license` short and factual within the current schema limit. For URL imports use a stable idempotency key; poll a returned download job and use its output asset ID.
 
