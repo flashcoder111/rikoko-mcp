@@ -31,6 +31,7 @@ export const craftTopics = [
   "craft/video-direction",
   "craft/directing-examples",
   "craft/image-direction",
+  "craft/image-creation",
   "craft/production-quality",
   "craft/visual-review",
   "craft/media-operations",
@@ -214,6 +215,7 @@ export const guideCatalog: GuideEntry[] = [
     entry("formats/ugc-ads", "UGC advertising", [
       "craft/video-direction",
       "craft/image-direction",
+      "craft/image-creation",
       "craft/production-quality",
       "craft/media-operations",
       "craft/presenter-performance",
@@ -225,6 +227,7 @@ export const guideCatalog: GuideEntry[] = [
     entry("formats/talking-head-ads", "Talking-head advertising", [
       "craft/video-direction",
       "craft/image-direction",
+      "craft/image-creation",
       "craft/media-operations",
       "craft/visual-review",
       "craft/presenter-performance",
@@ -235,6 +238,7 @@ export const guideCatalog: GuideEntry[] = [
     entry("formats/product-ads", "Product advertising", [
       "craft/product-staging",
       "craft/image-direction",
+      "craft/image-creation",
       "craft/production-quality",
       "craft/media-operations",
       "craft/visual-review",
@@ -260,8 +264,20 @@ export const guideCatalog: GuideEntry[] = [
     "craft/production-quality",
   ]),
   entry("craft/image-direction", "Images, framing and starting states", [
+    "craft/image-creation",
     "craft/video-direction",
   ]),
+  // Authored synthesis of local materials; provenance and untested examples are in the guide.
+  entry(
+    "craft/image-creation",
+    "First-picture design, reference production and worked examples",
+    [
+      "craft/image-direction",
+      "craft/video-direction",
+      "craft/presenter-performance",
+      "craft/product-staging",
+    ],
+  ),
   entry("craft/production-quality", "Continuity, process and quality", [
     "craft/media-operations",
     "craft/visual-review",
@@ -289,6 +305,7 @@ export const guideCatalog: GuideEntry[] = [
       "Product staging, material and visual proof",
       [
         "craft/image-direction",
+        "craft/image-creation",
         "craft/production-quality",
         "formats/product-ads",
       ],

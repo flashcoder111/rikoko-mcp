@@ -39,11 +39,14 @@ export async function directorGuidance(
     keys.push(context.image ? "image" : "preparation");
     if (context.unresolvedRelations) keys.push("performance");
   }
+  // Supply picture-making knowledge while authoring, before any output exists.
+  if (["request", "plan", "shot"].includes(stage) && !keys.includes("image"))
+    keys.push("image");
   if (stage === "material") keys.push("quality");
   if (stage === "final") keys.push("review");
   if (["plan", "final"].includes(stage) && plan?.editing)
     keys.push("sound_text");
-  const knowledge = await directorKnowledge(keys.slice(0, 3), {
+  const knowledge = await directorKnowledge(keys, {
     ...plan?.knowledge,
     ...(context.modelId ? { modelId: context.modelId } : {}),
     ...(context.mode ? { mode: context.mode } : {}),

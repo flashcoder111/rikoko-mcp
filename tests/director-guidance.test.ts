@@ -88,3 +88,55 @@ it("returns verified actionable knowledge and does not reopen a saved treatment"
   expect(resumed.content).toEqual([]);
   expect(resumed.treatment).toEqual(plan.treatment);
 });
+
+it("keeps first-picture guidance present with saved intent, editing, and unresolved shot relations", async () => {
+  const { directorGuidance } =
+    await import("../packages/core/src/director-guidance.js");
+  const { productionPlanSchema } =
+    await import("../packages/core/src/production-plan.js");
+  const plan = productionPlanSchema.parse({
+    title: "Cafe",
+    width: 720,
+    height: 1280,
+    treatment: {
+      intent: "Meet the presenter",
+      approach: "A warm cafe view",
+      successCriteria: ["Presenter and cup are visible"],
+    },
+    editing: {
+      version: 1,
+      audio: {
+        mode: "native",
+        ending: "resolve",
+        endingReason: "Finish the spoken thought",
+      },
+    },
+    shots: [{ id: "a", initialState: {}, action: "Speak", endState: {} }],
+  });
+  for (const stage of ["plan", "shot"] as const) {
+    const result = await directorGuidance(stage, {
+      plan,
+      unresolvedRelations: true,
+    });
+    const keys = result.content.map((g) => g.key);
+    expect(keys).toContain("image");
+    expect(result.readingPath.craft.map((g) => g.topic)).toContain(
+      "craft/image-creation",
+    );
+    expect(result.treatment).toEqual(plan.treatment);
+    if (stage === "plan") expect(keys).toContain("sound_text");
+    else expect(keys).toContain("performance");
+  }
+  // No treatment + method + picture + editing must not silently drop editing guidance.
+  const withoutTreatment = { ...plan, treatment: undefined };
+  expect(
+    (await directorGuidance("plan", { plan: withoutTreatment })).content.map(
+      (g) => g.key,
+    ),
+  ).toEqual(["intent", "method", "image", "sound_text"]);
+  const prepared = await directorGuidance("prepared", { image: true });
+  expect(prepared.readingPath.craft.map((g) => g.topic)).toContain(
+    "craft/image-creation",
+  );
+  expect((await directorGuidance("resume", { plan })).content).toEqual([]);
+});

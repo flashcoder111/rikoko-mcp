@@ -22,6 +22,8 @@ The host workspace enforces this check at preparation and rechecks at quote, sub
 
 ## Review the work proportionately
 
+For practical checks and repair options for changed identity, pose, contact, screen direction or static motion, see `rikoko_guide {topic:"craft/image-direction"}`. A symptom can have several causes: inspect the actual material and input roles before choosing a repair, and keep unobserved motion or sound unknown.
+
 Choose the observation from the meaning of the scene: action initiation, contact and settle; a change in speaker or reaction; a cut crossing an axis; new lettering; the ending. Use actual pixels and available playback, preserving native image blocks. Reuse inspections for unchanged media and intended use. Do not claim continuous motion from isolated frames. Without audio access, explicitly leave delivery, intelligibility, musical timing and synchronization unknown rather than infer them from a transcript or metadata.
 
 Record actual findings using media_review with pass/fail/unknown/not_applicable and inspection IDs. workAssessment can name treatment/shot criteria, observed modality and interval, and whether repair belongs to treatment, footage or editing. Frames can support visible state and lettering, not sound or continuous-motion acceptance. The API validates evidence declarations; it does not watch or listen on the host's behalf. Source evidence remains separate from generated-output evidence.

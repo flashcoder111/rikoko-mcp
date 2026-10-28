@@ -24,6 +24,8 @@ Gemini is the original-video analyst; the host is the target director. rikoko ex
 
 ## Optional shot outline and continuation aids
 
+Before writing new shot images, read `rikoko_guide {topic:"craft/image-creation"}`. Choose the capture language, character styling, camera encounter, palette and light; make or reuse the references that carry those choices. For image responsibilities and boundary states, read `rikoko_guide {topic:"craft/image-direction"}`. A source-preserving edit keeps its inherited visual decisions.
+
 These practical options are adapted from the user-provided private notes “画面生成操作笔记（2025.9–2026.10）”, which summarize the private “总爆款库”. Original prompts, sample videos and some image-only instructions are unavailable in the notes. The methods are practitioner observations, not independently verified or rikoko-tested guarantees; apply them selectively within the user's brief and actual model capabilities.
 
 Before expanding a complicated scene into generation direction, it can help to outline each shot in plain terms: intended duration; shot size or viewpoint; who is on which side and facing where; foreground and its focus; background and lighting; the main action in order; and the intended end pose or state. The first-frame description captures the initial still; the video direction describes the change from that state. Use lens or timing numbers only when they serve the shot and the selected interface; the source's examples are not universal defaults. When reviewing a poor result, identify whether arrangement, framing, reference conflict or action complexity is the likely problem, then revise that element if a repair is authorized. Do not simplify or change source choreography when the user requires it preserved.

@@ -78,10 +78,10 @@ export async function directorKnowledge(
     guideProtocol: current.guideProtocol,
     guideVersion: current.guideVersion,
     runtimeVersion: current.runtimeVersion,
-    readingPath: selectKnowledge(
-      selection,
-      keys.map((key) => guideEntry(topics[key]).topic),
-    ),
+    readingPath: selectKnowledge(selection, [
+      ...keys.map((key) => guideEntry(topics[key]).topic),
+      ...(keys.includes("image") ? ["craft/image-creation"] : []),
+    ]),
     responsibility: excerpt(
       guides.find((g) => g.topic === "overview")!.markdown,
       "responsibility",

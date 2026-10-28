@@ -253,3 +253,56 @@ it("uses one verified version for every method excerpt and binds optional knowle
     preparationRecordHash({ ...legacy, guideVersion: knowledge.guideVersion }),
   );
 });
+
+it("delivers picture-making methods before the first plan without requiring a format or generating media", async () => {
+  const server = createMcpServer((name, input) =>
+    callTool(service, c, name, input),
+  );
+  const client = new Client({ name: "first-picture-director", version: "1" });
+  const [ct, st] = InMemoryTransport.createLinkedPair();
+  await server.connect(st);
+  await client.connect(ct);
+  const jobsBefore = await service.scoped(c, "read", (tx) =>
+    tx.list(c.accountId, "job"),
+  );
+  try {
+    const output = await client.callTool({
+      name: "workspace_request_save",
+      arguments: {
+        message: "Make a cafe presenter introducing her coffee",
+        assetIds: [],
+      },
+    });
+    expect(output.isError).not.toBe(true);
+    const data = (output.structuredContent as any).result;
+    const text = output.content as { type: string; text: string }[];
+    expect(JSON.parse(text[0].text).guidance).toEqual(data.guidance);
+    expect(data.guidance.content.map((g: any) => g.key)).toContain("image");
+    expect(data.guidance.readingPath.craft.map((g: any) => g.topic)).toContain(
+      "craft/image-creation",
+    );
+    const guide = await client.callTool({
+      name: "rikoko_guide",
+      arguments: { topic: "craft/image-creation" },
+    });
+    expect(guide.isError).not.toBe(true);
+    const full = (guide.structuredContent as any).result;
+    expect(full.guideVersion).toBe(data.guidance.guideVersion);
+    expect(full.markdown).toContain("Worked example: coffee presenter");
+    expect((guide.content as any)[0].text).toContain(full.markdown);
+    expect(full.evidence.status).not.toBe("rikoko_tested");
+    const prompt = await client.getPrompt({
+      name: "rikoko_create",
+      arguments: { request: "A cafe scene" },
+    });
+    expect((prompt.messages[0].content as any).text).toContain(
+      'topic:"craft/image-creation"',
+    );
+    expect(
+      await service.scoped(c, "read", (tx) => tx.list(c.accountId, "job")),
+    ).toEqual(jobsBefore);
+  } finally {
+    await client.close();
+    await server.close();
+  }
+});
