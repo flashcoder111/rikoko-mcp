@@ -45,7 +45,12 @@ it.each(["codex", "claude", "hermes", "generic"] as const)(
         const expected = await readGuide({ topic });
         expect(result.isError).not.toBe(true);
         expect(result.content).toEqual([
-          { type: "text", text: expected.markdown },
+          {
+            type: "text",
+            text: [expected.markdown, expected.navigationMarkdown]
+              .filter(Boolean)
+              .join("\n\n"),
+          },
         ]);
         expect(result.structuredContent).toEqual({
           result: { ...expected, configuredHost: host },

@@ -1,3 +1,4 @@
+import { directorGuidance } from "../../core/src/director-guidance.js";
 import {
   loadReferenceReport,
   referenceEvidence,
@@ -570,7 +571,7 @@ export async function callReferenceTool(
           c.accountId,
           input.analysisAssetId,
         );
-        return referenceHandoff(
+        const handoff = referenceHandoff(
           report,
           binding,
           input.sourceShotIds,
@@ -579,6 +580,17 @@ export async function callReferenceTool(
           true,
           input.handoffDetail,
         );
+        return {
+          ...handoff,
+          guidance: await directorGuidance("analysis", {
+            basedOn: {
+              analysisAssetId: input.analysisAssetId,
+              source: report.source,
+              unknowns: report.unknowns,
+              offset: input.offset,
+            },
+          }),
+        };
       });
     if (input.sourceShotIds.length)
       throw new AppError(
@@ -589,6 +601,13 @@ export async function callReferenceTool(
     if (input.section === "all") return report;
     const { parts, ...profile } = report.analysis ?? {};
     const overview = {
+      guidance: await directorGuidance("analysis", {
+        basedOn: {
+          analysisAssetId: input.analysisAssetId,
+          source: report.source,
+          unknowns: report.unknowns,
+        },
+      }),
       schemaVersion: report.schemaVersion,
       source: report.source,
       summary: report.summary,

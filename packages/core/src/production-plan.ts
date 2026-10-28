@@ -1,6 +1,10 @@
 import { z } from "zod";
+import { planKnowledgeSchema } from "../../guidance/src/catalog.js";
 import type { ReferenceReport } from "../../contracts/src/reference-analysis.js";
-import { sourceTimelineDirection } from "./source-timeline.js";
+import {
+  sourceTimelineDirection,
+  targetRelationDirection,
+} from "./source-timeline.js";
 import { creativeChoiceSchema } from "./production-intent.js";
 import {
   productionMethodSchema,
@@ -37,8 +41,49 @@ import {
   editingShotDirection,
 } from "./production-editing.js";
 const state = productionStateSchema;
+/** Optional for old plans and small edits; authored decisions, never user testimony. */
+export const treatmentSchema = z
+  .object({
+    intent: z.string().trim().min(1).max(2000),
+    referenceInterpretation: z.string().trim().min(1).max(3000).optional(),
+    approach: z.string().trim().min(1).max(3000),
+    successCriteria: z.array(z.string().trim().min(1).max(600)).min(1).max(30),
+  })
+  .strict();
+export const sourceRelationSchema = z
+  .object({
+    sourceField: z.enum(["startState", "endState", "spatialRelations"]),
+    disposition: z.enum(["preserve", "change", "not_applicable", "unknown"]),
+    target: z.string().trim().min(1).max(600).optional(),
+    reason: z.string().trim().min(1).max(600),
+  })
+  .strict()
+  .superRefine((relation, ctx) => {
+    if (
+      ["preserve", "change"].includes(relation.disposition) &&
+      !relation.target
+    )
+      ctx.addIssue({
+        code: "custom",
+        path: ["target"],
+        message:
+          "Express the required relation using target subjects; never copy source appearance implicitly",
+      });
+    if (
+      ["unknown", "not_applicable"].includes(relation.disposition) &&
+      relation.target
+    )
+      ctx.addIssue({
+        code: "custom",
+        path: ["target"],
+        message:
+          "Unknown or inapplicable observations cannot assert a target relation",
+      });
+  });
 export const productionPlanSchema = z
   .object({
+    treatment: treatmentSchema.optional(),
+    knowledge: planKnowledgeSchema.optional(),
     creativeChoices: z.array(creativeChoiceSchema).max(30).optional(),
     title: z.string().min(1).max(160),
     width: z.number().int().min(144).max(1920),
@@ -60,6 +105,7 @@ export const productionPlanSchema = z
                   .object({
                     sourceShotId: idSchema,
                     direction: z.string().trim().min(1).max(600),
+                    relations: z.array(sourceRelationSchema).max(3).optional(),
                     referenceAssetIds: z.array(idSchema).max(12).default([]),
                   })
                   .strict(),
@@ -197,6 +243,15 @@ export function validateProductionPlan(raw: unknown) {
   for (const shot of plan.shots) {
     const directions = shot.sourceShotDirections;
     if (!directions) continue;
+    for (const direction of directions) {
+      const fields = direction.relations?.map((r) => r.sourceField) ?? [];
+      if (new Set(fields).size !== fields.length)
+        issues.push({
+          code: "SOURCE_RELATION_DUPLICATE",
+          shotId: shot.id,
+          message: "Resolve each source state/layout field once",
+        });
+    }
     const ids = new Set(directions.map((d) => d.sourceShotId));
     if (
       !plan.method?.source ||
@@ -402,6 +457,9 @@ export function productionShotDirection(
         // only relevant facts; [] leaves their application to shot-local states
         // and requirements while retaining every fact in the canonical plan.
         ...selectedProductFacts.map((x) => `Target product fact: ${x}`),
+        ...(stage === "video"
+          ? [targetRelationDirection(plan, shot, report)]
+          : []),
       ]
         .filter(Boolean)
         .join("\n")

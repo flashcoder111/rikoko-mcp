@@ -1,3 +1,8 @@
+import { guideCapabilities } from "../../guidance/src/reader.js";
+import {
+  sourceRelationHandoff,
+  sourceRelationIssues,
+} from "../../core/src/source-timeline.js";
 import {
   generationTraceGet,
   tracedPreparation,
@@ -22,6 +27,7 @@ import {
 import { referenceDelivery } from "../../core/src/reference-delivery.js";
 import { shotReferenceCheck } from "../../core/src/shot-reference-choice.js";
 import {
+  directorGuidance,
   planGuidance,
   shotGuidance,
   preparedGuidance,
@@ -204,15 +210,16 @@ export const productionTools = {
         planId: idSchema.optional(),
         expectedVersion: z.number().int().positive().optional(),
         request: productionRequestSchema.optional(),
+        guidanceUpdateReason: z.string().trim().min(1).max(1000).optional(),
       })
       .strict(),
     description:
-      "Save a validated target production plan. Store your choices in plan.creativeChoices (decision/reason); userRequirements come only from the bound request and cannot be overwritten by the plan. Present the returned communication briefly, then continue within authorization without asking for routine approval. For a new attachment brief, first save workspace_request_save and pass request={requestId,expectedVersion}; all current attachments must occur in plan references or explicit request.excludedAssets with reasons. Never silently reuse another product's plan. The request binding survives edits and is rechecked before generation. Updating requires planId and expectedVersion; changing remake source/requirements/product facts/unknown decisions also needs remake.changeReason. Existing remake, process, audio and ending contracts cannot be removed. Shared audio requires an owned audible asset and its exact hash. Creates a default scoped project returned as productionProjectId; plan preparations inherit its scope and dimensions. Validation does not certify semantic fidelity. No model call.",
+      "Save a validated target production plan. For new creative work save proportionate plan.treatment={intent,referenceInterpretation?,approach,successCriteria}; old records/simple edits may omit it. Optional plan.knowledge={format,crafts} selects canonical format/craft topics from rikoko_guide knowledge; no template or format is mandatory. Store your choices in plan.creativeChoices (decision/reason); userRequirements come only from the bound request and cannot be overwritten by the plan. Present the returned communication briefly, then continue within authorization without asking for routine approval. For a new attachment brief, first save workspace_request_save and pass request={requestId,expectedVersion}; all current attachments must occur in plan references or explicit request.excludedAssets with reasons. Never silently reuse another product's plan. The request binding survives edits and is rechecked before generation. Updating requires planId and expectedVersion; keep the bound knowledge version by default. To intentionally adopt current guidance, supply guidanceUpdateReason and reprepare changed inputs; changing remake source/requirements/product facts/unknown decisions also needs remake.changeReason. Existing remake, process, audio and ending contracts cannot be removed. Shared audio requires an owned audible asset and its exact hash. Creates a default scoped project returned as productionProjectId; plan preparations inherit its scope and dimensions. Validation does not certify semantic fidelity. No model call.",
   },
   media_inspect: {
     schema: inspectSchema,
     description:
-      "Extract native MCP images/grid and persist hash-bound inspection evidence from an owned image/video. Use count (default 3, max 12) for uniform samples OR ordered timesMs (max 12) for key action events within startMs/endMs. Times are requested seeks, not verified frame PTS; unsampled intervals remain unknown. Default: inspect critical images once for subject, major defects and starting state; reuse checks for unchanged bytes and use. Video review is optional only on user request. For an explicitly requested action review inspect critical intervals with gaps <=250 ms, using multiple bounded calls as needed. claimedStatic checks differences, never proves no motion. Local FFmpeg, no model call. Each frame has an owned assetId and source provenance; use that asset directly for previous_end, at the retained edit endpoint, instead of reimporting a PNG. Inspect pixels before media_review. Statistics never establish semantic correctness.",
+      "Extract native MCP images/grid and persist hash-bound inspection evidence from an owned image/video. Use count (default 3, max 12) for uniform samples OR ordered timesMs (max 12) for key action events within startMs/endMs. Times are requested seeks, not verified frame PTS; unsampled intervals remain unknown. Default: inspect critical images once for subject, major defects and starting state; reuse checks for unchanged bytes and use. Self-check relevant video events against the saved intent. To claim formal sampled-action acceptance inspect critical intervals with gaps <=250 ms, using multiple bounded calls as needed. claimedStatic checks differences, never proves no motion. Local FFmpeg, no model call. Each frame has an owned assetId and source provenance; use that asset directly for previous_end, at the retained edit endpoint, instead of reimporting a PNG. Inspect pixels before media_review. Statistics never establish semantic correctness.",
   },
   media_crop: {
     schema: mediaCropSchema,
@@ -222,12 +229,12 @@ export const productionTools = {
   media_review: {
     schema: mediaReviewSchema,
     description:
-      "Optional evidence recording, not a final-delivery gate. Use one quick check for critical images; video/final review only on user request, never auto-regenerate. Record host/user judgment with checks={actionComplete,framing,continuity,noArtifacts}, inspectionIds and notes. Each check has status:pass|fail|unknown|not_applicable and reason (required except pass). Use decision=unreviewed with unknown checks when unable to inspect. For a stage_first_frame image bind production and record startingStateChecks={stage,count,arrangement,support}, each with status and a short reason. Stage and arrangement must pass; count/support may be not_applicable with a reason. Reuse its existing inspection. For process sources bind production={projectId,scopeVersion,shotId}; for final renders bind revisionId and current workspace_validate.productionScopeHash as expectedProductionScopeHash. Copy every returned qualityReview obligation into qualityChecks with obligationId,status,reason,method,range and operation holdMs. Passing operation ranges independently need start/middle/end samples with gaps <=250 ms; hold samples cannot substitute. Audio passes require actual host_listening or user_listening over the whole rendered mix. Generic visual checks cannot waive plan obligations. Video actionComplete=pass also needs actionRanges. Excerpt reviews never accept the whole asset. Formal remake final reviews additionally need passing requirementChecks. Validates evidence coverage and current binding, never judges pixels or hears sound itself.",
+      "Record the host director self-check of actual material/final output; this is not a final-delivery gate. Use available observation capabilities and retain unknowns. Never auto-regenerate. Optional workAssessment records criterion, aspect (visual/motion/audio/meaning), status, method (frames/playback/host_listening/user_listening/unobserved), range, reason and optional repairTarget (treatment/footage/editing). Record host/user judgment with checks={actionComplete,framing,continuity,noArtifacts}, inspectionIds and notes. Each check has status:pass|fail|unknown|not_applicable and reason (required except pass). Use decision=unreviewed with unknown checks when unable to inspect. For a stage_first_frame image bind production and record startingStateChecks={stage,count,arrangement,support}, each with status and a short reason. Stage and arrangement must pass; count/support may be not_applicable with a reason. Reuse its existing inspection. For process sources bind production={projectId,scopeVersion,shotId}; for final renders bind revisionId and current workspace_validate.productionScopeHash as expectedProductionScopeHash. Copy every returned qualityReview obligation into qualityChecks with obligationId,status,reason,method,range and operation holdMs. Passing operation ranges independently need start/middle/end samples with gaps <=250 ms; hold samples cannot substitute. Audio passes require actual host_listening or user_listening over the whole rendered mix. Generic visual checks cannot waive plan obligations. Video actionComplete=pass also needs actionRanges. Excerpt reviews never accept the whole asset. Formal remake final reviews additionally need passing requirementChecks. Validates evidence coverage and current binding, never judges pixels or hears sound itself.",
   },
   workspace_validate: {
     schema: z.object({ revisionId: idSchema }).strict(),
     description:
-      "Read deterministic delivery checks: source ranges, discarded operation/hold frames, crop, placeholders, shot order, source-bound music cues/mix and ending duration. Returns inspection requests, plan-derived qualityReview obligations and productionScopeHash for final media_review.expectedProductionScopeHash. finalReady means technical delivery readiness; reviewAccepted separately describes optional review. Unreviewed output can be delivered. Do not run final AI review or auto-regenerate. Explicit visualKind=graphic marks intentional title/brand cards.",
+      "Read deterministic delivery checks: source ranges, discarded operation/hold frames, crop, placeholders, shot order, source-bound music cues/mix and ending duration. Returns inspection requests, plan-derived qualityReview obligations and productionScopeHash for final media_review.expectedProductionScopeHash. finalReady means technical delivery readiness; reviewAccepted separately describes formal review; workJudgment retains evidence-bounded creative findings. Observe the work with available capabilities and deliver with honest limitations. Do not purchase extra review or auto-regenerate. Explicit visualKind=graphic marks intentional title/brand cards.",
   },
 };
 async function callProductionToolImpl(
@@ -316,11 +323,25 @@ async function callProductionToolImpl(
       await service.scoped(c, "read", (tx) =>
         assertEditingAssets(tx, c.accountId, result.plan),
       );
-    if (result.valid && result.plan.remake)
-      await service.scoped(c, "read", (tx) =>
+    if (result.valid && result.plan.remake) {
+      const evidence = await service.scoped(c, "read", (tx) =>
         validateRemakeEvidence(service, tx, c.accountId, result.plan),
       );
-    return { ...result, guidance: planGuidance(result.issues) };
+      result.issues.push(
+        ...sourceRelationIssues(result.plan, evidence?.report),
+      );
+      result.valid = result.issues.length === 0;
+    }
+    return {
+      ...result,
+      guidance: {
+        ...(await directorGuidance("plan", {
+          plan: result.plan,
+          blockers: result.issues,
+        })),
+        ...planGuidance(result.issues),
+      },
+    };
   }
   if (name === "production_editing_preview") {
     const saved = await service.get(c, "production-plan", data.planId);
@@ -491,14 +512,31 @@ async function callProductionToolImpl(
       version: record.version,
       shotId: shot.id,
       referenceCheck: shotReferenceCheck(shot, record.plan.method),
-      guidance: shotGuidance(
-        record.id,
-        record.version,
-        shot.id,
-        record.plan.method?.kind,
-      ),
+      guidance: {
+        ...(await directorGuidance("shot", {
+          plan: record.plan,
+          shotId: shot.id,
+          guideVersion: record.guideVersion,
+          modelId: data.model,
+          mode: data.mode,
+          basedOn: { planId: record.id, planVersion: record.version },
+          unresolvedRelations: sourceRelationHandoff(
+            shot,
+            evidence?.report,
+          ).some((s) => s.unresolved.length > 0),
+        })),
+        ...shotGuidance(
+          record.id,
+          record.version,
+          shot.id,
+          record.plan.method?.kind,
+        ),
+      },
       qualityReviewRequired: false,
       hostInstructions: {
+        treatment: record.plan.treatment ?? null,
+        purpose: shot.purpose ?? null,
+        sourceRelations: sourceRelationHandoff(shot, evidence?.report),
         directionStyle: shot.sceneDirection ? "authored_scene" : "structured",
         ...(shot.sceneDirection
           ? {
@@ -624,6 +662,12 @@ async function callProductionToolImpl(
       const previous = data.planId
         ? await tx.get(data.planId, c.accountId, "production-plan")
         : undefined;
+      if (previous?.plan.treatment && !result.plan.treatment)
+        throw new AppError(
+          "TREATMENT_REQUIRED",
+          "Retain or explicitly revise the saved treatment; do not silently drop accepted creative decisions",
+          409,
+        );
       if (previous?.plan.method && !result.plan.method)
         throw new AppError(
           "PRODUCTION_METHOD_REQUIRED",
@@ -674,7 +718,24 @@ async function callProductionToolImpl(
             409,
           );
       }
-      await validateRemakeEvidence(service, tx, c.accountId, result.plan);
+      const sourceEvidence = await validateRemakeEvidence(
+        service,
+        tx,
+        c.accountId,
+        result.plan,
+      );
+      if (!previous || previous.guideVersion || data.guidanceUpdateReason) {
+        const issues = sourceRelationIssues(
+          result.plan,
+          sourceEvidence?.report,
+        );
+        if (issues.length)
+          throw new AppError(
+            "SOURCE_RELATION_DECISION_REQUIRED",
+            issues.map((issue) => issue.message).join("\n"),
+            409,
+          );
+      }
       const plan = {
         id: previous?.id ?? randomUUID(),
         type: "production-plan",
@@ -682,6 +743,18 @@ async function callProductionToolImpl(
         createdAt: previous?.createdAt ?? new Date().toISOString(),
         version: (previous?.version ?? 0) + 1,
         plan: result.plan,
+        guideVersion:
+          previous && !data.guidanceUpdateReason
+            ? (previous.guideVersion ?? null)
+            : (await guideCapabilities()).version,
+        ...(data.guidanceUpdateReason
+          ? {
+              guidanceUpdate: {
+                reason: data.guidanceUpdateReason,
+                previousGuideVersion: previous?.guideVersion ?? null,
+              },
+            }
+          : {}),
         planHash: fingerprint(result.plan),
         ...(requestBinding ? { requestBinding } : {}),
         productionProjectId: previous?.productionProjectId ?? randomUUID(),
@@ -713,6 +786,11 @@ async function callProductionToolImpl(
       await tx.put(project);
       return {
         ...plan,
+        guidance: await directorGuidance("plan", {
+          plan: plan.plan,
+          guideVersion: plan.guideVersion ?? undefined,
+          basedOn: { planId: plan.id, planVersion: plan.version },
+        }),
         communication: intentNotice(
           requestBinding?.userRequirements ?? [],
           result.plan.creativeChoices ?? [],
@@ -747,7 +825,23 @@ async function callProductionToolImpl(
         }
       : {}),
     referenceDelivery: referenceDelivery(result),
-    guidance: preparedGuidance(result),
+    guidance: {
+      ...(await directorGuidance("prepared", {
+        plan: preparedPlan?.plan,
+        shotId: preparedShot?.id,
+        guideVersion: preparedPlan?.guideVersion,
+        modelId: result.input.model,
+        mode: result.input.mode ?? result.prompt?.direction?.mode,
+        basedOn: {
+          preparedRequestId: result.preparedRequestId,
+          requestHash: result.requestHash,
+        },
+        image:
+          data.plan?.stage === "first_frame" ||
+          data.plan?.stage === "last_frame",
+      })),
+      ...preparedGuidance(result),
+    },
   };
 }
 

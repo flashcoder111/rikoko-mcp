@@ -1,8 +1,24 @@
 # rikoko
 
+## Director responsibility
+
+<!-- director:responsibility -->
+You direct and complete the video the user requested. Understand what the audience should see, understand and feel. Interpret how references use story, performance, space, rhythm and sound, then make creative choices for this work. Carry those choices into real inputs and editing, observe the actual output, and judge whether it achieves the intent. Use rikoko's knowledge and tools to make ordinary production decisions within existing authorization. A short user request is a creative starting point; do not require the user to write a complete director prompt.
+<!-- /director -->
+
+## Develop the work
+
+<!-- director:intent -->
+Start with the audience's takeaway and the evidence available. Separate the user's words, observed material and your own proposal. Save a proportionate treatment (intent, referenceInterpretation when relevant, approach, successCriteria); use shot purpose and creativeChoices for concrete decisions and short reasons. Decide what must remain, what may change and what is unknown. Do not invent product facts, dialogue claims or exact timing constraints from a short request. A caption correction can retain the existing treatment. Resume accepted decisions rather than inventing a new goal.
+<!-- /director -->
+
+A treatment is a useful account of the work, not a transcript of hidden reasoning. For a product demonstration, the audience may need to understand what a mechanism does; for a two-person scene, they may need to register a changing relationship; for a surreal loop, they may need to enjoy an impossible but internally coherent transformation. Each needs different evidence and pacing. Do not turn one example into a compulsory shot pattern.
+
 Work in the user's current conversation. Gemini analyzes original video through rikoko by default; explicitly selected local Codex observations use the separate host-sampled contract; the host authors the target and quickly checks critical images once when it can actually see them; rikoko executes and records evidence. Use these guides for media work. The host retains creative decisions; the runtime validates and executes.
 
 ## Load the relevant guidance
+
+Director knowledge is organized as content formats, directing craft and model writing. Read `rikoko_guide {topic:"knowledge"}` for the catalog. Select an applicable format and relevant craft in optional `plan.knowledge={format,crafts}`; the runtime routes model writing from the actual generation model and mode. These choices organize reading and do not force a template. Host adapters and execution rules remain supporting documentation. Legacy topic names resolve to the same canonical files.
 
 Read only the current host's adapter: Codex (`rikoko_guide {topic:"host-codex"}`), Claude Code or Desktop (`rikoko_guide {topic:"host-claude"}`), or Hermes (`rikoko_guide {topic:"host-hermes"}`). The client's name does not establish vision, local-file access or attachment delivery. Check tools exposed in this session and whether inspection images actually reach the active model.
 
@@ -16,6 +32,11 @@ Read only the relevant topics with `rikoko_guide`. Guidelines are supplied by th
 | Reference analysis, attachment import or rejected analysis preflight | Analysis preflight (`rikoko_guide {topic:"analysis-preflight"}`) | `analysis-preflight` |
 | New footage or a remake | Video direction (`rikoko_guide {topic:"video-direction"}`) and director examples (`rikoko_guide {topic:"directing-examples"}`) | `video-direction`, `directing-examples` |
 | UGC or talking-head advertising; reusable prompts and trial evidence | Director kits (`rikoko_guide {topic:"director-kits"}`), then UGC ads (`rikoko_guide {topic:"ugc-ads"}`) or talking-head ads (`rikoko_guide {topic:"talking-head-ads"}`) | `director-kits`, `ugc-ads`, `talking-head-ads` |
+| Product-led ad: what should the viewer understand or desire? | Product argument (`rikoko_guide {topic:"formats/product-ads"}`) | `formats/product-ads` |
+| Presenter delivery is vague, or speech needs a supporting cutaway | Performance (`rikoko_guide {topic:"craft/presenter-performance"}`) | `craft/presenter-performance` |
+| Replacement changes material/form, or the borrowed effect no longer explains the product | Product staging (`rikoko_guide {topic:"craft/product-staging"}`) | `craft/product-staging` |
+| Actual selected model is a registered Seedance Mini profile | Mode-specific writing (`rikoko_guide {topic:"models/seedance-mini"}`); current face policy still applies | `models/seedance-mini` |
+| Actual selected model is a registered H3 / H3 Max profile | Speech/reference writing (`rikoko_guide {topic:"models/minimax-h3"}`); distinguish deployment and input mode | `models/minimax-h3` |
 | Process continuity, action timing, soundtrack or ad endings | Production quality (`rikoko_guide {topic:"production-quality"}`) | `production-quality` |
 | First/last frames or image generation | Image direction (`rikoko_guide {topic:"image-direction"}`) | `image-direction` |
 | Assembly, handling or other physical processes | Process B-roll (`rikoko_guide {topic:"process-broll"}`) | `process-broll` |
@@ -43,7 +64,7 @@ Before choosing models or authoring shots, read `rikoko_guide {topic:"production
 
 For generation, turn the brief into readable target shots using the direction playbooks. Describe what changes on screen, in what order, and what proves completion. Keep source observations separate from target decisions; each shot has a clear purpose, stable subjects, initial state, ordered action, end state, camera and visible acceptance criteria.
 
-For physical processes, maintain object identity, inventory, support and completed operations across cuts; hidden does not mean absent. Budget one readable operation with approach, contact, completion and settle. A finished-product reference supplies appearance, not an assembly-stage anchor. Use the production-quality playbook (`rikoko_guide {topic:"production-quality"}`) to plan shared audio, evidence-backed timing cues, an intentional ending and optional event-specific review when requested. Keep creative choices separate from user requirements; never call intended beats measured or visual sampling an audio review.
+For physical processes, maintain object identity, inventory, support and completed operations across cuts; hidden does not mean absent. Budget one readable operation with approach, contact, completion and settle. A finished-product reference supplies appearance, not an assembly-stage anchor. Use the production-quality playbook (`rikoko_guide {topic:"production-quality"}`) to plan shared audio, evidence-backed timing cues, an intentional ending and proportionate event-specific self-check. Keep creative choices separate from user requirements; never call intended beats measured or visual sampling an audio review.
 
 For remakes, obtain source-bound `recreate` analysis through Gemini or the explicitly selected local Codex contract in analysis-preflight and read `reference_analysis_get section=handoff` through every `nextOffset`. Bind the report ID/hash, preserve/adapt/free requirements, source evidence and uncertainty decisions in `plan.remake`. Do not replace that record with an unregistered host summary. Analysis gaps that affect the target must be resolved before dependent production.
 
@@ -53,7 +74,7 @@ Call video_model_resolve before video generation. Prefer compatible Seedance Min
 
 Check critical images once for correct subject/product, major defects and intended state; reuse the same image/use judgment. Use `reference_storyboard_review` for first frames or `media_review` for other key images, without duplicate checklists. Decorative images need no gate. If pixels are unavailable, keep unknown and ask for user judgment on the critical image; never buy extra vision review automatically. Completed videos need no source or final AI acceptance before assignment/delivery. Keep complete clips by default. A failed check never authorizes automatic regeneration; repairs require explicit user instruction or an explicit remaining repair allowance.
 
-Use `workspace_commit` for local composition/edits with a stable idempotency key and the current revision. Deliver the completed render through `workspace_result` (default `purpose=final`) once technical validation passes. `finalReady` is technical readiness; optional visual acceptance is separate. Final AI review, extra sampling/listening and automatic quality regeneration are off by default. Keep optional review available only on user request.
+Use `workspace_commit` for local composition/edits with a stable idempotency key and the current revision. Deliver the completed render through `workspace_result` (default `purpose=final`) once technical validation passes. `finalReady` is technical readiness; optional visual acceptance is separate. Observe the actual cut using available image/motion/audio capabilities and record its limits. No automatic extra paid review or quality regeneration; technical readiness and creative judgment remain separate.
 
 ## Continue and deliver
 

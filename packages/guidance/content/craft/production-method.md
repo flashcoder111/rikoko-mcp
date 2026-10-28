@@ -1,5 +1,13 @@
 # Separate preservation requirements from execution
 
+## Choose the method from the work's intent
+
+<!-- director:method -->
+Decide whether the supplied footage itself must be edited, particular relationships transferred, or an idea reinterpreted. Make that decision from the user's actual preservation requirements and the treatment. A new story can inherit a reference's reveal or emotional rhythm without inheriting its exact duration; replacing only an identity should preserve the requested performance and spatial relationships. Reuse accepted material for local caption, crop or timing edits. Choose the supported execution interface after deciding the relationship; an available API is not a creative objective.
+<!-- /director -->
+
+Compare alternatives by what they retain and what they make uncertain. A single continuous generation can maintain an interaction but may miss an internal turn; separate takes can improve local control but introduce identity, sound and boundary discontinuities. Record a short reason in creativeChoices. Observe which tradeoff occurred in the actual output before deciding whether editing can solve it. The runtime does not guarantee a model will implement a text instruction. Model capabilities and budgets still apply independently of director autonomy.
+
 Read the whole brief and call `production_method_resolve` before authoring replacements. The user's request determines what must stay. It does not force a provider endpoint. Use video_model_resolve before generation: prefer compatible Seedance Mini for face-free tasks; present/unknown faces forbid all Seedance variants and require user choice of MiniMax (recommended) or Kling. An explicit Seedance preference never overrides this rule.
 
 Supply `intent.relationship`, `intent.change`, actual owned `sourceAssetId`, and `subjects=[{assetId,instruction}]` describing the replacement identities. `intent.preserve` combines action, camera, timing and framing. `edit_source` means change only requested content and retain all four properties; it can use either joint video/image reference generation or a dedicated edit interface. `transfer_properties` names selected properties; `reinterpret` authors new work. Do not use a camera-only recipe when body action must also stay.

@@ -209,7 +209,10 @@ it.each(["hermes", "codex"] as const)(
       client,
     );
     expect(text).toContain("Preview —");
-    expect(text).toContain("No final AI review is required");
+    expect(text).toContain(
+      "Observe the actual result with available capabilities",
+    );
+    expect(text).toContain("never start a paid review or regeneration loop");
     expect(text).not.toContain("MEDIA:");
     expect(text).not.toContain("Display in this conversation:");
     expect(text).not.toContain("deliver the video");

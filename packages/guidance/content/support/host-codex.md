@@ -23,4 +23,4 @@ After MCP reconnection or context compaction, read `workspace_request_get`, `wor
 
 The installer configures MCP only. Legacy Skill copies require explicit migration and a host reload to stop stale instructions. Host permissions and rendering support still apply independently of successful MCP initialization.
 
-Default policy: quickly check critical input images once using actual pixels or user judgment. Do not invoke paid vision review by default. Final videos need no AI review or listening pass for delivery, and quality findings never authorize automatic regeneration. Preserve unknown review status and return technically ready output immediately.
+The host directs and self-checks actual material and the final cut. Use available pixels/playback and listen when capable; frame-only, motion and audio limits stay explicit. Reuse unchanged critical-image checks. Technical delivery remains available with honest failed/unknown findings. No automatic paid review or quality regeneration. Read visual-review for the shared method.

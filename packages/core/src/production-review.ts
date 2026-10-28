@@ -69,6 +69,74 @@ const checkSchema = z
   });
 const compatibleCheckSchema = z.union([z.boolean(), checkSchema]);
 const maxActionSampleGapMs = 250;
+export const workAssessmentSchema = z
+  .array(
+    z
+      .object({
+        criterion: z.string().trim().min(1).max(600),
+        aspect: z.enum(["visual", "motion", "audio", "meaning"]),
+        status: z.enum(["pass", "fail", "unknown"]),
+        method: z.enum([
+          "frames",
+          "playback",
+          "host_listening",
+          "user_listening",
+          "unobserved",
+        ]),
+        range: rangeSchema.optional(),
+        reason: z.string().trim().min(1).max(2000),
+        repairTarget: z.enum(["treatment", "footage", "editing"]).optional(),
+      })
+      .strict()
+      .superRefine((finding, ctx) => {
+        if (finding.status === "unknown") return;
+        if (
+          finding.method === "unobserved" ||
+          !finding.range ||
+          (finding.aspect === "audio" &&
+            !["host_listening", "user_listening"].includes(finding.method)) ||
+          (finding.aspect === "motion" && finding.method !== "playback") ||
+          (finding.aspect === "visual" &&
+            !["frames", "playback"].includes(finding.method))
+        )
+          ctx.addIssue({
+            code: "custom",
+            message:
+              "Observed findings need an actual interval and a suitable modality; frames cannot certify continuous motion or listening",
+          });
+      }),
+  )
+  .max(100);
+
+export function workJudgment(review?: {
+  [key: string]: unknown;
+  decision?: string;
+  workAssessment?: z.infer<typeof workAssessmentSchema>;
+  coverage?: unknown;
+  notes?: string;
+}) {
+  const findings: z.infer<typeof workAssessmentSchema> =
+    review?.workAssessment ?? [];
+  return {
+    status:
+      findings.some((f) => f.status === "fail") ||
+      review?.decision === "needs_changes"
+        ? "has_failures"
+        : !findings.length
+          ? "unassessed"
+          : findings.some((f) => f.status === "unknown")
+            ? "partial"
+            : "observed_criteria_met",
+    findings,
+    reviewId: review?.id ?? null,
+    assetId: review?.assetId ?? null,
+    sourceSha256: review?.sourceSha256 ?? null,
+    notes: review?.notes ?? null,
+    coverage: review?.coverage ?? null,
+    boundary:
+      "Only the recorded criteria, modalities and intervals were assessed. Missing observations remain unknown; technical readiness and formal review acceptance are separate.",
+  };
+}
 type ReviewRange = z.infer<typeof rangeSchema>;
 
 function fullAssetReview(review: Entity, asset: Entity) {
@@ -167,6 +235,7 @@ export const mediaReviewSchema = z
     startingStateChecks: startingStateChecksSchema.optional(),
     requirementChecks: z.array(requirementCheckSchema).max(50).optional(),
     qualityChecks: z.array(productionQualityCheckSchema).max(2000).optional(),
+    workAssessment: workAssessmentSchema.optional(),
   })
   .strict();
 export async function reviewMedia(service: Service, c: Context, raw: unknown) {
@@ -210,6 +279,41 @@ export async function reviewMedia(service: Service, c: Context, raw: unknown) {
           "INVALID_INTERVAL",
           "Every action range must fit the reviewed interval",
         );
+    for (const finding of input.workAssessment ?? []) {
+      if (
+        finding.range &&
+        (finding.range.startMs < range.startMs ||
+          finding.range.endMs > range.endMs ||
+          finding.range.startMs >= finding.range.endMs)
+      )
+        throw new AppError(
+          "INVALID_INTERVAL",
+          "Work assessment must describe an interval within the actual reviewed asset",
+        );
+      if (
+        finding.status !== "unknown" &&
+        finding.method === "frames" &&
+        !input.inspectionIds.length
+      )
+        throw new AppError(
+          "INSPECTION_REQUIRED",
+          "Frame findings require actual viewed inspections",
+        );
+      if (
+        asset.kind === "image" &&
+        finding.status !== "unknown" &&
+        ["audio", "motion"].includes(finding.aspect)
+      )
+        throw new AppError(
+          "INVALID_MEDIA",
+          "A still image cannot establish sound or continuous motion",
+        );
+      if (input.decision === "accepted" && finding.status !== "pass")
+        throw new AppError(
+          "REVIEW_FAILED",
+          "Failed or unknown work criteria cannot be labeled accepted",
+        );
+    }
     if (
       input.decision === "accepted" &&
       (!Object.values(checks).every((check) =>
@@ -254,6 +358,20 @@ export async function reviewMedia(service: Service, c: Context, raw: unknown) {
       )
       .sort((a, b) => a - b);
     let maxSampleGapMs: number | undefined;
+    for (const finding of input.workAssessment ?? []) {
+      if (
+        finding.status !== "unknown" &&
+        finding.method === "frames" &&
+        !sortedSamples.some(
+          (time) =>
+            time >= finding.range!.startMs && time < finding.range!.endMs,
+        )
+      )
+        throw new AppError(
+          "INSPECTION_COVERAGE_REQUIRED",
+          "The frame finding needs actual samples inside its stated interval",
+        );
+    }
     if (input.decision === "accepted" && !sortedSamples.length)
       throw new AppError(
         "INSPECTION_COVERAGE_REQUIRED",
@@ -515,6 +633,7 @@ export async function validateMediaResult(
       optionalReviewRefreshNeeded:
         review?.decision === "accepted" && review.schemaVersion !== 2,
       generationCheck: asset.provenance?.generationCheck,
+      workJudgment: workJudgment(review),
     });
   }
   const reviewAccepted =
@@ -665,7 +784,7 @@ export async function validateWorkspace(
         sceneId: scene.id,
         severity: "warning",
         message:
-          "The edit omits more than one second of source footage; no automatic review or regeneration is required",
+          "The edit omits more than one second of source footage; judge whether required content was lost, and never automatically regenerate",
       });
     if (croppedFraction > 0.1)
       issues.push({
@@ -673,7 +792,7 @@ export async function validateWorkspace(
         sceneId: scene.id,
         severity: "warning",
         message:
-          "More than 10% of source image area is cropped; this is advisory, not an AI review requirement",
+          "More than 10% of source image area is cropped; observe whether important action or text is lost. This advisory does not block delivery",
       });
     if (asset?.kind === "video" && sourceEndMs > asset.metadata.durationMs + 1)
       issues.push({
@@ -772,6 +891,7 @@ export async function validateWorkspace(
       );
     }
   }
+  const observedReview = review;
   if (
     review?.decision === "accepted" &&
     !remakeReviewComplete(
@@ -783,7 +903,7 @@ export async function validateWorkspace(
       code: "REMAKE_REVIEW_REQUIRED",
       severity: "warning",
       message:
-        "Optional review has not accepted every preserve/adapt requirement; this does not block delivery",
+        "Recorded review has not accepted every preserve/adapt requirement; this does not block delivery",
     });
     review = undefined;
   }
@@ -800,7 +920,7 @@ export async function validateWorkspace(
       code: "PRODUCTION_QUALITY_REVIEW_REQUIRED",
       severity: "warning",
       message:
-        "Optional production quality review is incomplete; deliver without starting review or regeneration",
+        "Formal production quality acceptance is incomplete; retain unknowns and deliver with truthful observation limits; never automatically regenerate",
     });
     review = undefined;
   }
@@ -809,6 +929,7 @@ export async function validateWorkspace(
     productionScopeHash: production.scopeHash,
     revisionHash,
     status: reviewStatus(review),
+    workJudgment: workJudgment(observedReview),
     reviewRefreshRequired: false,
     optionalReviewRefreshNeeded:
       review?.decision === "accepted" && review.schemaVersion !== 2,
@@ -824,6 +945,6 @@ export async function validateWorkspace(
       ? productionReviewInstructions(production.qualityPlan, composition)
       : [],
     instruction:
-      "Deliver completed output once technical validation passes. Final AI review is optional and never a delivery prerequisite. Do not inspect or regenerate videos by default. Preserve unreviewed/rejected feedback honestly; render completion does not establish visual acceptance.",
+      "Self-check actual material and the final cut against the saved intent using available observation capabilities. Report achieved, failed and unknown criteria and their evidence limits. Deliver technically ready output with honest findings; no automatic paid review or quality regeneration. Render completion does not establish creative success.",
   };
 }

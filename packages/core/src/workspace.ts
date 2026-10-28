@@ -1,5 +1,5 @@
 import { prepareTemplate } from "../../templates/src/prepare.js";
-import { snapshotGuidance } from "./director-guidance.js";
+import { snapshotGuidance, directorGuidance } from "./director-guidance.js";
 import { randomUUID } from "node:crypto";
 import {
   readCreativeContext,
@@ -169,11 +169,43 @@ export async function workspaceSnapshot(
         createdAt: m.createdAt,
         jobId: m.jobId,
       }));
+    const savedPlan = project.productionScope?.planId
+      ? await tx.get(
+          project.productionScope.planId,
+          c.accountId,
+          "production-plan",
+        )
+      : undefined;
     return {
       project,
       revision,
       headRevisionId: latest?.id ?? null,
-      guidance: snapshotGuidance(project, revision, jobs, latest),
+      productionPlan: savedPlan ?? null,
+      guidance: {
+        ...(await directorGuidance("resume", {
+          plan: savedPlan?.plan,
+          guideVersion: savedPlan?.guideVersion,
+          basedOn: {
+            projectId,
+            planId: savedPlan?.id,
+            planVersion: savedPlan?.version,
+            revisionId: revision?.id,
+          },
+        })),
+        ...snapshotGuidance(project, revision, jobs, latest),
+        ...(!revision && savedPlan
+          ? {
+              decisions: [],
+              suggestions: [
+                {
+                  tool: "production_shot_prompts",
+                  reason:
+                    "Continue the saved treatment and method at the current plan version; reuse existing preparations and jobs before new work.",
+                },
+              ],
+            }
+          : {}),
+      },
       revisions,
       jobs,
       messages,

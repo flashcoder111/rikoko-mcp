@@ -1,4 +1,5 @@
 import { videoRequestSnapshotSchema } from "./video-workflow.js";
+import { sourceRelationIssues } from "./source-timeline.js";
 import {
   remakeEvidenceSchema,
   validateRemakeEvidence,
@@ -338,6 +339,24 @@ export async function syncCloudProductionContext(
         );
     }
     if (data.kind === "plan") {
+      if (!old || old.sourceRelationContract === 1) {
+        const issues = sourceRelationIssues(
+          data.plan,
+          data.remakeEvidence?.report,
+        );
+        if (issues.length)
+          throw new AppError(
+            "SOURCE_RELATION_DECISION_REQUIRED",
+            issues.map((issue) => issue.message).join("\n"),
+            409,
+          );
+      }
+      if (old?.plan.treatment && !data.plan.treatment)
+        throw new AppError(
+          "TREATMENT_REQUIRED",
+          "Retain or explicitly revise the mirrored treatment",
+          409,
+        );
       assertProductionQualityRetained(old?.plan, data.plan);
       if (!!data.plan.remake !== !!data.remakeEvidence)
         throw new AppError(
@@ -429,6 +448,9 @@ export async function syncCloudProductionContext(
           ? {
               plan: data.plan,
               planHash: fingerprint(data.plan),
+              ...(!old || old.sourceRelationContract === 1
+                ? { sourceRelationContract: 1 }
+                : {}),
               ...(data.remakeEvidence
                 ? { hostRemakeEvidence: data.remakeEvidence }
                 : {}),

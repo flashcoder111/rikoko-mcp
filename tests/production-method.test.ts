@@ -105,6 +105,38 @@ it("carries source editing from method choice to prepared request and native-spe
     assetIds: [original.id],
   });
   await attachFixtureAnalysis(service, c, resolved.plan, original);
+  resolved.plan.treatment = {
+    intent: "Show the same reveal with the target identity",
+    referenceInterpretation:
+      "Opening before the reaction makes the change understandable",
+    approach: "Retain the original action and eyeline",
+    successCriteria: ["The target looks left toward the revealed object"],
+  };
+  resolved.plan.shots[0].sourceShotDirections = [
+    {
+      sourceShotId: "source-open",
+      direction: "Use the target identity throughout",
+      referenceAssetIds: [],
+      relations: [
+        {
+          sourceField: "startState",
+          disposition: "preserve",
+          target: "Target identity faces screen left",
+          reason: "Preserve the intended partner eyeline",
+        },
+        {
+          sourceField: "endState",
+          disposition: "unknown",
+          reason: "Keep the fixture uncertainty visible",
+        },
+        {
+          sourceField: "spatialRelations",
+          disposition: "unknown",
+          reason: "Target spatial relation is not observed",
+        },
+      ],
+    },
+  ];
   const saved = await callTool(service, c, "production_plan_save", {
     plan: resolved.plan,
     request: {
@@ -123,6 +155,20 @@ it("carries source editing from method choice to prepared request and native-spe
   expect(draft.video.prompt).toContain(
     "entire performance and camera sequence",
   );
+  expect(draft.video.prompt).toContain("Target identity faces screen left");
+  expect(draft.hostInstructions.treatment).toEqual(resolved.plan.treatment);
+  expect(draft.hostInstructions.sourceRelations[0].unresolved).toEqual([
+    "endState",
+    "spatialRelations",
+  ]);
+  const resumed = await callTool(service, c, "workspace_snapshot", {
+    projectId: saved.productionProjectId,
+  });
+  expect(resumed.productionPlan.plan.treatment).toEqual(
+    resolved.plan.treatment,
+  );
+  expect(resumed.guidance.treatment).toEqual(resolved.plan.treatment);
+  expect(resumed.guidance.suggestions[0].tool).toBe("production_shot_prompts");
   const prepared = await callTool(service, c, "generation_prepare", {
     input: {
       kind: "generate",
@@ -158,6 +204,15 @@ it("carries source editing from method choice to prepared request and native-spe
     },
   });
   expect(prepared.readyForSubmission).toBe(true);
+  expect(prepared.providerRequest.prompt).toContain(
+    "Target identity faces screen left",
+  );
+  expect(prepared.plan.directorIntent.treatment).toEqual(
+    resolved.plan.treatment,
+  );
+  expect(prepared.plan.guideVersion).toBe(saved.guideVersion);
+  expect(prepared.guideVersion).toBe(saved.guideVersion);
+  expect(prepared.guidance.treatment).toEqual(resolved.plan.treatment);
   expect(prepared.expectedOutput.durationMs).toBe(17042);
   const assembled = await callTool(service, c, "production_editing_preview", {
     planId: saved.id,

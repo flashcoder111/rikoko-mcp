@@ -3,22 +3,32 @@ import { join } from "node:path";
 import {
   guideTopics,
   guideProtocol,
+  guideFiles,
+  guideCatalogSnapshot,
 } from "../packages/guidance/src/catalog.js";
 import {
   guidanceRoot,
   sha256,
   validateGuideBundle,
+  guideVersionHash,
 } from "../packages/guidance/src/reader.js";
 if (process.argv.includes("--write")) {
   const topics: Record<string, string> = {};
+  const files = guideFiles();
   for (const topic of [...guideTopics].sort())
     topics[topic] = sha256(
-      await readFile(join(guidanceRoot, "content", `${topic}.md`)),
+      await readFile(join(guidanceRoot, "content", files[topic])),
     );
+  const manifest = {
+    guideProtocol,
+    topics,
+    files,
+    catalogHash: sha256(JSON.stringify(guideCatalogSnapshot())),
+  };
   await writeFile(
     join(guidanceRoot, "manifest.json"),
     JSON.stringify(
-      { guideProtocol, guideVersion: sha256(JSON.stringify(topics)), topics },
+      { ...manifest, guideVersion: guideVersionHash(manifest) },
       null,
       2,
     ) + "\n",

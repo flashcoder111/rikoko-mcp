@@ -368,7 +368,24 @@ export class PreparationClient {
         workflow,
         inputHash: fingerprint(localInput),
         plan: localPlan
-          ? { ...data.plan, planHash: fingerprint(localPlan.plan) }
+          ? {
+              ...data.plan,
+              planHash: fingerprint(localPlan.plan),
+              guideVersion: localPlan.guideVersion ?? null,
+              directorIntent: {
+                title: localPlan.plan.title,
+                width: localPlan.plan.width,
+                height: localPlan.plan.height,
+                treatment: localPlan.plan.treatment,
+                ...(localPlan.plan.knowledge
+                  ? { knowledge: localPlan.plan.knowledge }
+                  : {}),
+                creativeChoices: localPlan.plan.creativeChoices,
+                shots: localPlan.plan.shots.filter(
+                  (s: { id: string }) => s.id === data.plan?.shotId,
+                ),
+              },
+            }
           : undefined,
         scopeHash: scope?.hash,
         referenceState: "bound",

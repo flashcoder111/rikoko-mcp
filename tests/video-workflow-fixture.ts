@@ -228,6 +228,35 @@ export async function attachFixtureAnalysis(
     shot.actionStages ??= ["Preserve the original movement"];
     shot.acceptanceCriteria ??= ["Movement matches the source"];
     shot.sourceShotIds = ["source-open"];
+    if (plan.method?.kind === "source_edit") {
+      shot.sourceShotDirections ??= [
+        {
+          sourceShotId: "source-open",
+          direction: "Retain the fixture action with the target subject",
+          referenceAssetIds: [],
+          relations: [
+            {
+              sourceField: "startState",
+              disposition: "preserve",
+              target: "Target lid starts closed",
+              reason: "Fixture closed starting state",
+            },
+            {
+              sourceField: "endState",
+              disposition: "preserve",
+              target: "Target lid ends open",
+              reason: "Fixture completed opening",
+            },
+            {
+              sourceField: "spatialRelations",
+              disposition: "preserve",
+              target: "Target hand remains above the target lid",
+              reason: "Fixture contact layout",
+            },
+          ],
+        },
+      ];
+    }
     shot.requirementUses = [
       {
         requirementId: "reveal",

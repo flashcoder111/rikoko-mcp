@@ -3,6 +3,7 @@ import { usageText, type TaskUsage } from "../../core/src/task-usage.js";
 import type { DeliveredMedia } from "./host-files.js";
 
 export type ConversationResult = {
+  guidance?: unknown;
   usage?: TaskUsage;
   jobId: string;
   projectId?: string;
@@ -20,6 +21,7 @@ export type ConversationResult = {
     status: string;
     finalReady: boolean;
     reviewAccepted?: boolean;
+    workJudgment?: unknown;
     issues: unknown[];
   };
   mediaAcceptance?: {
@@ -56,12 +58,12 @@ export function resultText(
       : []),
     ...(!deliverable && result.status === "completed"
       ? [
-          "Preview — request workspace_result purpose=final for delivery. No final AI review is required; do not start a review or regeneration loop.",
+          "Preview — request workspace_result purpose=final for delivery. Observe the actual result with available capabilities and report evidence limits; never start a paid review or regeneration loop.",
         ]
       : []),
     ...(result.quality
       ? [
-          `Optional visual review: ${result.quality.status}; technical delivery ready=${result.quality.finalReady}. Delivery purpose: ${result.purpose ?? "preview"}.`,
+          `Recorded visual review: ${result.quality.status}; technical delivery ready=${result.quality.finalReady}. Delivery purpose: ${result.purpose ?? "preview"}.`,
           `Validation: ${JSON.stringify(result.quality)}`,
         ]
       : []),
@@ -71,7 +73,7 @@ export function resultText(
     ...((result.quality && result.quality.reviewAccepted !== true) ||
     (result.mediaAcceptance && result.mediaAcceptance.reviewAccepted !== true)
       ? [
-          "Evidence boundary: technical checks only. Do not claim the pictured objects, action, continuity or a reported visual defect are correct/fixed. Brightness, edge counts and white-pixel counts are not semantic visual checks. Deliver with the actual review status; no automatic regeneration.",
+          "Evidence boundary: formal visual acceptance is absent; use only actual recorded observations. Do not claim the pictured objects, action, continuity or a reported visual defect are correct/fixed. Brightness, edge counts and white-pixel counts are not semantic visual checks. Deliver with the actual review status; no automatic regeneration.",
         ]
       : []),
     ...(result.projectId
@@ -81,6 +83,9 @@ export function resultText(
         ]
       : []),
     ...(result.error ? [`Error: ${result.error}`] : []),
+    ...(result.guidance
+      ? [`Director guidance: ${JSON.stringify(result.guidance)}`]
+      : []),
     ...(result.message ? [result.message] : []),
     ...(result.deliveryWarning
       ? [`Attachment warning: ${result.deliveryWarning}`]
@@ -112,7 +117,7 @@ export function resultText(
     );
   if (deliverable)
     lines.push(
-      "Keep all requests and follow-up edits in this host's original conversation. When completed, deliver directly without a final AI review or automatic quality regeneration. Unreviewed does not mean accepted. Deliver the video using the host's native attachment support or the returned media links, include relevant text/subtitle content and always include the returned workspace URL as a clickable Markdown link so the user can open the browser workspace and edit the video. Keep this link alongside native attachments and in links-only replies. Use the exact returned URL; never invent a localhost address or append credentials. Draft publishing copy only from known user facts and actual content. Never claim to have watched the result without inspecting it. Do not open a browser, MCP App, popup or separate chat automatically. If attachment display is unavailable, provide the returned download/workspace link. workspace_export saves files without rerendering.",
+      "Keep all requests and follow-up edits in this host's original conversation. When completed, self-check the actual cut using available observation capabilities and deliver with honest achieved, failed and unknown findings. No automatic paid review or quality regeneration. Unreviewed does not mean accepted. Deliver the video using the host's native attachment support or the returned media links, include relevant text/subtitle content and always include the returned workspace URL as a clickable Markdown link so the user can open the browser workspace and edit the video. Keep this link alongside native attachments and in links-only replies. Use the exact returned URL; never invent a localhost address or append credentials. Draft publishing copy only from known user facts and actual content. Never claim to have watched the result without inspecting it. Do not open a browser, MCP App, popup or separate chat automatically. If attachment display is unavailable, provide the returned download/workspace link. workspace_export saves files without rerendering.",
     );
   if (result.projectId)
     lines.push(

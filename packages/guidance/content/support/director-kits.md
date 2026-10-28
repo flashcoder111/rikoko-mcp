@@ -1,6 +1,6 @@
 # Director kits and evidence
 
-Default workflow: one quick check of critical images, no source-video or final AI review gate, and no automatic quality regeneration. Review criteria below guide planning and optional user-requested evaluation. Deliver technically valid output directly; preserve unreviewed cases honestly. See delivery policy (`rikoko_guide {topic:"visual-review"}`).
+The host uses the criteria below for planning and proportionate self-check of actual material. Deliver technically valid output with honest evidence limits; no automatic paid review or quality regeneration. See delivery policy (`rikoko_guide {topic:"visual-review"}`).
 Use for UGC or talking-head advertising. Read `ugc-ads` or `talking-head-ads` for the whole-film treatment, then consider candidates from `director_catalog`. Select, adapt or decline kits according to the brief; original direction without a kit is valid. `template_match` returns composition candidates for arranging material and separate promptCandidates for generation wording; a director kit shapes a generation request. Neither executes nor approves generation.
 
 ## Layers and ownership

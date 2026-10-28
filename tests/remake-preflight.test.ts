@@ -172,3 +172,78 @@ it("does not attach timeline observations from a different source", () => {
     } as any),
   ).toThrow();
 });
+
+it("projects target facing decisions without copying source identity and keeps unknown out of prompts", () => {
+  const plan = productionPlanSchema.parse(fixture());
+  const direction = plan.shots[0].sourceShotDirections![0];
+  direction.relations = [
+    {
+      sourceField: "startState",
+      disposition: "preserve",
+      target: "Target character faces screen left",
+      reason: "Keep the partner's eyeline",
+    },
+    {
+      sourceField: "endState",
+      disposition: "change",
+      target: "Target character deliberately turns screen right",
+      reason: "The target reaction motivates crossing the axis",
+    },
+    {
+      sourceField: "spatialRelations",
+      disposition: "unknown",
+      reason: "Partner is occluded",
+    },
+  ];
+  const evidence = structuredClone(report) as any;
+  evidence.shots[0].details = {
+    startState: "Old actor, white hair, red coat, faces left",
+    endState: "Old actor faces left",
+    spatialRelations: "Old actor beside partner",
+  };
+  const result = productionShotDirection(
+    plan,
+    plan.shots[0],
+    "video",
+    evidence,
+  );
+  expect(result.sceneDirection).toContain("Target character faces screen left");
+  expect(result.sceneDirection).toContain("deliberately turns screen right");
+  expect(result.sceneDirection).not.toContain("Old actor");
+  expect(result.sceneDirection).not.toContain("white hair");
+  direction.relations[0].target = "Target character faces screen right";
+  expect(
+    productionShotDirection(plan, plan.shots[0], "video", evidence)
+      .sceneDirection,
+  ).not.toEqual(result.sceneDirection);
+  delete direction.relations[0].target;
+  expect(() =>
+    productionShotDirection(plan, plan.shots[0], "video", evidence),
+  ).toThrow("explicit target expression");
+  expect(() => productionPlanSchema.parse(plan)).toThrow();
+});
+
+it("passes explicitly authored relations for adaptations without importing source durations", () => {
+  const plan = productionPlanSchema.parse(fixture());
+  plan.method!.kind = "adaptation";
+  plan.method!.relationship = "reinterpret";
+  plan.shots[0].sourceShotDirections![0].relations = [
+    {
+      sourceField: "startState",
+      disposition: "preserve",
+      target: "Target looks screen left",
+      reason: "Maintain target eyeline",
+    },
+  ];
+  const evidence = structuredClone(report) as any;
+  evidence.shots[0].details = { startState: "Old actor looks left" };
+  const result = productionShotDirection(
+    plan,
+    plan.shots[0],
+    "video",
+    evidence,
+  );
+  expect(result.constraints).toContain("Target looks screen left");
+  expect(result.constraints).not.toContain("0.000");
+  expect(() => productionShotDirection(plan, plan.shots[0], "video")).toThrow();
+});

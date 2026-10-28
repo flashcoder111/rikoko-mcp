@@ -96,8 +96,8 @@ export async function exportPublicSource(root: string, destination: string) {
   for (const path of manifest.paths) await collect(path);
   if (manifest.paths.includes("packages/guidance")) {
     const guides = await validateGuideBundle(join(source, "packages/guidance"));
-    for (const topic of Object.keys(guides.topics)) {
-      const path = `packages/guidance/content/${topic}.md`;
+    for (const [topic, file] of Object.entries(guides.files)) {
+      const path = `packages/guidance/content/${file}`;
       if (!selected.has(path))
         throw Error(`Required guide absent from export: ${topic}`);
     }

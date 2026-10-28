@@ -1,3 +1,4 @@
+import { directorResponsibility } from "../../guidance/src/director.js";
 import { McpServer } from "@modelcontextprotocol/server";
 import { hostGuideInstructions, productionInstructions } from "./guides.js";
 import { readFileSync } from "node:fs";
@@ -49,7 +50,7 @@ export function createMcpServer(
           role: "user",
           content: {
             type: "text",
-            text: `${request}\nUse rikoko MCP in this conversation. Read capabilities and rikoko_guide overview plus the relevant topics. You own creative decisions and may adapt or decline templates. Keep user constraints and evidence bindings; analysis-only work stops after analysis. Resume existing records before edits or retries. Deliver technically ready output through workspace_result purpose=final with its exact clickable workspace URL.`,
+            text: `${request}\n${directorResponsibility} Use rikoko MCP in this conversation. Read capabilities and rikoko_guide overview plus the relevant topics. You own creative decisions and may adapt or decline templates. Keep user constraints and evidence bindings; analysis-only work stops after analysis. Resume existing records before edits or retries. Deliver technically ready output through workspace_result purpose=final with its exact clickable workspace URL.`,
           },
         },
       ],
@@ -71,7 +72,7 @@ export function createMcpServer(
           role: "user",
           content: {
             type: "text",
-            text: `Continue rikoko project ${projectId} in this original conversation. Read workspace_snapshot first; use its latest head revision rather than an earlier conversation version. After workspace_result purpose=final confirms technical readiness (finalReady=true), directly deliver the video and relevant content in this original conversation, and always include the returned workspace URL as a clickable Markdown link for the user to open and edit. Include it with native attachments and links-only replies; never automatically open an MCP App, browser or separate chat. ${request ?? "Show the current status and workspace link."}`,
+            text: `${directorResponsibility} Resume the saved treatment and creative choices without rewriting prior decisions. Continue rikoko project ${projectId} in this original conversation. Read workspace_snapshot first; use its latest head revision rather than an earlier conversation version. After workspace_result purpose=final confirms technical readiness (finalReady=true), directly deliver the video and relevant content in this original conversation, and always include the returned workspace URL as a clickable Markdown link for the user to open and edit. Include it with native attachments and links-only replies; never automatically open an MCP App, browser or separate chat. ${request ?? "Show the current status and workspace link."}`,
           },
         },
       ],
@@ -146,7 +147,12 @@ export function createMcpServer(
             };
             return {
               content: [
-                { type: "text" as const, text: String(result.markdown ?? "") },
+                {
+                  type: "text" as const,
+                  text: [result.markdown, result.navigationMarkdown]
+                    .filter(Boolean)
+                    .join("\n\n"),
+                },
               ],
               structuredContent: { result },
             };

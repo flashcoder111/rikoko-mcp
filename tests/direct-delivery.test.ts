@@ -290,7 +290,7 @@ it("rejects corrupt outputs and invalid metadata without authorizing regeneratio
 it("advertises direct delivery and does not reinterpret unreviewed cases as successful trials", async () => {
   const capabilities: any = await callTool(service, c, "capabilities", {});
   expect(capabilities.reviewPolicy).toMatchObject({
-    finalAiReview: "off_by_default",
+    finalAiReview: "host_self_check_with_available_capabilities",
     automaticQualityRegeneration: false,
   });
   expect(capabilities.visualReview.finalReviewRequired).toBe(false);

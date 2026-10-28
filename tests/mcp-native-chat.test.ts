@@ -63,9 +63,9 @@ it.each(["codex", "hermes", "claude", "generic"])(
       const tools = await client.listTools();
       expect(tools.tools.every((tool) => !tool._meta)).toBe(true);
       expect(client.getServerCapabilities()?.resources).toBeUndefined();
-      expect(client.getInstructions()).toContain("original conversation");
+      expect(client.getInstructions()).toContain("in this conversation");
       expect(client.getInstructions()).toContain(
-        "Deliver technically ready media",
+        "Deliver existing technically ready media",
       );
       for (const name of ["rikoko_create", "rikoko_resume"]) {
         const prompt = await client.getPrompt({

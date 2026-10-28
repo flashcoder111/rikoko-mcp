@@ -1,4 +1,130 @@
+import {
+  directorKnowledge,
+  type DirectorExcerpt,
+} from "../../guidance/src/director.js";
+import { createHash } from "node:crypto";
+import type { ProductionPlan } from "./production-plan.js";
+import type { Service } from "./index.js";
+import type { Context, Entity } from "../../contracts/src/index.js";
 /** Read-only suggestions derived from records. Never grant authorization or execute work. */
+export async function directorGuidance(
+  stage:
+    | "request"
+    | "analysis"
+    | "plan"
+    | "shot"
+    | "prepared"
+    | "material"
+    | "final"
+    | "resume",
+  context: {
+    plan?: ProductionPlan;
+    shotId?: string;
+    guideVersion?: string;
+    basedOn?: Record<string, unknown>;
+    blockers?: Issue[];
+    unresolvedRelations?: boolean;
+    image?: boolean;
+    modelId?: string;
+    mode?: string;
+  } = {},
+) {
+  const { plan } = context;
+  const keys: DirectorExcerpt[] = [];
+  if ((stage === "request" || stage === "plan") && !plan?.treatment)
+    keys.push("intent");
+  if (stage === "analysis") keys.push("reference");
+  if (stage === "plan" && !plan?.method) keys.push("method");
+  if (stage === "shot" || stage === "prepared") {
+    keys.push(context.image ? "image" : "preparation");
+    if (context.unresolvedRelations) keys.push("performance");
+  }
+  if (stage === "material") keys.push("quality");
+  if (stage === "final") keys.push("review");
+  if (["plan", "final"].includes(stage) && plan?.editing)
+    keys.push("sound_text");
+  const knowledge = await directorKnowledge(keys.slice(0, 3), {
+    ...plan?.knowledge,
+    ...(context.modelId ? { modelId: context.modelId } : {}),
+    ...(context.mode ? { mode: context.mode } : {}),
+  });
+  const basedOn = {
+    ...context.basedOn,
+    ...(context.shotId ? { shotId: context.shotId } : {}),
+  };
+  return {
+    stage,
+    ...knowledge,
+    basedOn,
+    // Identical evidence/intent yields the same key. Clients can reuse resolved work.
+    decisionKey: createHash("sha256")
+      .update(
+        JSON.stringify({
+          stage,
+          basedOn,
+          plan,
+          keys,
+          version: knowledge.guideVersion,
+          selection: knowledge.readingPath.selection,
+        }),
+      )
+      .digest("hex"),
+    treatment: plan?.treatment ?? null,
+    creativeChoices: plan?.creativeChoices ?? [],
+    shotPurpose:
+      plan?.shots.find((s) => s.id === context.shotId)?.purpose ?? null,
+    blockers: context.blockers ?? [],
+    decisions: keys.map((key) => ({
+      kind: "creative_choice" as const,
+      topic: key,
+      owner: "host_agent" as const,
+    })),
+    boundGuideVersion: context.guideVersion ?? null,
+    knowledgeChanged:
+      !!context.guideVersion && context.guideVersion !== knowledge.guideVersion,
+    versionBoundary:
+      "Current guidance does not rewrite accepted plans or frozen paid inputs. Retain their bound version; revise and prepare explicitly if the work changes.",
+  };
+}
+
+export async function completedJobGuidance(
+  service: Service,
+  c: Context,
+  job: Entity,
+) {
+  if (
+    job.status !== "completed" ||
+    !["generate", "reference_analyze"].includes(job.input?.kind)
+  )
+    return undefined;
+  const preparation = job.input.preparedRequestId
+    ? await service.scoped(c, "read", (tx) =>
+        tx.get(
+          job.input.preparedRequestId,
+          c.accountId,
+          "generation-preparation",
+        ),
+      )
+    : undefined;
+  return directorGuidance(
+    job.input.kind === "reference_analyze" ? "analysis" : "material",
+    {
+      plan: preparation?.plan?.directorIntent,
+      shotId: preparation?.plan?.shotId,
+      guideVersion:
+        preparation?.plan?.guideVersion ?? preparation?.guideVersion,
+      basedOn: {
+        jobId: job.id,
+        outputAssetIds: job.outputs,
+        preparedRequestId: preparation?.id,
+        planId: preparation?.plan?.planId,
+        planVersion: preparation?.plan?.expectedVersion,
+      },
+      modelId: preparation?.input?.model,
+      mode: preparation?.input?.mode ?? preparation?.prompt?.direction?.mode,
+    },
+  );
+}
 type Issue = { code: string; message: string; shotId?: string };
 type Suggestion = { tool: string; reason: string };
 const creativeChoice = {

@@ -460,3 +460,77 @@ it("does not treat a single sampled moment as evidence of a completed action", a
     }),
   ).rejects.toMatchObject({ code: "INSPECTION_COVERAGE_REQUIRED" });
 });
+
+it("preserves failed creative findings and unknown sound without blocking technical delivery", async () => {
+  const { asset, evidence } = await fixture();
+  const input = review(asset.id, evidence.id);
+  await callTool(service, c, "media_review", {
+    ...input,
+    decision: "needs_changes",
+    workAssessment: [
+      {
+        criterion: "Final response remains visible",
+        aspect: "visual",
+        status: "fail",
+        method: "frames",
+        range: { startMs: 1500, endMs: 2000 },
+        reason: "Observed interval lacks the listener",
+        repairTarget: "editing",
+      },
+      {
+        criterion: "The line is intelligible",
+        aspect: "audio",
+        status: "unknown",
+        method: "unobserved",
+        reason: "This fixture has no listening evidence",
+      },
+    ],
+  });
+  const result = await validateMediaResult(service, c, [asset.id]);
+  expect(result.finalReady).toBe(true);
+  expect(result.reviewAccepted).toBe(false);
+  expect(result.media[0].workJudgment.status).toBe("has_failures");
+  expect(result.media[0].workJudgment.findings[1].status).toBe("unknown");
+});
+
+it.each(["motion", "audio"])(
+  "does not let sampled frames certify %s in work assessment",
+  async (aspect) => {
+    const { asset, evidence } = await fixture();
+    await expect(
+      callTool(service, c, "media_review", {
+        ...review(asset.id, evidence.id),
+        workAssessment: [
+          {
+            criterion: "Full movement and sound",
+            aspect,
+            status: "pass",
+            method: "frames",
+            range: { startMs: 0, endMs: 2000 },
+            reason: "Only images were available",
+          },
+        ],
+      }),
+    ).rejects.toThrow("frames cannot certify");
+  },
+);
+
+it("does not attach a frame finding to an interval absent from its inspections", async () => {
+  const { asset, evidence } = await fixture([0]);
+  await expect(
+    callTool(service, c, "media_review", {
+      ...review(asset.id, evidence.id),
+      decision: "needs_changes",
+      workAssessment: [
+        {
+          criterion: "Ending visible",
+          aspect: "visual",
+          status: "fail",
+          method: "frames",
+          range: { startMs: 1500, endMs: 2000 },
+          reason: "Not actually inspected",
+        },
+      ],
+    }),
+  ).rejects.toMatchObject({ code: "INSPECTION_COVERAGE_REQUIRED" });
+});

@@ -1,6 +1,6 @@
 {
   "name": "rikoko",
-  "version": "0.1.51",
+  "version": "0.1.56",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.28.2",
@@ -98,7 +98,7 @@
     "python/uv.lock",
     "LICENSE",
     "THIRD_PARTY_NOTICES.md",
-    "packages/guidance/content/*.md",
+    "packages/guidance/content/**/*.md",
     "packages/guidance/manifest.json",
     "packages/bootstrap/src/legacy-skill-manifests.json",
     "THIRD_PARTY_LICENSES.txt"

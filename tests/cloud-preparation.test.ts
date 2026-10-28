@@ -120,6 +120,15 @@ it("preserves saved sceneDirection and its exact prompt across cloud preparation
   const saved: any = await callTool(local, c, "production_plan_save", {
     plan: {
       title: "Concise cloud scene",
+      knowledge: {
+        format: "formats/process-broll",
+        crafts: ["craft/production-quality"],
+      },
+      treatment: {
+        intent: "Make the reveal legible",
+        approach: "Show contact then the open result",
+        successCriteria: ["The open interior is visible"],
+      },
       width: 720,
       height: 1280,
       shots: [
@@ -153,6 +162,15 @@ it("preserves saved sceneDirection and its exact prompt across cloud preparation
   expect(result.providerRequest.prompt).toBe(preview.video.prompt);
   expect(result.prompt.compilerVersion).toBe("rikoko-prompt-compiler-v5");
   expect(result.prompt.overridden).toBe(false);
+  expect(result.plan.directorIntent.treatment).toEqual(saved.plan.treatment);
+  expect(result.plan.directorIntent.knowledge).toEqual(saved.plan.knowledge);
+  expect(result.cloud.draft.plan.directorIntent.knowledge).toEqual(
+    saved.plan.knowledge,
+  );
+  expect(result.plan.guideVersion).toBe(saved.guideVersion);
+  expect(result.cloud.draft.plan.directorIntent.treatment).toEqual(
+    saved.plan.treatment,
+  );
   expect(providerCalls).not.toHaveBeenCalled();
 });
 async function prepare(extra: any = {}) {

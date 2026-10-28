@@ -24,4 +24,4 @@ For a new revision, refresh `workspace_snapshot` and use its current base revisi
 
 Reference: [Claude Code skills](https://code.claude.com/docs/en/skills), [Claude Desktop local MCP](https://support.claude.com/en/articles/10949351-getting-started-with-local-mcp-servers-on-claude-desktop).
 
-Default policy: quickly check critical input images once using actual pixels or user judgment. Do not invoke paid vision review by default. Final videos need no AI review or listening pass for delivery, and quality findings never authorize automatic regeneration. Preserve unknown review status and return technically ready output immediately.
+The host directs and self-checks actual material and the final cut. Use available pixels/playback and listen when capable; frame-only, motion and audio limits stay explicit. Reuse unchanged critical-image checks. Technical delivery remains available with honest failed/unknown findings. No automatic paid review or quality regeneration. Read visual-review for the shared method.

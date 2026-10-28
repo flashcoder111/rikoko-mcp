@@ -1,8 +1,16 @@
 # Plan and verify production quality
 
+## Judge relationships, not only isolated frames
+
+<!-- director:quality -->
+Compare the actual material with the shot purpose and treatment.successCriteria. Check that required events, speakers, reactions and the ending are present; that realistic actions have readable cause, contact and completion; and that gaze, screen direction, support and object state remain intelligible across cuts. Judge deliberate discontinuity or impossible action against the declared intent. Locate a failure in the concept, footage direction, generated material or edit before proposing repair. A completed checklist or render does not establish quality; retain pass, fail and unknown separately.
+<!-- /director -->
+
+For a demonstration, a convincing finished object does not prove the assembly action happened. For a conversation, correct faces in sampled frames do not prove the final speaker's line or reaction survived. For a poetic montage, spatial discontinuity can be intentional if the association remains understandable. Choose observation intervals around these meaningful changes rather than applying one sample interval to all work.
+
 Use this playbook for process footage, demonstrations, music-led edits and advertisements. Apply only the parts relevant to the brief. It does not require a particular product, visual style, shot count or music track. The host reasons about the scene; MCP records the declared plan, checks its consistency and binds review evidence. A valid record alone cannot establish plausible physics, good rhythm or persuasive advertising.
 
-Default delivery follows quick image checks and direct delivery (`rikoko_guide {topic:"visual-review"}`): check critical images once, no default video/final AI review, and no automatic quality regeneration. The detailed review methods below apply only to an explicitly requested quality review, not every production. Planning and deterministic technical checks remain active. An optional review does not authorize paid repair.
+Use proportionate host self-check (`rikoko_guide {topic:"visual-review"}`) for actual material and final output. Choose evidence for the work's relevant events and relationships. Formal acceptance retains its coverage requirements; technical delivery does not depend on a PASS. No automatic paid review or regeneration.
 
 ## Establish what is known and what is chosen
 
@@ -65,7 +73,7 @@ Bind timing decisions to the actual chosen audio and its source interval. Record
 
 Place important action events, not just cuts, near suitable sound cues: a latch clicks shut, a bottle meets the table, a dancer lands, a brand resolves. Preserve approach, contact and settle when trimming or retiming. Not every event must hit a beat. Leave room for visual comprehension, speech and musical phrasing. Use the actual downloaded clip lengths; provider-requested duration and actual duration can differ.
 
-When the user requests sound review, listen to the rendered mix across every cut and the ending. Check conflicting music, loudness jumps, clipped effects, speech masking, unwanted silence and a deliberate ending or fade. Sampling images, reading an analysis report or measuring audio energy cannot certify these listening judgments. If audio is unavailable to the reviewer, record that limitation and leave it unknown; this does not block delivery or authorize an extra paid review.
+When capable of hearing the actual sound, listen to the rendered mix across every cut and the ending. Check conflicting music, loudness jumps, clipped effects, speech masking, unwanted silence and a deliberate ending or fade. Sampling images, reading an analysis report or measuring audio energy cannot certify these listening judgments. If audio is unavailable to the reviewer, record that limitation and leave it unknown; this does not block delivery or authorize an extra paid review.
 
 ### Save audio and ending intent
 
@@ -104,7 +112,7 @@ For example, this is an **editing fragment** for a desk-lamp ad with an existing
 }
 ```
 
-After saving, use `production_editing_preview {planId,expectedVersion,revisionId?}` to read the planned timeline and cue deltas. With a revision it also checks the actual composition against declared track, timing and ending constraints. It does not edit the cut, locate an event inside generated pixels, detect beats or accept sound quality. Observe the generated event, apply the edits, inspect/listen to the exact rendered revision only if the user requested that review.
+After saving, use `production_editing_preview {planId,expectedVersion,revisionId?}` to read the planned timeline and cue deltas. With a revision it also checks the actual composition against declared track, timing and ending constraints. It does not edit the cut, locate an event inside generated pixels, detect beats or accept sound quality. Observe the generated event, apply the edits, inspect/listen to the exact rendered revision within available capabilities and report unobserved aspects as unknown.
 
 ## Earn the advertising ending
 
@@ -112,9 +120,9 @@ Start with the ad's intended outcome: awareness, product understanding, desire, 
 
 Plan a visible payoff, the product/brand relationship, readable text, and soundtrack resolution. Reserve enough actual on-screen time to read the chosen content; do not impose a universal duration. Finish assembly or demonstration before the reveal unless the creative concept explicitly requires overlap. Keep tools, excess fluid and decorative effects from hiding the features the ad is meant to sell.
 
-Add exact brand lettering in editing when reliable text matters. A CTA is optional and must use true, applicable facts; do not invent an offer, URL, price, availability or product claim. A host-suggested slogan or ending remains a creative choice unless the user supplied it. If reviewing on user request, consider crop, safe space, legibility and audio ending together.
+Add exact brand lettering in editing when reliable text matters. A CTA is optional and must use true, applicable facts; do not invent an offer, URL, price, availability or product claim. A host-suggested slogan or ending remains a creative choice unless the user supplied it. In the host self-check, consider crop, safe space, legibility and audio ending together.
 
-## Optional review of failure-prone events (only on user request)
+## Observe relevant events and preserve evidence limits
 
 Make acceptance criteria falsifiable before generation. “Premium,” “cinematic,” or “mouthwatering” can guide art direction but cannot replace checks such as “one component is installed once, remains supported and is not removed at the next cut.”
 

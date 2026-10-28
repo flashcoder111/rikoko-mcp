@@ -40,11 +40,13 @@ try {
     );
   for (const required of [
     "packages/guidance/manifest.json",
-    ...Object.keys(
-      JSON.parse(
-        await readFile(join(root, "packages/guidance/manifest.json"), "utf8"),
-      ).topics,
-    ).map((name) => `packages/guidance/content/${name}.md`),
+    ...new Set(
+      Object.values(
+        JSON.parse(
+          await readFile(join(root, "packages/guidance/manifest.json"), "utf8"),
+        ).files,
+      ).map((path) => `packages/guidance/content/${path}`),
+    ),
     "packages/db/migrations/001_core.sql",
     "packages/contracts/schemas/composition.v1.json",
     "apps/studio/dist/index.html",
@@ -77,6 +79,9 @@ try {
     file: packed.filename,
     sha256: createHash("sha256").update(bytes).digest("hex"),
     integrity: packed.integrity,
+    directorGuides: JSON.parse(
+      await readFile(join(root, "packages/guidance/manifest.json"), "utf8"),
+    ),
     files: packed.files.map((f) => f.path),
   };
   await writeFile(

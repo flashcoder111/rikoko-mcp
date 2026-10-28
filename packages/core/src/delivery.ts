@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { directorGuidance } from "./director-guidance.js";
 import { summarizeTaskUsage } from "./task-usage.js";
 import { AppError, type Context } from "../../contracts/src/index.js";
 import { sha256 } from "../../storage/src/index.js";
@@ -16,6 +17,29 @@ export async function workspaceResult(
   const revision = job.revisionId
     ? await service.get(c, "revision", job.revisionId)
     : undefined;
+  const project = revision
+    ? await service.get(c, "project", revision.projectId)
+    : undefined;
+  const preparation = job.input?.preparedRequestId
+    ? await service.scoped(c, "read", (tx) =>
+        tx.get(
+          job.input.preparedRequestId,
+          c.accountId,
+          "generation-preparation",
+        ),
+      )
+    : undefined;
+  const planId = project?.productionScope?.planId ?? preparation?.plan?.planId;
+  const savedPlan = planId
+    ? await service.scoped(c, "read", (tx) =>
+        tx.get(planId, c.accountId, "production-plan"),
+      )
+    : undefined;
+  const intentPlan =
+    preparation?.plan?.directorIntent ??
+    (revision || savedPlan?.version === preparation?.plan?.expectedVersion
+      ? savedPlan?.plan
+      : undefined);
   const result = {
     usage: summarizeTaskUsage([job]),
     jobId,
@@ -27,6 +51,26 @@ export async function workspaceResult(
     error: job.error?.message,
     steps: job.steps,
     purpose,
+    ...(job.status === "completed"
+      ? {
+          guidance: await directorGuidance(revision ? "final" : "material", {
+            plan: intentPlan,
+            shotId: preparation?.plan?.shotId,
+            guideVersion:
+              preparation?.plan?.guideVersion ??
+              preparation?.guideVersion ??
+              savedPlan?.guideVersion,
+            basedOn: {
+              jobId,
+              revisionId: revision?.id,
+              outputAssetIds: job.outputs,
+              planId,
+              planVersion:
+                preparation?.plan?.expectedVersion ?? savedPlan?.version,
+            },
+          }),
+        }
+      : {}),
     quality: revision
       ? await validateWorkspace(service, c, revision.id)
       : undefined,

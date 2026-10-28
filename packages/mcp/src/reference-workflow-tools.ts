@@ -1,3 +1,4 @@
+import { directorGuidance } from "../../core/src/director-guidance.js";
 import { z } from "zod";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -489,10 +490,26 @@ export async function callReferenceWorkflowTool(
   raw: unknown,
 ) {
   await service.scoped(c, "write", async () => {});
-  if (name === "reference_analysis_record")
-    return recordHostAnalysis(service, c, raw);
+  if (name === "reference_analysis_record") {
+    const result = await recordHostAnalysis(service, c, raw);
+    return {
+      ...result,
+      guidance: await directorGuidance("analysis", {
+        basedOn: { analysisAssetId: result.analysisAssetId },
+      }),
+    };
+  }
   if (name === "reference_analysis_plan") return planAnalysis(service, c, raw);
   if (name === "reference_analysis_prepare")
     return prepareAnalysis(service, c, raw);
-  return mergeAnalysis(service, c, raw);
+  const result = await mergeAnalysis(service, c, raw);
+  return {
+    ...result,
+    guidance: await directorGuidance("analysis", {
+      basedOn: {
+        analysisAssetId: result.analysisAssetId,
+        planId: result.planId,
+      },
+    }),
+  };
 }

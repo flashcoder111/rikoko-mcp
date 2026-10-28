@@ -8,6 +8,10 @@ import {
   preparePromptTemplate,
 } from "../../templates/src/prepare.js";
 import { guideSchema } from "../../guidance/src/catalog.js";
+import {
+  directorGuidance,
+  completedJobGuidance,
+} from "../../core/src/director-guidance.js";
 import { updateChecker } from "../../core/src/update-check.js";
 import { readGuide, guideCapabilities } from "../../guidance/src/reader.js";
 import { z } from "zod";
@@ -114,7 +118,7 @@ export const tools = {
   rikoko_guide: {
     schema: guideSchema,
     description:
-      "Read the executing backend's versioned director guides. Start with overview, then only relevant topics: host adapters, analysis-preflight, video-direction, directing-examples, director-kits, image-direction, production-quality, visual-review, commands or media-operations. Read-only; no model, upload, pricing or generation. Creative recommendations are optional; the host authors and chooses the target.",
+      "Read the executing backend's versioned director guides. Start with overview and knowledge. Director knowledge has three layers: formats, craft and models; host/tool instructions are support. Optional selection={format,crafts,modelId,mode} returns a reading path with source status and exact model/mode coverage. Canonical topics and legacy aliases share the same source; read only relevant topics. Read-only; no model, upload, pricing or generation. Creative recommendations are optional; the host authors and chooses the target.",
   },
   ...productionTools,
   ...captionTools,
@@ -205,7 +209,7 @@ export const tools = {
   },
   workspace_result: {
     description:
-      "Read real job status. Defaults to purpose=final: completed technically valid output is delivered without AI review. Explicit purpose=preview is for inspection only. Never trigger automatic quality regeneration. Completed results include video/subtitle/image delivery links, current screen text and a workspace link. Deliver the video and relevant content in the original conversation, and always include the returned workspace URL as a clickable Markdown link for the user to open and edit, including with native attachments and delivery=links. Configured Codex/Hermes hosts also save native attachments; delivery=links skips local downloads. Never open a browser or separate chat automatically. Requires write scope for media access; never starts rendering or generation. Set PUBLIC_BASE_URL for remote/mobile access; expired links can be refreshed by querying this tool again.",
+      "Read real job status. Defaults to purpose=final: completed technically valid output is available independently of creative judgment. Self-check actual material and final output using available capabilities; report failed and unknown findings honestly. Explicit purpose=preview is for inspection only. Never trigger automatic quality regeneration. Completed results include video/subtitle/image delivery links, current screen text and a workspace link. Deliver the video and relevant content in the original conversation, and always include the returned workspace URL as a clickable Markdown link for the user to open and edit, including with native attachments and delivery=links. Configured Codex/Hermes hosts also save native attachments; delivery=links skips local downloads. Never open a browser or separate chat automatically. Requires write scope for media access; never starts rendering or generation. Set PUBLIC_BASE_URL for remote/mobile access; expired links can be refreshed by querying this tool again.",
     schema: z.object({
       jobId: idSchema,
       delivery: z.enum(["auto", "links"]).default("auto"),
@@ -244,7 +248,7 @@ export const tools = {
   },
   workspace_commit: {
     description:
-      "Create a video, apply structured edits, or restore a version, then queue a real local render. Chat and studio share this endpoint. Always pass a stable idempotencyKey; editing requires projectId and the current baseRevisionId. Initial create may use the empty scoped productionProjectId returned by production_plan_save. On REVISION_CONFLICT read workspace_snapshot and re-plan. Existing media is reused; this tool does not buy new generated footage. Returns project/revision/job IDs and a workspace link. Call workspace_result for progress. Keep the user in the original Agent conversation. Deliver completed video and content directly after workspace_result purpose=final passes technical validation, without final AI review, always including its returned workspace URL as a clickable Markdown link for the user to open and edit; do not open a window automatically.",
+      "Create a video, apply structured edits, or restore a version, then queue a real local render. Chat and studio share this endpoint. Always pass a stable idempotencyKey; editing requires projectId and the current baseRevisionId. Initial create may use the empty scoped productionProjectId returned by production_plan_save. On REVISION_CONFLICT read workspace_snapshot and re-plan. Existing media is reused; this tool does not buy new generated footage. Returns project/revision/job IDs and a workspace link. Call workspace_result for progress. Keep the user in the original Agent conversation. Deliver completed video and content directly after workspace_result purpose=final passes technical validation, with an honest self-check and observation limits, always including its returned workspace URL as a clickable Markdown link for the user to open and edit; do not open a window automatically.",
     schema: commitSchema,
   },
   capabilities: {
@@ -620,9 +624,23 @@ export async function callTool(
     case "workspace_handoff_prepare":
       return workspaceHandoffPrepare(service, c, data);
     case "workspace_request_get":
-      return workspaceRequestGet(service, c, data.requestId);
-    case "workspace_request_save":
-      return workspaceRequestSave(service, c, data);
+    case "workspace_request_save": {
+      const request =
+        name === "workspace_request_save"
+          ? await workspaceRequestSave(service, c, data)
+          : await workspaceRequestGet(service, c, data.requestId);
+      return {
+        ...request,
+        guidance: await directorGuidance("request", {
+          basedOn: {
+            requestId: request.requestId,
+            requestVersion: request.requestVersion,
+            intent: request.originalMessage,
+            assetIds: request.assetIds,
+          },
+        }),
+      };
+    }
     case "workspace_plan":
       return workspacePlan(service, c, data);
     case "workspace_commit":
@@ -696,7 +714,7 @@ export async function callTool(
           audioSourceStartMs: 0,
           sourceReviewBinding: "project+scopeVersion+shotId",
           finalReviewBinding: "revisionId+expectedProductionScopeHash",
-          finalReviewObligations: "optional_only_when_review_requested",
+          finalReviewObligations: "host_self_check_formal_acceptance_separate",
           finalReviewRequired: false,
           guideTopic: "production-quality",
         },
@@ -733,7 +751,7 @@ export async function callTool(
           boundScopeIntegrityRequired: true,
         },
         reviewPolicy: {
-          version: 2,
+          version: 3,
           criticalImageGate: "host_workspace_prepare_quote_submit_worker",
           criticalImageRoles: [
             "first_frame",
@@ -751,7 +769,8 @@ export async function callTool(
           ],
           keyImageReviewTool: "reference_storyboard_review",
           otherKeyImageReviewTool: "media_review",
-          finalAiReview: "off_by_default",
+          finalAiReview: "host_self_check_with_available_capabilities",
+          hostSelfCheck: "required_with_honest_observation_limits",
           automaticQualityRegeneration: false,
           extraPaidReview: "only_when_user_requested",
           delivery: "completed_and_technically_valid",
@@ -778,6 +797,7 @@ export async function callTool(
           },
           legacyAcceptanceRequiresReview: false,
           finalReviewRequired: false,
+          workJudgment: "separate_evidence_bounded_findings",
           finalReadyMeaning:
             "technical_delivery_readiness_not_visual_acceptance",
           semanticReviewer: "host_or_user",
@@ -1040,14 +1060,25 @@ export async function callTool(
       return service.createProject(c, data);
     case "records_list":
       return service.list(c, data.type);
-    case "record_get":
-      if (
+    case "record_get": {
+      const record =
         data.type === "job" &&
         data.id.startsWith("cloud-") &&
         cloudConnection(service)?.gateway
-      )
-        return cloudConnection(service)!.gateway!.get(c, data.id);
-      return service.get(c, data.type, data.id);
+          ? await cloudConnection(service)!.gateway!.get(c, data.id)
+          : await service.get(c, data.type, data.id);
+      const guidance =
+        data.type === "job"
+          ? await completedJobGuidance(service, c, record)
+          : data.type === "production-plan"
+            ? await directorGuidance("resume", {
+                plan: record.plan,
+                guideVersion: record.guideVersion,
+                basedOn: { planId: record.id, planVersion: record.version },
+              })
+            : undefined;
+      return guidance ? { ...record, guidance } : record;
+    }
     case "plan_create": {
       await service.get(c, "project", data.projectId);
       let analysisEvidence: string | undefined;

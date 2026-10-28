@@ -18,4 +18,4 @@ Only for a user-requested optional video review, inspect first/middle/last frame
 
 Within that requested review, apply event-specific inspection to the relevant operations, including occlusion, re-entry and cross-shot boundaries. Check for additions already present, duplicate parts, scale changes, unsupported loads and an apparent completion that reverses later. Uniform overview frames alone cannot establish a process pass. Dense review of the ending cannot certify the earlier steps.
 
-Default delivery checks critical input images once and does not require source-video or final AI review. Do not automatically regenerate after a quality judgment. See delivery policy (`rikoko_guide {topic:"visual-review"}`).
+The host checks critical images and observes actual footage/final output within available modalities; technical delivery remains separate from creative judgment. Do not automatically regenerate after a quality judgment. See delivery policy (`rikoko_guide {topic:"visual-review"}`).

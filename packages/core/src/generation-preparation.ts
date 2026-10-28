@@ -1,4 +1,5 @@
 import { tracedPreparation } from "./generation-trace.js";
+import { guideCapabilities } from "../../guidance/src/reader.js";
 import {
   bindVideoWorkflow,
   validateVideoWorkflow,
@@ -131,6 +132,7 @@ export function preparationRecordHash(
     cloud,
     remakeEvidence,
     workflow,
+    guideVersion,
   } = record;
   return fingerprint({
     protocol,
@@ -147,6 +149,7 @@ export function preparationRecordHash(
     cloud,
     remakeEvidence,
     workflow,
+    ...(guideVersion !== undefined ? { guideVersion } : {}),
   });
 }
 
@@ -302,7 +305,20 @@ async function prepareGenerationImpl(
             : {}),
         },
       }) as Generate;
-      plan = { ...data.plan, planHash: fingerprint(saved.plan) };
+      plan = {
+        ...data.plan,
+        planHash: fingerprint(saved.plan),
+        guideVersion: saved.guideVersion ?? null,
+        directorIntent: {
+          title: parsed.title,
+          width: parsed.width,
+          height: parsed.height,
+          treatment: parsed.treatment,
+          ...(parsed.knowledge ? { knowledge: parsed.knowledge } : {}),
+          creativeChoices: parsed.creativeChoices,
+          shots: [shot],
+        },
+      };
     }
     const model = service.provider.validate(input);
     assertDirectorAudio(data.direction?.directorKit, {
@@ -465,6 +481,7 @@ async function prepareGenerationImpl(
       accountId: c.accountId,
       createdAt: new Date().toISOString(),
       protocol: preparationProtocol,
+      guideVersion: (await guideCapabilities()).version,
       workflow,
       referenceState: declaredAssets ? "declared" : "bound",
       scopeHash: scope?.hash,

@@ -1,5 +1,15 @@
 # Editing, imports, audio and captions
 
+## Sound, timing, text and editing decisions
+
+<!-- director:sound_text -->
+Choose how original sound, dialogue, voiceover, ambience, music and silence serve the intended meaning. Cut on an event, response or phrase when useful; do not invent measured beats from waveform peaks. Distinguish postproduction captions/graphics from existing burned-in text and real signs/screens in the scene. Plan exact words, speaker, timing, hierarchy, placement and safe space. Incorrect baked text needs removal, replacement or reframing; covering it with correct subtitles is not automatically a repair. Listen to the actual mix when capable; transcript, audio-track presence and waveform similarity are not listening.
+<!-- /director -->
+
+Use an audio bridge when continuity matters across separate takes; leave a pause when the audience needs to understand a reaction. An instructional voice should remain intelligible over music; a silent visual joke may need no speech at all. Prefer controllable postproduction text for exact captions or brand lettering, while a real sign may belong in scene design. Do not ban every text request from generation. Use current schemas to determine what can actually be edited, and report limits of removing already baked pixels.
+
+Evaluate the rendered revision: whether the cut preserves the event, the subtitle arrives with its line, text avoids faces and important action, and the soundtrack has a deliberate ending. A transcript can support word accuracy but not delivery, emotional tone, audible clipping or lip synchronization. Keep those judgments unknown until the relevant audio/motion has been observed.
+
 Read only the relevant section for the requested operation. Tool schemas and current capabilities determine available inputs.
 
 ## Editing an existing video's contents with Kling O3
@@ -8,7 +18,7 @@ For character, object, background or style changes to existing footage, inspect 
 
 `generationInput.outputDurationSource=source_video` means duration follows the original clip. Inspect the profile's actual container, MIME, dimensions, size and duration constraints and `fixedParameters.keep_audio`. The bundled O3 profile retains original audio, accepts one 3–15 second MP4/MOV clip (20 MiB, both dimensions 720–3840), up to four images (10 MiB each), and 40 MiB total. These are conservative local limits. Unknown container metadata from older assets requires reimport/probing. For a scene using part of a longer asset, render and import the intended excerpt first: the model receives the complete source asset, not scene trim offsets. Never silently trim, enlarge, split or omit references to satisfy the limits.
 
-Reuse the same accepted identity/product/style references across shots and describe what to preserve. After generation, check actual duration and inspect adjacent shots only when the user requests continuity review; do not promise seamless transitions from model selection alone. Read `workspace_snapshot` and replace only the target scene using a `visual` edit, preserving captions, timing and independent narration/music, then render. Keep ordinary timeline changes local and Seedance Mini as the default for face-free new footage; present/unknown faces block Seedance and require user choice of MiniMax (recommended) or Kling. Do not claim an unconfigured O3 profile is available or treat a model-only selection as a request to generate.
+Reuse the same accepted identity/product/style references across shots and describe what to preserve. After generation, check actual duration and inspect relevant adjacent-shot boundaries as part of continuity self-check; do not promise seamless transitions from model selection alone. Read `workspace_snapshot` and replace only the target scene using a `visual` edit, preserving captions, timing and independent narration/music, then render. Keep ordinary timeline changes local and Seedance Mini as the default for face-free new footage; present/unknown faces block Seedance and require user choice of MiniMax (recommended) or Kling. Do not claim an unconfigured O3 profile is available or treat a model-only selection as a request to generate.
 
 ## TikTok reference links
 

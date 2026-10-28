@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { AppError } from "../../contracts/src/index.js";
+import { guideEntry } from "../../guidance/src/catalog.js";
 
 // Original rikoko wording; architecture informed by hypit Prompt Kits. A revision
 // is immutable once used in a preparation. Add a new revision for wording edits.
@@ -207,6 +208,27 @@ export function directorCatalog(raw: unknown) {
       )
       .map((k) => ({
         ...k,
+        knowledge: {
+          formats: k.formats.map((format) =>
+            format === "ugc-ad"
+              ? "formats/ugc-ads"
+              : "formats/talking-head-ads",
+          ),
+          craft: [
+            ...new Set(
+              k.formats.flatMap(
+                (format) =>
+                  guideEntry(
+                    format === "ugc-ad"
+                      ? "formats/ugc-ads"
+                      : "formats/talking-head-ads",
+                  ).related,
+              ),
+            ),
+          ],
+          modelWriting: "models/prompt-writing",
+          modelSpecific: false,
+        },
         version: 1,
         validation: "candidate" as const,
         measuredTrials: 0,

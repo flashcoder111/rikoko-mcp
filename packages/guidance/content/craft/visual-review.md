@@ -1,6 +1,10 @@
-# Quick image checks and direct delivery
+# Director self-check and truthful delivery
 
-Default policy: check critical images once, deliver completed technically valid videos directly, and never start final AI review or automatic quality regeneration. Optional review tools remain available when the user explicitly requests a review; they do not gate delivery. Read `capabilities.reviewPolicy` and `visualReview` for the installed runtime. An older runtime that still blocks delivery needs updating; do not fabricate acceptance or relabel preview output to bypass it.
+<!-- director:review -->
+Observe the actual generated material and final cut against the saved intent and success criteria. Use available image/motion observation for relevant changes, cuts, action and text; listen to actual sound when capable. Sampled frames establish only the frames seen, not continuous movement or listening. Report what is achieved, failed and unknown, with evidence scope and the affected judgment. Technical finalReady remains separate from work quality. Deliver existing video with honest limitations; never start an extra paid review or automatic quality regeneration.
+<!-- /director -->
+
+Self-check is part of the host's directing work and consumes host time and tokens. It is not a new paid reviewer, a compulsory user approval stage or a requirement to obtain all PASS findings before retrieving video. The runtime preserves its technical delivery rules. A failure can be a valid delivered test result; calling it successful without evidence cannot.
 
 ## One quick check for critical images
 
@@ -16,20 +20,16 @@ Accept only if the host actually sees the pixels or the user explicitly judges t
 
 The host workspace enforces this check at preparation and rechecks at quote, submission and local worker execution, including direct generation without a storyboard. For a planned first/last frame, bind `media_review.production` to the current project, scope version and shot: a generic image pass does not certify the intended shot state. Image reviews use the quick checks above, not video operation/audio `qualityChecks`. A later applicable rejection or unknown review revokes an earlier pass. Server-side bound cloud preparations rely on the host workspace's review records; they do not perform a separate visual inspection.
 
-## Deliver without final AI review
+## Review the work proportionately
 
-Use completed footage in composition without source-video acceptance. `production_asset_assign` retains account ownership, completed-preparation provenance and project/scope/shot binding; it does not require a visual pass. A simple unscoped composition can be delivered; when a scope exists its plan, mappings and assignments remain checked.
+Choose the observation from the meaning of the scene: action initiation, contact and settle; a change in speaker or reaction; a cut crossing an axis; new lettering; the ending. Use actual pixels and available playback, preserving native image blocks. Reuse inspections for unchanged media and intended use. Do not claim continuous motion from isolated frames. Without audio access, explicitly leave delivery, intelligibility, musical timing and synchronization unknown rather than infer them from a transcript or metadata.
 
-`workspace_commit` renders the composition. `workspace_result` defaults to `purpose="final"`; when completed and technically valid, deliver its video and exact clickable workspace URL immediately. `finalReady` means technical readiness, not creative approval. `reviewAccepted`/`status` separately retain any real optional review; unreviewed or rejected feedback must never be relabeled as accepted.
+Record actual findings using media_review with pass/fail/unknown/not_applicable and inspection IDs. workAssessment can name treatment/shot criteria, observed modality and interval, and whether repair belongs to treatment, footage or editing. Frames can support visible state and lettering, not sound or continuous-motion acceptance. The API validates evidence declarations; it does not watch or listen on the host's behalf. Source evidence remains separate from generated-output evidence.
 
-Technical checks preserve ownership, current bound scope, required assets, non-placeholder scenes, source time ranges, declared editing constraints and output byte integrity/measured dimensions/duration. They use no vision model. The worker already probes output when collecting it. No final AI analysis, frame sampling, listening report or mandatory user approval is needed for delivery. Do not turn warnings into extra review tasks or repeat generation to improve an unrequested subjective score.
+When claiming the existing formal reviewAccepted status, meet its exact coverage, qualityChecks, requirementChecks and scope/revision bindings. These stricter acceptance checks never block retrieving an otherwise technically ready file. A partial observation should remain partial and unknown; do not expand it into a full pass to clear a status. Choose an appropriate intervention from the finding: revise an idea that cannot communicate the goal, fix footage direction for a missing event, or reuse accepted clips for captions, mix or cuts. Continue authorized local work; new paid repair requires its own authorization or an explicit remaining allowance.
 
-`purpose="preview"` remains an explicit inspection option, with no automatic final attachment instructions. `workspace_export` saves existing files using the same technical delivery checks; attachment failure calls for returning links or retrying export, never regeneration. Keep the exact workspace link alongside native attachments and links-only replies.
+## Deliver technical readiness and creative judgment separately
 
-## Optional review on request
+workspace_result defaults to purpose=final and supplies media when completed and technically valid. finalReady retains its original technical meaning; reviewAccepted is the separately recorded formal acceptance. workJudgment reports actual saved findings and observation limits, with absent evidence unknown. Never equate tool success, completed checking or an older acceptance record with achievement of a new intent.
 
-When the user explicitly asks to inspect a defect, compare results or evaluate quality, inspect only the relevant media/interval. `media_review` retains its honest evidence contract: checks use pass/fail/unknown/not_applicable, source hashes and real inspection IDs. Video action-completion claims require observed action ranges and the returned coverage requirements; sound claims require actual listening. A model cannot infer a pass from metadata or a successful render.
-
-Detailed process, sound, remake and final-revision review obligations apply only when claiming optional acceptance. Use `qualityChecks`, `requirementChecks` and exact scope/revision bindings as documented by the tools. An excerpt never certifies the whole take. Missing evidence remains unknown, but optional review status does not block file delivery. Technical violations such as an out-of-bounds source interval still do.
-
-A requested review does not itself authorize another paid generation. Record findings, keep existing media, and repair only the specifically authorized scope. Cases without review remain unreviewed; collect them without delaying delivery or promoting a template automatically.
+Use production_asset_assign and workspace_commit with existing account, preparation, scope and shot bindings. Technical checks still reject invalid ranges, placeholders, missing assets or corrupt output. A known creative defect does not remove the user's access to the existing result. Deliver the exact returned media and clickable workspace URL in the original conversation with an honest, concise account of relevant limitations. purpose=preview remains an inspection option; attachment failure calls for retrying export or returning links, never generation. Do not open another app or chat automatically.
