@@ -77,21 +77,21 @@ export async function api<T = unknown>(
       window.dispatchEvent(new Event("session-expired"));
     throw new ApiError(
       body.error?.code ?? "REQUEST_FAILED",
-      body.error?.message ?? "请求失败，请重试。",
+      body.error?.message ?? "Request failed. Please try again.",
     );
   }
   return body.result;
 }
 export const statusLabels: Record<string, string> = {
-  queued: "等待处理",
-  running: "正在合成",
-  completed: "预览已完成",
-  failed: "处理失败",
-  cancelled: "已取消",
-  blocked_external: "等待配置",
-  submission_unknown: "等待核对",
+  queued: "Queued",
+  running: "Processing",
+  completed: "Completed",
+  failed: "Failed",
+  cancelled: "Cancelled",
+  blocked_external: "Setup required",
+  submission_unknown: "Needs review",
 };
-export const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} 秒`;
+export const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} sec`;
 export const duration = (revision?: Revision | null) =>
   revision?.composition.scenes.reduce((n, scene) => n + scene.durationMs, 0) ??
   0;

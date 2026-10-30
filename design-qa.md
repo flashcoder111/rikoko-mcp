@@ -65,3 +65,17 @@ final result: blocked
 默认产品入口已明确为 Codex / Hermes / Claude 原对话，网页聊天保留独立使用和调试。新增 stdio 本地媒体桥接、四种客户端配置、Keychain 安装器、Apps 原对话续改与工作台版本同步。卡片 DOM/bridge 测试验证同步、消息拒绝回退与轮询竞争；全套 125 项测试通过。
 
 真实 SDK 进程已完成同一作品跨 profile 创建、编辑、恢复并取得真实 MP4。该结果不是三个厂商应用 UI 均已验收：Codex MCP 待重载、Claude Desktop 待登录、Hermes 主机待确认。证据与安装状态见 [三端接入验收](docs/acceptance/host-integration.md)。此前网页截图不再被用作原生宿主接入的完成证据。
+
+---
+
+## Project workspace redesign — 2026-10-30
+
+- Source: `/var/folders/px/ghk7pf1d5qb0c2m7wy13c0xm0000gn/T/codex-clipboard-1063b81d-74a4-4f49-b063-1cba9e97e773.png` (2513 × 1202, normalized to 2048 × 980).
+- Implementation: `/Users/west/.codex/visualizations/2026/10/30/01a18cb6-5892-7a92-9b98-eb6dd7edea5b/project-table-final.png` (2048 × 980 CSS viewport, density 1); source and implementation both show a populated list with the first request expanded.
+- Full comparison: `/Users/west/.codex/visualizations/2026/10/30/01a18cb6-5892-7a92-9b98-eb6dd7edea5b/project-comparison-final.png`.
+- Focused comparison: `/Users/west/.codex/visualizations/2026/10/30/01a18cb6-5892-7a92-9b98-eb6dd7edea5b/project-comparison-detail.png`.
+- Mobile: `/Users/west/.codex/visualizations/2026/10/30/01a18cb6-5892-7a92-9b98-eb6dd7edea5b/project-table-mobile.png` at 390 × 844.
+- Findings and fixes: initial P2 mobile view required horizontal scrolling to see status and download. Changed narrow-screen rows to a stacked layout with those controls visible; verified the revised mobile screenshot. Desktop spacing was tightened after the first capture so the table sits closer to the heading as in the reference.
+- Typography: restrained UI text and monospace model identifiers follow the reference; Chinese uses system fallback. Spacing: narrow top bar and sidebar, wide table, similarly sized rows, separators, and expandable prompt. Colors: neutral white and warm gray with green completion state. Imagery: thumbnails use the actual task output, rather than copying third-party customer imagery. Copy: rikoko names and real job data replace the reference product and its data. Filters, preview and local update entry remain intentional additions.
+- Verified in the in-app browser: automatic local connection, request expansion, preview dialog, search, mobile navigation, and visible download links. No browser console errors observed. Preview data is isolated fixture data, not customer records.
+- final result: passed

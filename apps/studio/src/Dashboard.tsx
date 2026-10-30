@@ -24,31 +24,31 @@ import {
 } from "./dashboard-data";
 
 const labels: Record<string, string> = {
-  queued: "排队中",
-  running: "处理中",
-  completed: "已完成",
-  failed: "失败",
-  cancelled: "已取消",
-  blocked_external: "等待配置",
-  submission_unknown: "需要核对",
+  queued: "Queued",
+  running: "Processing",
+  completed: "Completed",
+  failed: "Failed",
+  cancelled: "Cancelled",
+  blocked_external: "Setup required",
+  submission_unknown: "Needs review",
 };
 const taskNames: Record<string, string> = {
-  generate: "生成素材",
-  render: "合成视频",
-  trim: "剪辑视频",
-  transcribe: "生成字幕",
-  captions: "处理字幕",
-  tts: "生成配音",
-  translate: "翻译内容",
-  analyze: "分析素材",
-  reference_analyze: "分析参考视频",
-  import_video: "导入视频",
+  generate: "Generate media",
+  render: "Render video",
+  trim: "Edit video",
+  transcribe: "Transcribe",
+  captions: "Add captions",
+  tts: "Generate voiceover",
+  translate: "Translate",
+  analyze: "Analyze media",
+  reference_analyze: "Analyze reference video",
+  import_video: "Import video",
 };
 function date(value: string) {
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime())
     ? "—"
-    : parsed.toLocaleString("zh-CN", {
+    : parsed.toLocaleString("en-US", {
         month: "short",
         day: "numeric",
         hour: "2-digit",
@@ -65,7 +65,7 @@ function Badge({ status }: { status: string }) {
     </span>
   );
 }
-function MediaPreview({
+export function MediaPreview({
   asset,
   onClose,
 }: {
@@ -87,17 +87,17 @@ function MediaPreview({
       aria-labelledby="dashboard-preview-title"
     >
       <header>
-        <h2 id="dashboard-preview-title">{asset.name ?? "任务输出"}</h2>
-        <button autoFocus aria-label="关闭预览" onClick={onClose}>
+        <h2 id="dashboard-preview-title">{asset.name ?? "Task output"}</h2>
+        <button autoFocus aria-label="Close preview" onClick={onClose}>
           <X size={18} />
         </button>
       </header>
       {error ? (
         <p role="alert">{error}</p>
       ) : !url ? (
-        <p role="status">正在加载媒体…</p>
+        <p role="status">Loading media…</p>
       ) : asset.kind === "image" ? (
-        <img src={url} alt={asset.name ?? "输出图片"} />
+        <img src={url} alt={asset.name ?? "Output image"} />
       ) : asset.kind === "audio" ? (
         <audio controls src={url} />
       ) : (
@@ -110,7 +110,7 @@ function MediaPreview({
           download={asset.name ?? `rikoko-${asset.id}`}
         >
           <ArrowDownToLine size={16} />
-          下载文件
+          Download file
         </a>
       )}
     </dialog>
@@ -138,13 +138,13 @@ function MediaCard({
         )}
         <span>
           {asset.kind === "video"
-            ? "视频"
+            ? "Video"
             : asset.kind === "image"
-              ? "图片"
-              : "音频"}
+              ? "Image"
+              : "Audio"}
         </span>
       </div>
-      <strong>{asset.name ?? "未命名输出"}</strong>
+      <strong>{asset.name ?? "Untitled output"}</strong>
       <small>{date(asset.createdAt)}</small>
     </button>
   );
@@ -198,11 +198,13 @@ export default function Dashboard({
         if (active) {
           setData(next);
           setError("");
-          setUpdated(new Date().toLocaleTimeString("zh-CN"));
+          setUpdated(new Date().toLocaleTimeString("en-US"));
         }
       } catch (err) {
         if (active)
-          setError(err instanceof Error ? err.message : "读取工作空间失败");
+          setError(
+            err instanceof Error ? err.message : "Could not load workspace",
+          );
       } finally {
         pending = false;
         if (active) setLoading(false);
@@ -248,28 +250,28 @@ export default function Dashboard({
     data?.capabilities.providers.filter((model) => model.available).length ?? 0;
   const stats = [
     {
-      label: "项目",
+      label: "Projects",
       value: projects.length,
       icon: FolderOpen,
-      note: "你的创作记录",
+      note: "Your creative projects",
     },
     {
-      label: "进行中",
+      label: "In progress",
       value: jobs.filter((job) => activeStatuses.has(job.status)).length,
       icon: LoaderCircle,
-      note: "排队与处理中的任务",
+      note: "Queued and processing tasks",
     },
     {
-      label: "需要关注",
+      label: "Needs attention",
       value: jobs.filter((job) => attentionStatuses.has(job.status)).length,
       icon: CircleAlert,
-      note: "失败、配置或状态待核对",
+      note: "Failures, setup issues, and tasks needing review",
     },
     {
-      label: "媒体输出",
+      label: "Media outputs",
       value: outputs.length,
       icon: Clapperboard,
-      note: "任务产出的可查看文件",
+      note: "Files created by your tasks",
     },
   ];
   return (
@@ -277,10 +279,10 @@ export default function Dashboard({
       className={`dashboard dashboard-view-${view}`}
       aria-label={
         view === "tasks"
-          ? "任务记录"
+          ? "Tasks"
           : view === "results"
-            ? "结果下载"
-            : "工作空间概览"
+            ? "Downloads"
+            : "Workspace overview"
       }
     >
       <div className="dashboard-heading">
@@ -288,12 +290,12 @@ export default function Dashboard({
           <span className="dashboard-eyebrow">RIKOKO / MY WORKSPACE</span>
           <h1>
             {view === "tasks"
-              ? "任务记录"
+              ? "Tasks"
               : view === "results"
-                ? "结果下载"
-                : "工作空间"}
+                ? "Downloads"
+                : "Workspace"}
           </h1>
-          <p>创作交给 Agent，进度和结果在这里查看。</p>
+          <p>Create with your agent and view progress and results here.</p>
         </div>
         <div className="dashboard-actions">
           <button
@@ -304,11 +306,11 @@ export default function Dashboard({
               size={15}
               className={loading ? "dashboard-spinning" : ""}
             />
-            刷新
+            Refresh
           </button>
           {!connected && (
             <button className="primary" onClick={onConnect}>
-              连接工作空间
+              Connect workspace
             </button>
           )}
         </div>
@@ -317,10 +319,10 @@ export default function Dashboard({
         <div className="dashboard-callout">
           <FolderOpen size={22} />
           <div>
-            <strong>连接后查看你的项目和任务</strong>
+            <strong>Connect to view your projects and tasks</strong>
             <p>
-              在 Codex、Claude 或 Hermes 中通过 rikoko MCP
-              制作，回到这里查看结果。
+              Create with rikoko MCP in Codex, Claude, or Hermes, then return
+              here to see the results.
             </p>
           </div>
         </div>
@@ -328,15 +330,15 @@ export default function Dashboard({
       {error && (
         <div className="dashboard-error" role="alert">
           {error}
-          {data && " · 正在显示上次成功读取的数据。"}
+          {data && " · Showing the last successfully loaded data."}
           <button disabled={loading} onClick={() => refreshRef.current()}>
-            重试
+            Retry
           </button>
         </div>
       )}
       <section
         className="dashboard-stats"
-        aria-label="工作空间统计"
+        aria-label="Workspace statistics"
         hidden={view !== "overview"}
       >
         {stats.map(({ label, value, icon: Icon, note }) => (
@@ -352,20 +354,20 @@ export default function Dashboard({
       </section>
       {view !== "overview" && (
         <label className="dashboard-project-filter">
-          按项目查看
+          Filter by project
           <select
-            aria-label="筛选项目"
+            aria-label="Filter projects"
             value={projectId ?? ""}
             onChange={(event) => onProject(event.target.value || undefined)}
           >
-            <option value="">全部项目</option>
+            <option value="">All projects</option>
             {projectId &&
               !projects.some((project) => project.id === projectId) && (
-                <option value={projectId}>当前项目</option>
+                <option value={projectId}>Current project</option>
               )}
             {projects.map((project) => (
               <option key={project.id} value={project.id}>
-                {project.title ?? "未命名项目"}
+                {project.title ?? "Untitled project"}
               </option>
             ))}
           </select>
@@ -376,14 +378,14 @@ export default function Dashboard({
           <section className="dashboard-panel" hidden={view !== "overview"}>
             <div className="dashboard-section-heading">
               <div>
-                <h2>最近项目</h2>
-                <p>按项目查看相关任务与结果。</p>
+                <h2>Recent projects</h2>
+                <p>View tasks and results by project.</p>
               </div>
               <label className="dashboard-search">
                 <Search size={15} />
                 <input
-                  aria-label="搜索项目"
-                  placeholder="搜索项目"
+                  aria-label="Search projects"
+                  placeholder="Search projects"
                   value={query}
                   onChange={(event) => {
                     setQuery(event.target.value);
@@ -409,16 +411,16 @@ export default function Dashboard({
                       <FolderOpen size={20} />
                     </span>
                     <span className="dashboard-project-title">
-                      <strong>{project.title ?? "未命名项目"}</strong>
+                      <strong>{project.title ?? "Untitled project"}</strong>
                       <small>
                         {date(project.updatedAt ?? project.createdAt)} ·{" "}
-                        {projectJobs.length} 个任务
+                        {projectJobs.length} tasks
                       </small>
                     </span>
                     {recent ? (
                       <Badge status={recent.status} />
                     ) : (
-                      <span className="dashboard-muted">尚无任务</span>
+                      <span className="dashboard-muted">No tasks yet</span>
                     )}
                     <ArrowUpRight size={16} />
                   </button>
@@ -428,14 +430,14 @@ export default function Dashboard({
             {!filteredProjects.length && (
               <div className="dashboard-empty">
                 {loading && !data
-                  ? "正在读取项目…"
+                  ? "Loading projects…"
                   : !connected
-                    ? "连接后显示项目"
+                    ? "Connect to see projects"
                     : error && !data
-                      ? "暂时无法读取项目，请重试。"
+                      ? "Could not load projects. Please try again."
                       : query
-                        ? "没有找到匹配的项目。"
-                        : "还没有项目。在 Agent 对话中开始你的第一条视频。"}
+                        ? "No matching projects."
+                        : "No projects yet. Start your first video with your agent."}
               </div>
             )}
             {filteredProjects.length > projectLimit && (
@@ -443,24 +445,24 @@ export default function Dashboard({
                 className="dashboard-more"
                 onClick={() => setProjectLimit((n) => n + 12)}
               >
-                查看更多项目
+                Show more projects
               </button>
             )}
           </section>
           <section className="dashboard-panel">
             <div className="dashboard-section-heading">
               <div>
-                <h2>任务记录</h2>
-                <p>生成、分析和合成的本地记录。</p>
+                <h2>Tasks</h2>
+                <p>Local generation, analysis, and rendering history.</p>
               </div>
-              <span className="dashboard-muted">{jobs.length} 个任务</span>
+              <span className="dashboard-muted">{jobs.length} tasks</span>
             </div>
-            <div className="dashboard-filters" aria-label="任务状态">
+            <div className="dashboard-filters" aria-label="Task status">
               {[
-                ["all", "全部"],
-                ["active", "进行中"],
-                ["attention", "需要关注"],
-                ["completed", "已完成"],
+                ["all", "All"],
+                ["active", "In progress"],
+                ["attention", "Needs attention"],
+                ["completed", "Completed"],
               ].map(([id, title]) => (
                 <button
                   key={id}
@@ -495,10 +497,10 @@ export default function Dashboard({
                       </span>
                       <div>
                         <strong>
-                          {taskNames[job.input?.kind] ?? "媒体任务"}
+                          {taskNames[job.input?.kind] ?? "Media task"}
                         </strong>
                         <small>
-                          {project?.title ?? "独立任务"}
+                          {project?.title ?? "Standalone task"}
                           {job.input?.model ? ` · ${job.input.model}` : ""}
                         </small>
                       </div>
@@ -508,7 +510,7 @@ export default function Dashboard({
                       <span>{date(job.createdAt)}</span>
                       {project && (
                         <button onClick={() => onProject(project.id)}>
-                          查看项目任务
+                          View project tasks
                           <ArrowUpRight size={13} />
                         </button>
                       )}
@@ -517,13 +519,13 @@ export default function Dashboard({
                           key={asset.id}
                           onClick={() => setPreview(asset)}
                         >
-                          查看输出{media.length > 1 ? ` ${index + 1}` : ""}
+                          View output{media.length > 1 ? ` ${index + 1}` : ""}
                         </button>
                       ))}
                     </div>
                     {job.error?.message && (
                       <details className="dashboard-task-error">
-                        <summary>查看错误详情</summary>
+                        <summary>View error details</summary>
                         <p>{job.error.message}</p>
                       </details>
                     )}
@@ -534,10 +536,10 @@ export default function Dashboard({
             {!filteredJobs.length && (
               <div className="dashboard-empty">
                 {loading && !data
-                  ? "正在读取任务…"
+                  ? "Loading tasks…"
                   : error && !data
-                    ? "暂时无法读取任务，请重试。"
-                    : "当前没有此类任务。"}
+                    ? "Could not load tasks. Please try again."
+                    : "No matching tasks."}
               </div>
             )}
             {filteredJobs.length > taskLimit && (
@@ -545,7 +547,7 @@ export default function Dashboard({
                 className="dashboard-more"
                 onClick={() => setTaskLimit((n) => n + 16)}
               >
-                查看更多任务
+                Show more tasks
               </button>
             )}
           </section>
@@ -553,26 +555,26 @@ export default function Dashboard({
         <aside className="dashboard-side-column" hidden={view !== "overview"}>
           <section className="dashboard-panel dashboard-service">
             <span className="dashboard-eyebrow">CONNECTION</span>
-            <h2>工作空间状态</h2>
+            <h2>Workspace status</h2>
             <dl>
               <div>
-                <dt>本地服务</dt>
+                <dt>Local service</dt>
                 <dd>
                   <i className={connected ? "online" : ""} />
-                  {connected ? "已连接" : "未连接"}
+                  {connected ? "Connected" : "Disconnected"}
                 </dd>
               </div>
               <div>
-                <dt>模型服务</dt>
-                <dd>{data ? `${available} 个可用模型` : "—"}</dd>
+                <dt>Model services</dt>
+                <dd>{data ? `${available} models available` : "—"}</dd>
               </div>
               <div>
-                <dt>调用方式</dt>
+                <dt>Service type</dt>
                 <dd>
                   {data
                     ? data.capabilities.generation.mode === "official"
-                      ? "官方服务"
-                      : "自定义服务"
+                      ? "Official service"
+                      : "Custom service"
                     : "—"}
                 </dd>
               </div>
@@ -583,16 +585,16 @@ export default function Dashboard({
               </p>
             )}
             <button disabled={!connected} onClick={onCredits}>
-              查看积分与用量
+              View credits and usage
               <ArrowUpRight size={15} />
             </button>
           </section>
           <section className="dashboard-agent-note">
             <span className="dashboard-eyebrow">MADE WITH YOUR AGENT</span>
-            <h2>创作在宿主 Agent 中完成</h2>
+            <h2>Create with your agent</h2>
             <p>
-              在你常用的 Agent
-              中描述视频、附上参考素材。任务和输出会保存在同一个工作空间。
+              Describe your video and attach references in your agent. Tasks and
+              outputs will be saved in the same workspace.
             </p>
             <div>
               <span>Codex</span>
@@ -608,11 +610,11 @@ export default function Dashboard({
       >
         <div className="dashboard-section-heading">
           <div>
-            <h2>{view === "results" ? "所有输出" : "最近输出"}</h2>
-            <p>查看图片、视频和音频，下载需要的结果。</p>
+            <h2>{view === "results" ? "All outputs" : "Recent outputs"}</h2>
+            <p>Preview and download your images, videos, and audio.</p>
           </div>
           <button disabled={!connected} onClick={onLibrary}>
-            全部素材
+            All media
             <ArrowUpRight size={15} />
           </button>
         </div>
@@ -628,10 +630,10 @@ export default function Dashboard({
         {!outputs.length && (
           <div className="dashboard-empty">
             {loading && !data
-              ? "正在读取输出…"
+              ? "Loading outputs…"
               : error && !data
-                ? "暂时无法读取输出，请重试。"
-                : "任务产出图片、视频或音频后，会显示在这里。"}
+                ? "Could not load outputs. Please try again."
+                : "Images, videos, and audio created by tasks will appear here."}
           </div>
         )}
         {outputs.length > mediaLimit && (
@@ -639,18 +641,18 @@ export default function Dashboard({
             className="dashboard-more"
             onClick={() => setMediaLimit((n) => n + 8)}
           >
-            查看更多输出
+            Show more outputs
           </button>
         )}
       </section>
       <footer className="dashboard-footer">
-        <span>rikoko MCP · 本地工作空间</span>
+        <span>rikoko MCP · Local workspace</span>
         <span>
           {updated
-            ? `上次读取 ${updated} · 每 10 秒刷新本地记录`
+            ? `Last updated ${updated} · Refreshes every 10 seconds`
             : loading
-              ? "正在读取工作空间…"
-              : "等待连接"}
+              ? "Loading workspace…"
+              : "Waiting for connection"}
         </span>
       </footer>
       {preview && (

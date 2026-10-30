@@ -42,6 +42,7 @@ export function createApp(
     allowedHosts?: string[];
     studioDir?: string;
     instanceId?: string;
+    localWorkspaceKey?: () => Promise<string>;
   } = {},
 ) {
   const app = new Hono<{ Variables: { principal: Context } }>();
@@ -119,6 +120,33 @@ export function createApp(
         403,
       );
   };
+  app.post("/auth/local-session", async (c) => {
+    // This capability is only installed by the loopback-only local server.
+    // Also reject proxy origins and arbitrary Host names (DNS rebinding).
+    const url = new URL(c.req.url);
+    if (
+      !options.localWorkspaceKey ||
+      process.env.PUBLIC_BASE_URL ||
+      !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
+    )
+      return c.notFound();
+    sameOrigin(c);
+    const principal = await service.authenticate(
+      (await options.localWorkspaceKey()).trim(),
+    );
+    const token = await service.browserSession(principal);
+    const old = getCookie(c, sessionName);
+    if (old) await service.revokeSession(old);
+    setCookie(c, sessionName, token, {
+      httpOnly: true,
+      sameSite: "Strict",
+      secure: url.protocol === "https:",
+      path: "/",
+      maxAge: 86400,
+    });
+    c.header("Cache-Control", "no-store");
+    return c.json({ connected: true });
+  });
   app.post("/auth/session", async (c) => {
     sameOrigin(c);
     const auth = c.req.header("authorization") ?? "";

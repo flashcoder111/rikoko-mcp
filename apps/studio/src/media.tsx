@@ -12,7 +12,7 @@ export function useAssetUrl(id?: string) {
       signal: abort.signal,
     })
       .then(async (r) => {
-        if (!r.ok) throw Error("素材加载失败，请重新连接或刷新。");
+        if (!r.ok) throw Error("Could not load media. Reconnect or refresh.");
         return r.blob();
       })
       .then((blob) => {
@@ -46,14 +46,14 @@ export function AssetThumb({ asset }: { asset?: Entity }) {
       }}
     />
   ) : url ? (
-    <img className="asset-thumb" src={url} alt={asset?.name ?? "图片素材"} />
+    <img className="asset-thumb" src={url} alt={asset?.name ?? "Image asset"} />
   ) : (
     <span className="asset-thumb asset-type">
       {asset?.kind === "video"
-        ? "视频"
+        ? "Video"
         : asset?.kind === "audio"
-          ? "音频"
-          : "文字"}
+          ? "Audio"
+          : "Text"}
     </span>
   );
 }
@@ -81,10 +81,10 @@ export function VideoPreview({
   return (
     <div className={`result-preview ${compact ? "compact" : ""}`}>
       {url && kind === "image" ? (
-        <img className="generated-image" src={url} alt="生成的图片" />
+        <img className="generated-image" src={url} alt="Generated image" />
       ) : url && kind === "audio" ? (
         <div className="generated-audio">
-          <span>音频已生成</span>
+          <span>Audio generated</span>
           <audio controls src={url} preload="metadata" />
         </div>
       ) : url ? (
@@ -103,18 +103,20 @@ export function VideoPreview({
             {error ||
               (job
                 ? (statusLabels[job.status] ?? job.status)
-                : "预览会显示在这里")}
+                : "Your preview will appear here")}
           </strong>
           <p>
             {job?.error?.message ??
               (active
-                ? "任务在后台继续，可以切换模式或稍后回来。"
-                : "制作与修改后的成片，保存在同一份作品里。")}
+                ? "Your task continues in the background. You can switch views or return later."
+                : "Your generated and edited output stays with the same project.")}
           </p>
-          {active && onCancel && <button onClick={onCancel}>取消任务</button>}
+          {active && onCancel && (
+            <button onClick={onCancel}>Cancel task</button>
+          )}
           {job &&
             ["failed", "cancelled", "blocked_external"].includes(job.status) &&
-            onRetry && <button onClick={onRetry}>重新合成</button>}
+            onRetry && <button onClick={onRetry}>Render again</button>}
         </div>
       )}
     </div>

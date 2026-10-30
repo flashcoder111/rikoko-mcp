@@ -11,6 +11,55 @@ type Catalog = {
   configured: boolean;
   syncedAt?: string | null;
 };
+const builtinEnglish: Record<string, { title: string; description: string }> = {
+  "rikoko-starter-product": {
+    title: "Product highlights",
+    description:
+      "Introduce a product, show its benefits, and invite viewers to take action.",
+  },
+  "rikoko-starter-store": {
+    title: "New at your store",
+    description:
+      "Showcase a new arrival with store photos, featured products, and visit details.",
+  },
+  "rikoko-starter-tutorial": {
+    title: "Three-step tutorial",
+    description:
+      "Explain a topic in three steps for guides, tips, or product introductions.",
+  },
+  "rikoko-starter-list": {
+    title: "Three-point list",
+    description:
+      "Present ideas, recommendations, or reminders in a clear list.",
+  },
+  "rikoko-starter-event": {
+    title: "Event invitation",
+    description: "Present the theme, highlights, time, and place of an event.",
+  },
+  "rikoko-starter-brand": {
+    title: "Brand introduction",
+    description: "Introduce your brand and its value across three scenes.",
+  },
+  "rikoko-starter-software": {
+    title: "Software feature introduction",
+    description:
+      "Show a use case, demonstrate a feature, and invite viewers to try it.",
+  },
+  "rikoko-starter-before-after": {
+    title: "Before and after",
+    description:
+      "Show the starting point, the transformation, and what changed.",
+  },
+  "rikoko-starter-testimonial": {
+    title: "Customer testimonial",
+    description:
+      "Present genuine customer feedback with its context and source.",
+  },
+};
+const displayTemplate = (template: LibraryTemplate | LibraryPrompt) =>
+  template.sourceKind === "builtin" && builtinEnglish[template.id]
+    ? builtinEnglish[template.id]
+    : { title: template.title, description: template.description };
 export default function TemplateInventory({
   connected,
   onConnect,
@@ -66,7 +115,13 @@ export default function TemplateInventory({
         (scope === "personal"
           ? t.sourceKind === "personal"
           : t.sourceKind !== "personal")) &&
-      [t.title, t.description, ...(t.searchTerms ?? [])]
+      [
+        t.title,
+        t.description,
+        displayTemplate(t).title,
+        displayTemplate(t).description,
+        ...(t.searchTerms ?? []),
+      ]
         .join(" ")
         .toLowerCase()
         .includes(query.toLowerCase()),
@@ -75,56 +130,57 @@ export default function TemplateInventory({
   return (
     <main className="dashboard template-inventory">
       <span className="dashboard-eyebrow">RIKOKO / TEMPLATES</span>
-      <h1>模板库</h1>
+      <h1>Templates</h1>
       <p>
-        管理官方与个人模板，在 Agent 对话中检索复用。官方更新不会覆盖你的修改。
+        Manage official and personal templates for reuse in your agent. Official
+        updates do not overwrite your changes.
       </p>
       {!connected ? (
         <div className="dashboard-callout">
-          <p>连接工作空间后管理模板。</p>
-          <button onClick={onConnect}>连接工作空间</button>
+          <p>Connect your workspace to manage templates.</p>
+          <button onClick={onConnect}>Connect workspace</button>
         </div>
       ) : (
         <>
           <div className="dashboard-filters">
             <input
-              aria-label="搜索模板"
-              placeholder="搜索名称或用途"
+              aria-label="Search templates"
+              placeholder="Search names or descriptions"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
             <select
-              aria-label="模板来源"
+              aria-label="Template source"
               value={scope}
               onChange={(e) => setScope(e.target.value)}
             >
-              <option value="all">全部模板</option>
-              <option value="personal">我的模板</option>
-              <option value="official">官方模板</option>
+              <option value="all">All templates</option>
+              <option value="personal">My templates</option>
+              <option value="official">Official templates</option>
             </select>
             <button disabled={busy} onClick={() => void refresh()}>
-              刷新列表
+              Refresh list
             </button>
             {catalog?.configured && (
               <button disabled={busy} onClick={() => void refresh(true)}>
-                更新官方模板
+                Update official templates
               </button>
             )}
           </div>
           {error && <p role="alert">{error}</p>}
           <section className="dashboard-panel">
-            <h2>从作品保存</h2>
+            <h2>Save from a project</h2>
             <label>
-              选择已保存版本
+              Select a saved version
               <select
-                aria-label="选择作品版本"
+                aria-label="Select a project version"
                 value={revisionId}
                 onChange={(e) => setRevisionId(e.target.value)}
               >
-                <option value="">选择作品版本</option>
+                <option value="">Select a project version</option>
                 {revisions.map((r) => (
                   <option key={r.id} value={r.id}>
-                    {r.composition?.title ?? "作品"} · v{r.version ?? 1}
+                    {r.composition?.title ?? "Project"} · v{r.version ?? 1}
                   </option>
                 ))}
               </select>
@@ -139,7 +195,10 @@ export default function TemplateInventory({
               />
             )}
             {!revisions.length && (
-              <p>在 Agent 对话中完成作品后，可在这里保存为个人模板。</p>
+              <p>
+                After creating a project with your agent, save it here as a
+                personal template.
+              </p>
             )}
           </section>
           <div className="template-inventory-grid">
@@ -150,31 +209,32 @@ export default function TemplateInventory({
               >
                 <small>
                   {t.sourceKind === "personal"
-                    ? "我的模板"
+                    ? "My templates"
                     : t.sourceKind === "cloud"
-                      ? "官方云端"
-                      : "官方内置"}{" "}
-                  · {"kind" in t ? "提示词" : "成片编排"} · v{t.version}
+                      ? "Official cloud"
+                      : "Built-in"}{" "}
+                  · {"kind" in t ? "Prompt" : "Composition"} · v{t.version}
                 </small>
-                <h2>{t.title}</h2>
-                <p>{t.description}</p>
+                <h2>{displayTemplate(t).title}</h2>
+                <p>{displayTemplate(t).description}</p>
                 {t.updateAvailable && (
                   <p className="template-update">
-                    来源有 v{t.updateAvailable.version}{" "}
-                    更新。你的版本保持不变，可让 Agent 比较后按需调整。
+                    Source version v{t.updateAvailable.version} is available.
+                    Your version remains unchanged; ask your agent to compare
+                    them.
                   </p>
                 )}
                 <details>
-                  <summary>查看内容与复用方式</summary>
+                  <summary>View content and reuse instructions</summary>
                   <p>
-                    在 Agent 中说：使用「{t.title}」模板，结合我的新需求制作。
+                    Ask your agent: Use template “{t.id}” for my new project.
                   </p>
                   {"text" in t ? (
                     <pre>{t.text}</pre>
                   ) : (
                     <ol>
                       {t.composition.scenes.map((s) => (
-                        <li key={s.id}>{s.text || "画面镜头"}</li>
+                        <li key={s.id}>{s.text || "Scene"}</li>
                       ))}
                     </ol>
                   )}
@@ -182,11 +242,12 @@ export default function TemplateInventory({
               </article>
             ))}
           </div>
-          {!catalog && !error && <p role="status">正在读取模板…</p>}
-          {catalog && !items.length && <p>没有匹配的模板。</p>}
+          {!catalog && !error && <p role="status">Loading templates…</p>}
+          {catalog && !items.length && <p>No matching templates.</p>}
           {catalog?.syncedAt && (
             <p>
-              官方目录最近更新：{new Date(catalog.syncedAt).toLocaleString()}
+              Official catalog last updated:{" "}
+              {new Date(catalog.syncedAt).toLocaleString()}
             </p>
           )}
         </>

@@ -4,6 +4,7 @@ import {
   referenceContentSchema,
   referenceReportSchema,
   type ReferenceOperation,
+  type ReferenceReport,
 } from "../../contracts/src/reference-analysis.js";
 import type { Model, ReferenceSettings } from "../../providers/src/index.js";
 
@@ -99,4 +100,57 @@ export function bindReferenceReport(
       "Analysis has invalid source times, shot order or evidence references",
     );
   }
+}
+
+/** Map the same media's measured endpoint between FFprobe builds. */
+export function normalizeAnalysisDuration(
+  report: ReferenceReport,
+  localAssetId: string,
+  localDurationMs: number,
+  explicitRange = false,
+) {
+  const remoteDurationMs = report.source.durationMs;
+  const fullEndpoint = (value: number) =>
+    value === remoteDurationMs ? localDurationMs : value;
+  const endpoint = (value: number) =>
+    explicitRange ? value : fullEndpoint(value);
+  const interval = <T extends { startMs: number; endMs: number }>(item: T) => ({
+    ...item,
+    startMs: endpoint(item.startMs),
+    endMs: endpoint(item.endMs),
+  });
+  const mapped = {
+    ...report,
+    source: {
+      ...report.source,
+      assetId: localAssetId,
+      durationMs: localDurationMs,
+    },
+    coverage: {
+      ...interval(report.coverage),
+      submittedRange: report.coverage.submittedRange
+        ? report.coverage.rangeControl === "prompt"
+          ? {
+              ...report.coverage.submittedRange,
+              endMs: fullEndpoint(report.coverage.submittedRange.endMs),
+            }
+          : interval(report.coverage.submittedRange)
+        : undefined,
+      gaps: report.coverage.gaps.map(interval),
+    },
+    shots: report.shots.map(interval),
+    events: report.events.map(interval),
+    narrativeBeats: report.narrativeBeats.map(interval),
+    speech: report.speech.map(interval),
+    evidence: report.evidence.map(interval),
+    unknowns: report.unknowns.map(interval),
+  };
+  const result = referenceReportSchema.safeParse(mapped);
+  if (!result.success)
+    throw new AppError(
+      "SOURCE_MISMATCH",
+      "Analysis intervals cannot be safely mapped to the local source duration",
+      409,
+    );
+  return result.data;
 }

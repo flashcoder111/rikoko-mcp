@@ -9,6 +9,7 @@ import "@fontsource/ibm-plex-sans/600.css";
 import "./replica.css";
 import "./dashboard.css";
 import "./management.css";
+import "./project-table.css";
 
 // Existing token-based shared previews stay read-only. All account routes use
 // the management dashboard; creation remains in the host Agent through MCP.

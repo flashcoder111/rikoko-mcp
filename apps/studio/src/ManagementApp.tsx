@@ -15,9 +15,17 @@ import Dashboard from "./Dashboard";
 import AssetLibrary from "./AssetLibrary";
 import Credits from "./Credits";
 import UpdateNotice from "./UpdateNotice";
+import ProjectTable from "./ProjectTable";
+import Recharge from "./Recharge";
 
 export type ManagementView =
-  "overview" | "tasks" | "library" | "results" | "credits" | "templates";
+  | "overview"
+  | "tasks"
+  | "library"
+  | "results"
+  | "credits"
+  | "recharge"
+  | "templates";
 export function managementRoute(url = new URL(location.href)): {
   view: ManagementView;
   projectId?: string;
@@ -28,22 +36,25 @@ export function managementRoute(url = new URL(location.href)): {
       ? "templates"
       : url.pathname === "/library"
         ? "library"
-        : ["/credits", "/plans", "/tools"].includes(url.pathname)
-          ? "credits"
-          : url.pathname === "/results"
-            ? "results"
-            : url.pathname === "/tasks" || projectId
-              ? "tasks"
-              : "overview";
+        : url.pathname === "/recharge"
+          ? "recharge"
+          : ["/credits", "/plans", "/tools"].includes(url.pathname)
+            ? "credits"
+            : url.pathname === "/results"
+              ? "results"
+              : url.pathname === "/tasks" || projectId
+                ? "tasks"
+                : "overview";
   return { view, projectId };
 }
 const links = [
-  { id: "overview", label: "概览", path: "/", icon: LayoutDashboard },
-  { id: "tasks", label: "任务记录", path: "/tasks", icon: ListChecks },
-  { id: "library", label: "素材库", path: "/library", icon: FolderOpen },
-  { id: "templates", label: "模板库", path: "/templates", icon: FolderOpen },
-  { id: "results", label: "结果下载", path: "/results", icon: Download },
-  { id: "credits", label: "积分与用量", path: "/credits", icon: Coins },
+  { id: "overview", label: "Projects", path: "/", icon: LayoutDashboard },
+  { id: "tasks", label: "Projects", path: "/tasks", icon: ListChecks },
+  { id: "library", label: "Media library", path: "/library", icon: FolderOpen },
+  { id: "templates", label: "Templates", path: "/templates", icon: FolderOpen },
+  { id: "results", label: "Downloads", path: "/results", icon: Download },
+  { id: "credits", label: "Credits & usage", path: "/credits", icon: Coins },
+  { id: "recharge", label: "Add credits", path: "/recharge", icon: Coins },
 ] as const;
 
 export default function ManagementApp() {
@@ -68,11 +79,39 @@ export default function ManagementApp() {
     setKeyDraft("");
     setNotice("");
   }, []);
+  const autoConnect = useCallback(async (requestEpoch: number) => {
+    const response = await fetch("/auth/local-session", { method: "POST" });
+    if (response.status === 404) return false;
+    if (!response.ok)
+      throw Error(
+        "Automatic connection failed. Make sure the local service is running and try again.",
+      );
+    if (requestEpoch === epoch.current) {
+      setConnected(true);
+      setConnectOpen(false);
+      setError("");
+    }
+    return true;
+  }, []);
+  const requestConnect = useCallback(() => {
+    const requestEpoch = epoch.current;
+    setChecking(true);
+    void autoConnect(requestEpoch)
+      .then((automatic) => {
+        if (!automatic && requestEpoch === epoch.current) setConnectOpen(true);
+      })
+      .catch((err) => {
+        if (requestEpoch === epoch.current) setError(err.message);
+      })
+      .finally(() => {
+        if (requestEpoch === epoch.current) setChecking(false);
+      });
+  }, [autoConnect]);
   useEffect(() => {
     let active = true;
     const expired = () => {
       clear();
-      setConnectOpen(true);
+      requestConnect();
     };
     const pop = () => {
       setRoute(managementRoute());
@@ -83,10 +122,14 @@ export default function ManagementApp() {
     const initialEpoch = epoch.current;
     void fetch("/auth/session")
       .then(async (response) => {
-        if (!response.ok) throw Error("无法读取连接状态，请重新连接。");
-        const session = await response.json();
-        if (active && initialEpoch === epoch.current)
-          setConnected(session.connected === true);
+        if (!response.ok && response.status !== 401)
+          throw Error("Could not check the connection. Please reconnect.");
+        const session = response.ok
+          ? await response.json()
+          : { connected: false };
+        if (!active || initialEpoch !== epoch.current) return;
+        if (session.connected === true) setConnected(true);
+        else await autoConnect(initialEpoch);
       })
       .catch((err) => {
         if (active) setError(err.message);
@@ -100,7 +143,7 @@ export default function ManagementApp() {
       window.removeEventListener("session-expired", expired);
       window.removeEventListener("popstate", pop);
     };
-  }, [clear]);
+  }, [clear, autoConnect, requestConnect]);
   function navigate(view: ManagementView, projectId?: string) {
     const path = links.find((link) => link.id === view)!.path;
     history.pushState(
@@ -131,20 +174,26 @@ export default function ManagementApp() {
     try {
       await action();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "操作失败，请重试。");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Something went wrong. Please try again.",
+      );
     } finally {
       pending.current = false;
       setBusy("");
     }
   }
   async function connect() {
-    await run("正在连接…", async () => {
+    await run("Connecting…", async () => {
       const response = await fetch("/auth/session", {
         method: "POST",
         headers: { Authorization: `Bearer ${keyDraft.trim()}` },
       });
       if (!response.ok)
-        throw Error((await response.json()).error?.message ?? "连接失败");
+        throw Error(
+          (await response.json()).error?.message ?? "Connection failed",
+        );
       epoch.current++;
       setKeyDraft("");
       setConnected(true);
@@ -153,14 +202,14 @@ export default function ManagementApp() {
   }
   function requestUpload(selected: FileList) {
     if (!connected) {
-      setConnectOpen(true);
+      requestConnect();
       return;
     }
     if (
       selected.length > 14 ||
       Array.from(selected).some((file) => file.size > 100 * 1024 * 1024)
     ) {
-      setError("一次最多上传 14 份素材，单个文件不能超过 100 MB。");
+      setError("Upload up to 14 files at a time, each no larger than 100 MB.");
       return;
     }
     setFiles(Array.from(selected));
@@ -168,7 +217,7 @@ export default function ManagementApp() {
   async function upload() {
     const selected = files;
     setFiles([]);
-    await run("正在上传素材…", async () => {
+    await run("Uploading files…", async () => {
       const requestEpoch = epoch.current;
       try {
         for (const file of selected) {
@@ -195,10 +244,12 @@ export default function ManagementApp() {
           if (response.status === 401)
             window.dispatchEvent(new Event("session-expired"));
           if (!response.ok)
-            throw Error((await response.json()).error?.message ?? "上传失败");
+            throw Error(
+              (await response.json()).error?.message ?? "Upload failed",
+            );
         }
         if (requestEpoch === epoch.current)
-          setNotice(`已上传 ${selected.length} 份素材。`);
+          setNotice(`Uploaded ${selected.length} files.`);
       } finally {
         if (requestEpoch === epoch.current) await loadAssets();
       }
@@ -217,23 +268,36 @@ export default function ManagementApp() {
         >
           <span>R</span>rikoko
         </a>
-        <span className="management-header-label">本地工作空间</span>
+        <span className="management-header-label">Local workspace</span>
         <button
           className="management-menu"
-          aria-label="切换导航"
+          aria-label="Toggle navigation"
           aria-expanded={menu}
           onClick={() => setMenu(!menu)}
         >
           <Menu size={20} />
         </button>
         <div className="management-connection">
-          <span>{checking ? "连接中…" : connected ? "已连接" : "未连接"}</span>
+          <span>
+            {checking
+              ? "Connecting…"
+              : connected
+                ? "Connected"
+                : "Disconnected"}
+          </span>
+          <a
+            href="/recharge"
+            className="management-recharge"
+            onClick={(event) => {
+              event.preventDefault();
+              navigate("recharge");
+            }}
+          >
+            Add credits
+          </a>
           {!connected && (
-            <button
-              disabled={checking || !!busy}
-              onClick={() => setConnectOpen(true)}
-            >
-              连接工作空间
+            <button disabled={checking || !!busy} onClick={requestConnect}>
+              Connect workspace
             </button>
           )}
         </div>
@@ -241,55 +305,58 @@ export default function ManagementApp() {
       <div className="management-body">
         <aside className={`management-sidebar ${menu ? "is-open" : ""}`}>
           <span className="dashboard-eyebrow">MY WORKSPACE</span>
-          <nav aria-label="工作空间导航">
-            {links.map(({ id, path, label, icon: Icon }) => (
-              <a
-                key={id}
-                href={path}
-                aria-current={route.view === id ? "page" : undefined}
-                onClick={(event) => {
-                  event.preventDefault();
-                  navigate(id);
-                }}
-              >
-                <Icon size={18} />
-                {label}
-              </a>
-            ))}
+          <nav aria-label="Workspace navigation">
+            {links
+              .filter(({ id }) => id !== "tasks")
+              .map(({ id, path, label, icon: Icon }) => (
+                <a
+                  key={id}
+                  href={path}
+                  aria-current={
+                    route.view === id ||
+                    (id === "overview" && route.view === "tasks")
+                      ? "page"
+                      : undefined
+                  }
+                  onClick={(event) => {
+                    event.preventDefault();
+                    navigate(id);
+                  }}
+                >
+                  <Icon size={18} />
+                  {label}
+                </a>
+              ))}
           </nav>
           <div className="management-sidebar-bottom">
-            <p>
-              在宿主 Agent 中创作，
-              <br />
-              在这里管理素材和结果。
-            </p>
+            {connected && <UpdateNotice key={epoch.current} />}
             {connected && (
               <button
                 disabled={!!busy}
                 onClick={() =>
-                  void run("正在断开…", async () => {
+                  void run("Disconnecting…", async () => {
                     const response = await fetch("/auth/session", {
                       method: "DELETE",
                     });
-                    if (!response.ok) throw Error("断开失败，请重试。");
+                    if (!response.ok)
+                      throw Error("Could not disconnect. Please try again.");
                     clear();
                   })
                 }
               >
                 <LogOut size={15} />
-                断开连接
+                Disconnect
               </button>
             )}
           </div>
         </aside>
         <div className="management-content">
-          {connected && <UpdateNotice key={epoch.current} />}
           {(busy || error || notice) && (
             <div className="management-feedback">
               {error && (
                 <p role="alert">
                   {error}
-                  <button onClick={() => setError("")}>关闭</button>
+                  <button onClick={() => setError("")}>Close</button>
                 </p>
               )}
               {busy && <p role="status">{busy}</p>}
@@ -300,19 +367,22 @@ export default function ManagementApp() {
             <TemplateInventory
               key={`templates-${connected}`}
               connected={connected}
-              onConnect={() => setConnectOpen(true)}
+              onConnect={requestConnect}
             />
+          ) : route.view === "recharge" ? (
+            <Recharge onCredits={() => navigate("credits")} />
           ) : route.view === "credits" ? (
             <Credits
               key={`credits-${connected}`}
               connected={connected}
-              onConnect={() => setConnectOpen(true)}
+              onConnect={requestConnect}
+              onRecharge={() => navigate("recharge")}
             />
           ) : route.view === "library" ? (
             connected ? (
               <AssetLibrary
                 key={epoch.current}
-                title="素材库"
+                title="Media library"
                 assets={assets}
                 onRefresh={loadAssets}
                 onUpload={requestUpload}
@@ -322,26 +392,34 @@ export default function ManagementApp() {
                 <span className="dashboard-eyebrow">
                   RIKOKO / MEDIA LIBRARY
                 </span>
-                <h1>素材库</h1>
+                <h1>Media library</h1>
                 <div className="dashboard-callout">
-                  <p>连接工作空间后上传、整理和下载素材。</p>
-                  <button onClick={() => setConnectOpen(true)}>
-                    连接工作空间
-                  </button>
+                  <p>
+                    Connect your workspace to upload, organize, and download
+                    media.
+                  </p>
+                  <button onClick={requestConnect}>Connect workspace</button>
                 </div>
               </main>
             )
-          ) : (
+          ) : route.view === "results" ? (
             <Dashboard
               connected={connected}
               view={route.view}
               projectId={route.projectId}
-              onConnect={() => setConnectOpen(true)}
+              onConnect={requestConnect}
               onProject={(id) =>
                 navigate(route.view === "results" ? "results" : "tasks", id)
               }
               onLibrary={() => navigate("library")}
               onCredits={() => navigate("credits")}
+            />
+          ) : (
+            <ProjectTable
+              connected={connected}
+              projectId={route.projectId}
+              onProject={(id) => navigate("tasks", id)}
+              onConnect={requestConnect}
             />
           )}
         </div>
@@ -359,10 +437,12 @@ export default function ManagementApp() {
             }}
           >
             <span className="eyebrow">CONNECT WORKSPACE</span>
-            <h2 id="connect-title">连接工作空间</h2>
-            <p>使用工作空间 Key 查看任务、素材和账户用量。</p>
+            <h2 id="connect-title">Connect workspace</h2>
+            <p>
+              Use your workspace key to access tasks, media, and account usage.
+            </p>
             <label>
-              工作空间 API Key
+              Workspace API key
               <input
                 type="password"
                 autoComplete="off"
@@ -372,11 +452,13 @@ export default function ManagementApp() {
                 onChange={(event) => setKeyDraft(event.target.value)}
               />
             </label>
-            <p className="field-note">本地 Key 位于 .data/local-admin.key。</p>
+            <p className="field-note">
+              Your local key is stored in .data/local-admin.key.
+            </p>
             {error && <p role="alert">{error}</p>}
             <div className="action-row">
               <button className="primary" disabled={!!busy}>
-                连接
+                Connect
               </button>
               <button
                 type="button"
@@ -386,7 +468,7 @@ export default function ManagementApp() {
                   setKeyDraft("");
                 }}
               >
-                取消
+                Cancel
               </button>
             </div>
           </form>
@@ -400,8 +482,11 @@ export default function ManagementApp() {
             aria-modal="true"
             aria-labelledby="upload-title"
           >
-            <h2 id="upload-title">上传 {files.length} 份素材</h2>
-            <p>请确认你有权使用这些图片、视频或音频。</p>
+            <h2 id="upload-title">Upload {files.length} files</h2>
+            <p>
+              Confirm that you have permission to use these images, videos, or
+              audio files.
+            </p>
             <ul>
               {files.map((file, index) => (
                 <li key={index}>{file.name}</li>
@@ -409,9 +494,9 @@ export default function ManagementApp() {
             </ul>
             <div className="action-row">
               <button className="primary" onClick={() => void upload()}>
-                我有使用权限，上传
+                I have permission to use these files
               </button>
-              <button onClick={() => setFiles([])}>取消</button>
+              <button onClick={() => setFiles([])}>Cancel</button>
             </div>
           </section>
         </div>

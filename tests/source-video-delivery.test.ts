@@ -150,6 +150,8 @@ it("keeps both product bytes and source clip through cloud declaration, binding 
           min: 1,
           max: 1,
           maxBytes: 10000,
+          minFps: 24,
+          maxFps: 60,
         },
       ],
     },
@@ -173,7 +175,7 @@ it("keeps both product bytes and source clip through cloud declaration, binding 
           metadata: {
             width: 432,
             height: 768,
-            ...(i ? { durationMs: 3700 } : {}),
+            ...(i ? { durationMs: 3700, fps: 24 } : {}),
           },
           provenance: { evidence: "test-fixture" },
         }),
@@ -219,6 +221,7 @@ it("keeps both product bytes and source clip through cloud declaration, binding 
       },
     );
     const compiled = previews.video;
+    expect(referenceDeclaration(assets[1]).metadata.fps).toBe(24);
     const draft = await prepareCloudGeneration(service, c, {
       protocol: cloudPreparationProtocol,
       request: {
@@ -265,6 +268,21 @@ it("keeps both product bytes and source clip through cloud declaration, binding 
       sourceAssetId: direction.references[i].assetId,
       assetId: asset.id,
     }));
+    await db.transaction(async (tx) => {
+      await tx.put({
+        ...assets[1],
+        metadata: { ...assets[1].metadata, fps: 30 },
+      });
+    });
+    await expect(
+      bindCloudPreparation(service, c, draft.id, {
+        requestHash: draft.requestHash,
+        references: mappings,
+      }),
+    ).rejects.toMatchObject({ code: "PREPARED_REFERENCE_CHANGED" });
+    await db.transaction(async (tx) => {
+      await tx.put(assets[1]);
+    });
     await expect(
       bindCloudPreparation(service, c, draft.id, {
         requestHash: draft.requestHash,
@@ -275,6 +293,29 @@ it("keeps both product bytes and source clip through cloud declaration, binding 
       requestHash: draft.requestHash,
       references: mappings,
     });
+    const legacyModel: any = structuredClone(model);
+    legacyModel.id = "legacy-reference-video";
+    delete legacyModel.generationInput.bindings[1].minFps;
+    delete legacyModel.generationInput.bindings[1].maxFps;
+    provider.models.push(legacyModel);
+    const legacyInput: any = { ...draft.input, model: legacyModel.id };
+    delete legacyInput.preparedRequestId;
+    const legacyDeclarations = assets.map((asset) => referenceDeclaration(asset));
+    delete legacyDeclarations[1].metadata.fps;
+    const legacyDraft = await prepareCloudGeneration(service, c, {
+      protocol: cloudPreparationProtocol,
+      request: {
+        plan: { planId: saved.id, expectedVersion: 1, shotId: "lift" },
+        input: legacyInput,
+        direction: compiled.direction,
+      },
+      references: legacyDeclarations,
+    });
+    const legacyBound = await bindCloudPreparation(service, c, legacyDraft.id, {
+      requestHash: legacyDraft.requestHash,
+      references: mappings,
+    });
+    expect(legacyBound.input.references).toEqual(bound.input.references);
     const manifest = referenceDelivery(bound);
     expect(manifest).toMatchObject({
       stage: "prepared_not_submitted",

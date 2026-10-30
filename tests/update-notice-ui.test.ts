@@ -44,19 +44,19 @@ it("checks on mount, safely renders notes, copies the fixed short-link command a
   const copy = vi.spyOn(navigator.clipboard, "writeText").mockResolvedValue();
   await act(async () => root.render(React.createElement(UpdateNotice)));
   expect(api).toHaveBeenCalledWith("update_check", { force: false });
-  expect(container.textContent).toContain("发现新版本 0.1.31");
+  expect(container.textContent).toContain("Update available: 0.1.31");
   expect(container.textContent).toContain("--dir");
   expect(container.querySelector("script")).toBeNull();
   await act(async () =>
     [...container.querySelectorAll("button")]
-      .find((b) => b.textContent === "复制升级命令")!
+      .find((b) => b.textContent === "Copy upgrade command")!
       .click(),
   );
   expect(copy).toHaveBeenCalledWith(UPDATE_COMMAND);
-  expect(container.textContent).toContain("已复制升级命令");
+  expect(container.textContent).toContain("Upgrade command copied");
   await act(async () =>
     [...container.querySelectorAll("button")]
-      .find((b) => b.textContent === "检查更新")!
+      .find((b) => b.textContent === "Check for updates")!
       .click(),
   );
   expect(api).toHaveBeenLastCalledWith("update_check", { force: true });
@@ -69,17 +69,17 @@ it.each(["unavailable", "up_to_date", "ahead"] as const)(
     expect(container.querySelector("code")).toBeNull();
     const text =
       status === "unavailable"
-        ? "暂时无法检查更新"
+        ? "Update check unavailable"
         : status === "ahead"
-          ? "当前版本高于公开正式版"
-          : "已是最新正式版";
+          ? "Current version is newer than the public release"
+          : "Up to date";
     expect(container.textContent).toContain(text);
   },
 );
 it("shows a service failure and provides clipboard fallback", async () => {
   vi.mocked(api).mockRejectedValueOnce(Error("offline"));
   await act(async () => root.render(React.createElement(UpdateNotice)));
-  expect(container.textContent).toContain("暂时无法检查更新");
+  expect(container.textContent).toContain("Update check unavailable");
   vi.mocked(api).mockResolvedValue(result());
   await act(async () => container.querySelector("button")!.click());
   vi.spyOn(navigator.clipboard, "writeText").mockRejectedValue(
@@ -87,10 +87,12 @@ it("shows a service failure and provides clipboard fallback", async () => {
   );
   await act(async () =>
     [...container.querySelectorAll("button")]
-      .find((b) => b.textContent === "复制升级命令")!
+      .find((b) => b.textContent === "Copy upgrade command")!
       .click(),
   );
-  expect(container.textContent).toContain("请选中下方命令复制");
+  expect(container.textContent).toContain(
+    "Select the command below to copy it",
+  );
 });
 it("polls every six hours and stops when disconnected/unmounted", async () => {
   vi.useFakeTimers();

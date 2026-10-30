@@ -551,6 +551,58 @@ describe("one project across chat, studio and MCP", () => {
 });
 
 describe("browser sessions", () => {
+  it("automatically connects only an explicitly enabled local workspace with same-origin requests", async () => {
+    const local = createApp(service, { localWorkspaceKey: async () => key });
+    const url = "http://localhost/auth/local-session";
+    expect(
+      (
+        await app.request(url, {
+          method: "POST",
+          headers: { Host: "localhost", Origin: "http://localhost" },
+        })
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await local.request(url, {
+          method: "POST",
+          headers: { Host: "localhost" },
+        })
+      ).status,
+    ).toBe(403);
+    expect(
+      (
+        await local.request(url, {
+          method: "POST",
+          headers: { Host: "localhost", Origin: "http://evil.example" },
+        })
+      ).status,
+    ).toBe(403);
+    const login = await local.request(url, {
+      method: "POST",
+      headers: { Host: "localhost", Origin: "http://localhost" },
+    });
+    expect(login.status).toBe(200);
+    const cookie = login.headers.get("set-cookie")!;
+    expect(cookie).toContain("HttpOnly");
+    expect(cookie).toContain("SameSite=Strict");
+    expect(
+      await (
+        await local.request("http://localhost/auth/session", {
+          headers: { Host: "localhost", Cookie: cookie.split(";")[0] },
+        })
+      ).json(),
+    ).toEqual({ connected: true });
+    vi.stubEnv("PUBLIC_BASE_URL", "https://video.example.test");
+    expect(
+      (
+        await local.request(url, {
+          method: "POST",
+          headers: { Host: "localhost", Origin: "http://localhost" },
+        })
+      ).status,
+    ).toBe(404);
+  });
   it("supports an explicitly configured HTTPS proxy origin and expires logout sessions", async () => {
     vi.stubEnv("PUBLIC_BASE_URL", "https://video.example.test");
     const proxied = createApp(service, {

@@ -403,25 +403,44 @@ it("cloud verifies actual analysis jobs, uploads the source and invalidates stal
         provenance: { evidence: "fixture-upload" },
       },
     );
+    const remoteReport = structuredClone(f.report);
+    remoteReport.source = {
+      ...remoteReport.source,
+      assetId: uploaded.id,
+      durationMs: f.report.source.durationMs + 1,
+    };
+    remoteReport.coverage.endMs += 1;
+    for (const item of [
+      ...remoteReport.shots,
+      ...remoteReport.narrativeBeats,
+      ...remoteReport.evidence,
+    ]) {
+      if (item.endMs === f.report.source.durationMs) item.endMs += 1;
+    }
+    const cloudAnalysisJob = {
+      id: f.report.provenance.jobId,
+      type: "job",
+      accountId: rc.accountId,
+      createdAt: new Date().toISOString(),
+      status: "completed",
+      input: {
+        kind: "reference_analyze",
+        assetId: uploaded.id,
+        model: f.report.provenance.model,
+      },
+      analysis: remoteReport,
+      outputs: [],
+    };
     await rdb.transaction((tx) =>
       tx.put({
-        id: f.report.provenance.jobId,
-        type: "job",
-        accountId: rc.accountId,
-        createdAt: new Date().toISOString(),
-        status: "completed",
-        input: {
-          kind: "reference_analyze",
-          assetId: uploaded.id,
-          model: f.report.provenance.model,
-        },
-        analysis: {
-          ...f.report,
-          source: { ...f.report.source, assetId: uploaded.id },
-        },
-        outputs: [],
+        ...cloudAnalysisJob,
+        analysis: { ...remoteReport, summary: "altered evidence" },
       }),
     );
+    await expect(prepareCloudGeneration(remote, rc, raw)).rejects.toMatchObject(
+      { code: "ANALYSIS_PROVENANCE_REQUIRED" },
+    );
+    await rdb.transaction((tx) => tx.put(cloudAnalysisJob));
     const draft: any = await prepareCloudGeneration(remote, rc, raw);
     const bound: any = await bindCloudPreparation(remote, rc, draft.id, {
       requestHash: draft.requestHash,

@@ -48,38 +48,43 @@ export default function UpdateNotice() {
   async function copy() {
     try {
       await navigator.clipboard.writeText(UPDATE_COMMAND);
-      if (active.current) setCopyStatus("已复制升级命令");
+      if (active.current) setCopyStatus("Upgrade command copied");
     } catch {
-      if (active.current) setCopyStatus("无法自动复制，请选中下方命令复制。");
+      if (active.current)
+        setCopyStatus(
+          "Could not copy automatically. Select the command below to copy it.",
+        );
     }
   }
   const available = result?.status === "update_available";
   const message =
     error || result?.status === "unavailable"
-      ? "暂时无法检查更新，不影响继续使用。"
+      ? "Update check unavailable. You can continue using rikoko."
       : result?.status === "up_to_date"
-        ? "已是最新正式版"
+        ? "Up to date"
         : result?.status === "ahead"
-          ? `当前版本高于公开正式版 ${result.latestVersion}`
+          ? `Current version is newer than the public release ${result.latestVersion}`
           : available
-            ? `发现新版本 ${result.latestVersion}`
-            : "正在检查更新…";
+            ? `Update available: ${result.latestVersion}`
+            : "Checking for updates…";
   return (
     <section
       className={`rikoko-updates${available ? " has-update" : ""}`}
-      aria-label="软件更新"
+      aria-label="Software updates"
     >
       <div className="rikoko-updates-summary">
         <p role="status">
           {result && <span>rikoko {result.currentVersion} · </span>}
-          {busy ? "正在检查更新…" : message}
+          {busy ? "Checking for updates…" : message}
         </p>
         <button disabled={busy} onClick={() => void check(true)}>
-          检查更新
+          Check for updates
         </button>
       </div>
       {result?.checkedAt && (
-        <small>上次检查：{new Date(result.checkedAt).toLocaleString()}</small>
+        <small>
+          Last checked: {new Date(result.checkedAt).toLocaleString()}
+        </small>
       )}
       {available && (
         <div className="rikoko-update-details">
@@ -87,13 +92,14 @@ export default function UpdateNotice() {
             <p className="rikoko-release-notes">{result.releaseNotes}</p>
           )}
           <p>
-            通过安装命令安装的本地版本：等待任务结束，关闭 MCP
-            客户端，再在终端运行以下命令。自定义安装目录需保留原来的
-            --dir；完成后重新连接 MCP。源码或远程部署请由维护者更新。
+            For command-line installations, wait for tasks to finish and close
+            your MCP client before running the command below. Keep your original
+            --dir for custom installations, then reconnect MCP. Source and
+            remote deployments should be updated by their maintainer.
           </p>
           <code>{UPDATE_COMMAND}</code>
           <div>
-            <button onClick={() => void copy()}>复制升级命令</button>
+            <button onClick={() => void copy()}>Copy upgrade command</button>
             <span role="status">{copyStatus}</span>
           </div>
         </div>

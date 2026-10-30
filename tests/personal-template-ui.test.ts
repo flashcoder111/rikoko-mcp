@@ -46,7 +46,7 @@ it("saves an owned revision through the editor and retains the idempotency key o
       revisionId: "rev-1",
       title: "Coffee ritual",
     });
-    expect(el.textContent).toContain("Agent 可以检索复用");
+    expect(el.textContent).toContain("Your agent can find and reuse it");
     expect(el.querySelector("form")).toBeNull();
   } finally {
     await act(async () => root.unmount());

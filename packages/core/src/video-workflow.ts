@@ -10,6 +10,7 @@ import type { Transaction } from "../../db/src/index.js";
 import { fingerprint, type Service } from "./index.js";
 import { referenceEvidence } from "./reference-handoff.js";
 import { referenceReportSchema } from "../../contracts/src/reference-analysis.js";
+import { normalizeAnalysisDuration } from "./reference-report.js";
 
 export const videoRequestLinkSchema = z
   .object({ requestId: idSchema, expectedVersion: z.number().int().positive() })
@@ -160,17 +161,33 @@ export async function bindVideoWorkflow(
         }
         if (report.provenance.evidence === "provider-live-assembled") continue;
         const job = await tx.get(report.provenance.jobId, c.accountId, "job");
-        const normalized = (r: any) => ({
-          ...r,
-          source: { ...r.source, assetId: "source" },
-        });
+        let verifiedAnalysis;
+        if (job?.analysis && job.input?.kind === "reference_analyze") {
+          const original = referenceReportSchema.safeParse(job.analysis);
+          if (
+            original.success &&
+            Math.abs(
+              original.data.source.durationMs - report.source.durationMs,
+            ) <= 1
+          ) {
+            try {
+              verifiedAnalysis = normalizeAnalysisDuration(
+                original.data,
+                report.source.assetId,
+                report.source.durationMs,
+                Boolean(job.input.range),
+              );
+            } catch {
+              // Malformed or unrepresentable intervals cannot establish provenance.
+            }
+          }
+        }
         if (
           !job ||
           job.status !== "completed" ||
           job.input?.kind !== "reference_analyze" ||
-          !job.analysis ||
-          fingerprint(normalized(job.analysis)) !==
-            fingerprint(normalized(report))
+          !verifiedAnalysis ||
+          fingerprint(verifiedAnalysis) !== fingerprint(report)
         )
           stop(
             "ANALYSIS_PROVENANCE_REQUIRED",

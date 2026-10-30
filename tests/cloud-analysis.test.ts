@@ -10,6 +10,7 @@ import { callTool } from "../packages/mcp/src/tools.js";
 import { bindReferenceReport } from "../packages/core/src/reference-report.js";
 import { Worker } from "../apps/worker/src/worker.js";
 import { referenceAnalysisProtocol } from "../packages/contracts/src/reference-analysis.js";
+import { normalizeAnalysisDuration } from "../packages/core/src/reference-report.js";
 
 it("routes official analysis, remaps a source-bound report, caches it and rejects source drift", async () => {
   const dir = await mkdtemp(join(tmpdir(), "official-analysis-")),
@@ -154,6 +155,57 @@ it("routes official analysis, remaps a source-bound report, caches it and reject
         upstreamModel: "gemini-fixture",
       },
     );
+    const originalReport = structuredClone(report);
+    for (const mutate of [
+      (r: any) => {
+        r.source.sha256 = "0".repeat(64);
+      },
+      (r: any) => {
+        r.source.assetId = "different-source";
+      },
+      (r: any) => {
+        r.source.hasAudio = true;
+      },
+      (r: any) => {
+        r.source.durationMs += 2;
+      },
+    ]) {
+      report = structuredClone(originalReport);
+      mutate(report);
+      await expect(
+        callTool(service, c, "record_get", { type: "job", id: job.id }),
+      ).rejects.toMatchObject({ code: "SOURCE_MISMATCH" });
+    }
+    report = structuredClone(originalReport);
+    report.source.durationMs = 2001;
+    report.coverage.endMs = 2001;
+    report.coverage.submittedRange.endMs = 2001;
+    report.shots[0].endMs = 2001;
+    report.evidence[0].endMs = 2001;
+    const shorterRemote = structuredClone(originalReport);
+    shorterRemote.source.durationMs = 1999;
+    shorterRemote.coverage.endMs = 1999;
+    shorterRemote.coverage.submittedRange.endMs = 1999;
+    shorterRemote.shots[0].endMs = 1999;
+    shorterRemote.evidence[0].endMs = 1999;
+    expect(
+      normalizeAnalysisDuration(shorterRemote, source.id, 2000),
+    ).toMatchObject({
+      source: { durationMs: 2000 },
+      coverage: { endMs: 2000 },
+    });
+    expect(
+      normalizeAnalysisDuration(shorterRemote, source.id, 2000, true),
+    ).toMatchObject({
+      source: { durationMs: 2000 },
+      coverage: { endMs: 1999, submittedRange: { endMs: 2000 } },
+      shots: [{ endMs: 1999 }],
+    });
+    const unsafeBoundary = structuredClone(report);
+    unsafeBoundary.evidence[0].startMs = 2000;
+    expect(() =>
+      normalizeAnalysisDuration(unsafeBoundary, source.id, 2000),
+    ).toThrow("cannot be safely mapped");
     const done = await callTool(service, c, "record_get", {
       type: "job",
       id: job.id,
@@ -165,6 +217,14 @@ it("routes official analysis, remaps a source-bound report, caches it and reject
     });
     expect(read.source.assetId).toBe(source.id);
     expect(read.source.sha256).toBe(source.sha256);
+    expect(read.source.durationMs).toBe(2000);
+    expect(read.coverage.endMs).toBe(2000);
+    expect(read.shots[0].endMs).toBe(2000);
+    expect(read.evidence[0].endMs).toBe(2000);
+    expect(
+      (await service.get(c, "asset", done.outputs[0])).metadata
+        .providerDurationMs,
+    ).toBe(2001);
     expect(
       await callTool(service, c, "reference_analyze", input),
     ).toMatchObject({ status: "cached", analysisAssetId: done.outputs[0] });

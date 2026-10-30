@@ -65,6 +65,14 @@ try {
       process.env.ALLOWED_HOSTS ?? "localhost,127.0.0.1,[::1]"
     ).split(","),
     instanceId: process.env.VIDEOWORKBENCH_INSTANCE_ID,
+    ...(!process.env.DATABASE_URL &&
+    !process.env.PUBLIC_BASE_URL &&
+    ["127.0.0.1", "localhost", "::1"].includes(process.env.HOST ?? "127.0.0.1")
+      ? {
+          localWorkspaceKey: () =>
+            readFile(resolve(runtime!.dataDir, "local-admin.key"), "utf8"),
+        }
+      : {}),
   });
   worker = process.env.DATABASE_URL ? undefined : new Worker(runtime.service);
   running = worker?.loop();

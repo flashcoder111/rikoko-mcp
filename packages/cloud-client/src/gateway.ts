@@ -1,6 +1,7 @@
 import { assertVideoPolicy } from "../../providers/src/video-policy.js";
 import { remapVideoPolicy } from "../../contracts/src/video-policy.js";
 import { requireGeminiUnderstanding } from "../../core/src/reference-handoff.js";
+import { normalizeAnalysisDuration } from "../../core/src/reference-report.js";
 import { randomUUID } from "node:crypto";
 import { Service, fingerprint } from "../../core/src/index.js";
 import { sha256 } from "../../storage/src/index.js";
@@ -463,7 +464,18 @@ export class GatewayClient {
     });
   }
   private async upload(c: Context, asset: Entity): Promise<string> {
-    const id = `cloud-ref-${fingerprint([c.accountId, this.origin, sha256(this.credentialIdentity()), asset.id, asset.sha256, asset.bytes])}`;
+    const key = [
+      c.accountId,
+      this.origin,
+      sha256(this.credentialIdentity()),
+      asset.id,
+      asset.sha256,
+      asset.bytes,
+    ];
+    // Re-upload videos once after FPS verification was added to media attestation.
+    if (asset.kind === "video" && asset.metadata?.fps > 0)
+      key.push(`verified-fps-v1:${asset.metadata.fps}`);
+    const id = `cloud-ref-${fingerprint(key)}`;
     const cached = await this.service.scoped(c, "read", (tx) =>
       tx.get(id, c.accountId, "cloud-reference"),
     );
@@ -695,7 +707,10 @@ export class GatewayClient {
               if (
                 report.source.assetId !== local.remoteInput?.assetId ||
                 report.source.sha256 !== source.sha256 ||
-                report.source.durationMs !== source.metadata?.durationMs ||
+                !Number.isSafeInteger(source.metadata?.durationMs) ||
+                Math.abs(
+                  report.source.durationMs - source.metadata.durationMs,
+                ) > 1 ||
                 report.source.hasAudio !== (source.metadata?.hasAudio === true)
               )
                 throw new AppError(
@@ -711,17 +726,19 @@ export class GatewayClient {
                 report.provenance.model !== local.input.model ||
                 report.coverage.startMs !== (local.input.range?.startMs ?? 0) ||
                 report.coverage.endMs !==
-                  (local.input.range?.endMs ?? source.metadata.durationMs)
+                  (local.input.range?.endMs ?? report.source.durationMs)
               )
                 throw new AppError(
                   "ANALYSIS_PROFILE_MISMATCH",
                   "Official analysis does not match the requested detail, focus, model or range",
                   409,
                 );
-              const mapped = referenceReportSchema.parse({
-                ...report,
-                source: { ...report.source, assetId: source.id },
-              });
+              const mapped = normalizeAnalysisDuration(
+                report,
+                source.id,
+                source.metadata.durationMs,
+                Boolean(local.input.range),
+              );
               return this.service.registerAsset(
                 c.accountId,
                 Buffer.from(JSON.stringify(mapped)),
@@ -729,7 +746,7 @@ export class GatewayClient {
                   name,
                   kind: "analysis",
                   mime: "application/json",
-                  metadata: {},
+                  metadata: { providerDurationMs: report.source.durationMs },
                   provenance: {
                     source: "official-analysis",
                     evidence: "provider-live",

@@ -37,6 +37,7 @@ const metadataSchema = z
     width: z.number().int().positive().optional(),
     height: z.number().int().positive().optional(),
     durationMs: z.number().int().positive().optional(),
+    fps: z.number().finite().positive().max(1000).optional(),
     hasAudio: z.boolean().optional(),
     container: z.string().max(30).optional(),
   })
@@ -61,6 +62,7 @@ export function referenceDeclaration(asset: Entity) {
     Object.entries(asset.metadata ?? {}).filter(
       ([key, value]) =>
         value != null &&
+        (key !== "fps" || (typeof value === "number" && value > 0)) &&
         Object.hasOwn(metadataSchema.shape, key) &&
         (asset.kind !== "image" || ["width", "height"].includes(key)),
     ),
@@ -153,11 +155,15 @@ export async function bindCloudPreparation(
       const mapping = data.references[i],
         declared = saved.references[i];
       const asset = await tx.get(mapping.assetId, c.accountId, "asset");
+      const actual = asset?.storageKey ? referenceDeclaration(asset) : undefined;
+      // Older frozen drafts did not carry fps; keep their fingerprints stable.
+      if (actual && declared.metadata.fps === undefined)
+        delete actual.metadata.fps;
       if (
         mapping.sourceAssetId !== declared.assetId ||
         !asset?.storageKey ||
         fingerprint({
-          ...referenceDeclaration(asset),
+          ...actual,
           id: declared.assetId,
         }) !==
           fingerprint({

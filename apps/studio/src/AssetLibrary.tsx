@@ -10,6 +10,39 @@ import { api } from "./api";
 import { AssetThumb } from "./media";
 import "./templates.css";
 
+const categoryLabels: Record<string, string> = {
+  全部: "All categories",
+  未分类: "Uncategorized",
+  人物: "People",
+  商品: "Products",
+  场景: "Scenes",
+  背景: "Backgrounds",
+  品牌: "Brand",
+  配乐: "Music",
+  音效: "Sound effects",
+  成片: "Final videos",
+};
+const categoryLabel = (value: string) => categoryLabels[value] ?? value;
+const starterNames: Record<string, string> = {
+  "starter-product-stage": "Cream product stage",
+  "starter-coffee-corner": "Coffee illustration",
+  "starter-paper-notes": "Paper and notes",
+  "starter-ranking-blocks": "Blue steps",
+  "starter-event-sunset": "Sunset arch",
+  "starter-brand-orbit": "Green geometric illustration",
+  "starter-software-overview": "Software overview",
+  "starter-software-focus": "Feature walkthrough",
+  "starter-software-ready": "Finished result",
+  "starter-change-before": "Before organizing",
+  "starter-change-after": "After organizing",
+  "starter-change-summary": "Organization comparison",
+  "starter-feedback-intro": "Feedback scene",
+  "starter-feedback-quote": "Testimonial card",
+  "starter-feedback-source": "Testimonial source",
+};
+const starterName = (id: string, fallback: string) =>
+  starterNames[id] ?? fallback;
+
 export default function AssetLibrary({
   assets,
   onRefresh,
@@ -77,24 +110,34 @@ export default function AssetLibrary({
     (a) =>
       ["image", "video", "audio"].includes(a.kind) &&
       (kind === "all" || a.kind === kind) &&
-      matchesAsset(a, query, category, tab === "favorites"),
+      (matchesAsset(a, query, category, tab === "favorites") ||
+        (!!query.trim() &&
+          matchesAsset(a, "", category, tab === "favorites") &&
+          categoryLabel(assetCategory(a))
+            .toLowerCase()
+            .includes(query.trim().toLowerCase()))),
   );
   const bundled = starterAssets.filter(
     (a) =>
       (kind === "all" || kind === "image") &&
       (category === "全部" || a.category === category) &&
-      [a.name, ...a.tags].join(" ").includes(query.trim()),
+      [a.name, starterName(a.id, a.name), categoryLabel(a.category), ...a.tags]
+        .join(" ")
+        .toLowerCase()
+        .includes(query.trim().toLowerCase()),
   );
   return (
-    <section className="asset-catalog" aria-label="素材库">
+    <section className="asset-catalog" aria-label="Media library">
       <div className="template-heading">
         <div>
           <span className="eyebrow">YOUR MEDIA</span>
-          <h1>{title ?? (onPick ? "选择可复用素材" : "素材库")}</h1>
-          <p>把满意的画面留在这里，下次直接使用。</p>
+          <h1>
+            {title ?? (onPick ? "Choose reusable media" : "Media library")}
+          </h1>
+          <p>Keep your favorite media here for your next project.</p>
         </div>
         <label className="library-upload">
-          上传素材
+          Upload media
           <input
             type="file"
             accept="image/*,video/*,audio/*"
@@ -107,11 +150,11 @@ export default function AssetLibrary({
           />
         </label>
       </div>
-      <div className="library-tabs" aria-label="素材来源">
+      <div className="library-tabs" aria-label="Media source">
         {[
-          ["mine", "我的素材"],
-          ["favorites", "已收藏"],
-          ["builtin", "内置插画"],
+          ["mine", "My media"],
+          ["favorites", "Favorited"],
+          ["builtin", "Built-in illustrations"],
         ].map(([id, label]) => (
           <button key={id} aria-pressed={tab === id} onClick={() => setTab(id)}>
             {label}
@@ -120,29 +163,31 @@ export default function AssetLibrary({
       </div>
       <div className="library-filters">
         <input
-          aria-label="搜索素材名称或标签"
-          placeholder="搜索名称或标签"
+          aria-label="Search media names or tags"
+          placeholder="Search names or tags"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
         <select
-          aria-label="素材用途"
+          aria-label="Category"
           value={category}
           onChange={(e) => setCategory(e.target.value)}
         >
           {["全部", ...assetCategories].map((c) => (
-            <option key={c}>{c}</option>
+            <option key={c} value={c}>
+              {categoryLabel(c)}
+            </option>
           ))}
         </select>
         <select
-          aria-label="媒体类型"
+          aria-label="Media type"
           value={kind}
           onChange={(e) => setKind(e.target.value)}
         >
-          <option value="all">所有类型</option>
-          <option value="image">图片</option>
-          <option value="video">视频</option>
-          <option value="audio">音频</option>
+          <option value="all">All types</option>
+          <option value="image">Images</option>
+          <option value="video">Videos</option>
+          <option value="audio">Audio</option>
         </select>
       </div>
       {error && (
@@ -152,8 +197,8 @@ export default function AssetLibrary({
       )}
       {tab === "builtin" && (
         <p className="library-note">
-          6
-          张原创图形插画，已随应用提供，可直接使用。商品与门店的真实照片请上传到“我的素材”。
+          {starterAssets.length} built-in illustrations are ready to use. Upload
+          your own product or store photos to My media.
         </p>
       )}
       <div className="asset-catalog-grid">
@@ -163,13 +208,11 @@ export default function AssetLibrary({
                 <img
                   className="catalog-thumb"
                   src={`/api/starter-assets/${a.id}/file`}
-                  alt={a.name}
+                  alt={starterName(a.id, a.name)}
                   loading="lazy"
                 />
-                <strong>{a.name}</strong>
-                <small>
-                  {a.category} · {a.tags.join(" / ")}
-                </small>
+                <strong>{starterName(a.id, a.name)}</strong>
+                <small>{categoryLabel(a.category)}</small>
                 <button
                   disabled={busy}
                   onClick={() =>
@@ -183,7 +226,7 @@ export default function AssetLibrary({
                     })
                   }
                 >
-                  {onPick ? "使用这张插画" : "加入我的素材"}
+                  {onPick ? "Use illustration" : "Add to my media"}
                 </button>
               </article>
             ))
@@ -192,7 +235,7 @@ export default function AssetLibrary({
                 <AssetThumb asset={a} />
                 <strong>{a.name}</strong>
                 <small>
-                  {assetCategory(a)}
+                  {categoryLabel(assetCategory(a))}
                   {a.library?.tags?.length
                     ? ` · ${a.library.tags.join(" / ")}`
                     : ""}
@@ -200,18 +243,18 @@ export default function AssetLibrary({
                 <div className="catalog-actions">
                   {onPick && (
                     <button disabled={busy} onClick={() => onPick(a)}>
-                      使用素材
+                      Use media
                     </button>
                   )}
                   <button
                     disabled={busy}
-                    aria-label={`${a.library?.favorite ? "取消收藏" : "收藏"} ${a.name}`}
+                    aria-label={`${a.library?.favorite ? "Remove from favorites" : "Favorite"} ${a.name}`}
                     aria-pressed={!!a.library?.favorite}
                     onClick={() =>
                       void run(() => save(a, !a.library?.favorite))
                     }
                   >
-                    {a.library?.favorite ? "已收藏" : "收藏"}
+                    {a.library?.favorite ? "Favorited" : "Favorite"}
                   </button>
                   <button
                     disabled={busy}
@@ -222,20 +265,20 @@ export default function AssetLibrary({
                       setTags((a.library?.tags ?? []).join(", "));
                     }}
                   >
-                    整理
+                    Organize
                   </button>
                   <a
                     href={`/api/assets/${encodeURIComponent(a.id)}/file`}
                     download={a.name ?? `rikoko-${a.id}`}
                   >
-                    下载
+                    Download
                   </a>
                   <a
                     href={`/api/assets/${encodeURIComponent(a.id)}/file`}
                     target="_blank"
                     rel="noreferrer"
                   >
-                    查看
+                    View
                   </a>
                 </div>
               </article>
@@ -243,17 +286,17 @@ export default function AssetLibrary({
       </div>
       {tab !== "builtin" && media.length > visibleCount && (
         <button onClick={() => setVisibleCount((count) => count + 24)}>
-          显示更多素材（还有 {media.length - visibleCount} 份）
+          Show more media ({media.length - visibleCount} remaining)
         </button>
       )}
       {!(tab === "builtin" ? bundled.length : media.length) && (
         <div className="panel-empty">
           <p>
             {query || category !== "全部" || kind !== "all"
-              ? "没有匹配的素材，试试其他分类或关键词。"
+              ? "No matching media. Try a different category or search."
               : tab === "favorites"
-                ? "收藏常用素材，下次更容易找到。"
-                : "上传已有图片、视频和音频，或从内置插画开始。"}
+                ? "Favorite media to find it more easily next time."
+                : "Upload images, videos, or audio, or start with a built-in illustration."}
           </p>
           {tab !== "builtin" && (
             <button
@@ -264,7 +307,7 @@ export default function AssetLibrary({
                 setKind("all");
               }}
             >
-              浏览内置插画
+              Browse illustrations
             </button>
           )}
         </div>
@@ -277,9 +320,9 @@ export default function AssetLibrary({
             void run(() => save(editing, !!editing.library?.favorite, true));
           }}
         >
-          <h2>整理素材</h2>
+          <h2>Organize media</h2>
           <label>
-            名称
+            Name
             <input
               required
               maxLength={120}
@@ -288,30 +331,32 @@ export default function AssetLibrary({
             />
           </label>
           <label>
-            用途
+            Category
             <select
-              aria-label="整理素材用途"
+              aria-label="Media category"
               value={editCategory}
               onChange={(e) => setEditCategory(e.target.value)}
             >
               {assetCategories.map((c) => (
-                <option key={c}>{c}</option>
+                <option key={c} value={c}>
+                  {categoryLabel(c)}
+                </option>
               ))}
             </select>
           </label>
           <label>
-            标签（用逗号分隔，最多 12 个）
+            Tags (comma-separated, up to 12)
             <input value={tags} onChange={(e) => setTags(e.target.value)} />
           </label>
           <button disabled={busy} type="submit">
-            保存分类
+            Save changes
           </button>
           <button
             type="button"
             disabled={busy}
             onClick={() => setEditing(undefined)}
           >
-            取消
+            Cancel
           </button>
         </form>
       )}

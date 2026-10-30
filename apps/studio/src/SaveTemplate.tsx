@@ -32,7 +32,7 @@ export default function SaveTemplate({
         idempotencyKey: attempt.current.key,
       });
       setMessage(
-        "已保存到我的模板，Agent 可以检索复用。官方更新不会覆盖此模板。",
+        "Saved to My templates. Your agent can find and reuse it; official updates will not overwrite it.",
       );
       setOpen(false);
       onSaved?.();
@@ -53,12 +53,12 @@ export default function SaveTemplate({
           setMessage("");
         }}
       >
-        保存为我的模板
+        Save as personal template
       </button>
       {open && (
-        <form aria-label="保存个人模板" onSubmit={save}>
+        <form aria-label="Save personal template" onSubmit={save}>
           <label>
-            模板名称
+            Template name
             <input
               required
               maxLength={160}
@@ -67,20 +67,22 @@ export default function SaveTemplate({
             />
           </label>
           <label>
-            用途描述
+            Description
             <textarea
               maxLength={2000}
-              placeholder="说明适合什么场景，方便 Agent 检索"
+              placeholder="Describe when to use it, so your agent can find it"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
           </label>
-          <p>保存当前已保存版本及素材引用，仅当前账户可用。</p>
+          <p>
+            Save this version and its asset references for your account only.
+          </p>
           <button disabled={disabled || busy || !name.trim()}>
-            {busy ? "正在保存…" : "保存模板"}
+            {busy ? "Saving…" : "Save template"}
           </button>
           <button type="button" disabled={busy} onClick={() => setOpen(false)}>
-            取消
+            Cancel
           </button>
         </form>
       )}

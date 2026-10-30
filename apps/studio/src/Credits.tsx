@@ -25,7 +25,7 @@ const numeric = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value);
 const credits = (value: unknown) =>
   numeric(value)
-    ? value.toLocaleString("zh-CN", { maximumFractionDigits: 2 })
+    ? value.toLocaleString("en-US", { maximumFractionDigits: 2 })
     : "—";
 const money = (value: unknown) =>
   numeric(value) ? `US$${(value / 100).toFixed(2)}` : "—";
@@ -33,9 +33,11 @@ const money = (value: unknown) =>
 export default function Credits({
   connected,
   onConnect,
+  onRecharge,
 }: {
   connected: boolean;
   onConnect: () => void;
+  onRecharge?: () => void;
 }) {
   const [usage, setUsage] = useState<CreditUsage>();
   const [loading, setLoading] = useState(false),
@@ -54,7 +56,9 @@ export default function Credits({
         })
         .catch((err) => {
           if (active)
-            setError(err instanceof Error ? err.message : "积分暂时无法读取");
+            setError(
+              err instanceof Error ? err.message : "Could not load credits",
+            );
         })
         .finally(() => {
           if (active) setLoading(false);
@@ -66,40 +70,48 @@ export default function Credits({
   const official = usage?.mode === "official";
   const hasCredits = official && numeric(usage.availableCredits);
   return (
-    <main className="dashboard credits-page" aria-label="积分与用量">
+    <main className="dashboard credits-page" aria-label="Credits & usage">
       <div className="dashboard-heading">
         <div>
           <span className="dashboard-eyebrow">RIKOKO / MY CREDITS</span>
-          <h1>积分与用量</h1>
-          <p>查看当前连接账户的余额和调用记录。</p>
+          <h1>Credits & usage</h1>
+          <p>View the connected account balance and usage history.</p>
         </div>
-        <button
-          disabled={loading}
-          onClick={() => (connected ? setRevision((n) => n + 1) : onConnect())}
-        >
-          <RefreshCw size={15} />
-          {connected ? "刷新余额" : "连接工作空间"}
-        </button>
+        <div className="dashboard-actions">
+          {onRecharge && <button onClick={onRecharge}>Add credits</button>}
+          <button
+            disabled={loading}
+            onClick={() =>
+              connected ? setRevision((n) => n + 1) : onConnect()
+            }
+          >
+            <RefreshCw size={15} />
+            {connected ? "Refresh balance" : "Connect workspace"}
+          </button>
+        </div>
       </div>
       {!connected && (
         <div className="dashboard-callout">
           <Coins size={22} />
-          <p>连接工作空间后查看自己的积分与用量。</p>
+          <p>Connect your workspace to view your balance and usage.</p>
         </div>
       )}
-      {loading && <p role="status">正在读取账户余额…</p>}
+      {loading && <p role="status">Loading account balance…</p>}
       {error && (
         <div className="dashboard-error" role="alert">
           {error}
-          <button onClick={() => setRevision((n) => n + 1)}>重试</button>
+          <button onClick={() => setRevision((n) => n + 1)}>Retry</button>
         </div>
       )}
       {usage?.mode === "custom" && (
         <div className="dashboard-callout">
           <Coins size={22} />
           <div>
-            <strong>当前使用自有模型服务</strong>
-            <p>余额与费用由对应供应商管理，这里不显示为 rikoko 官方积分。</p>
+            <strong>Using your own model provider</strong>
+            <p>
+              Your provider manages its own balance and charges, which are not
+              shown as rikoko credits.
+            </p>
           </div>
         </div>
       )}
@@ -107,34 +119,34 @@ export default function Credits({
         <>
           {!hasCredits && (
             <p className="credits-note">
-              当前服务仅返回美元额度，尚未提供积分余额。
+              This service returns a USD allowance, but no credit balance.
             </p>
           )}
           <section
             className="dashboard-stats credits-stats"
-            aria-label="账户余额"
+            aria-label="Account balance"
           >
             {[
               {
-                label: hasCredits ? "可用积分" : "可用额度",
+                label: hasCredits ? "Available credits" : "Available allowance",
                 value: hasCredits
                   ? credits(usage.availableCredits)
                   : money(usage.availableCents),
-                note: "可用于新的模型调用",
+                note: "Available for new model requests",
               },
               {
-                label: hasCredits ? "预留积分" : "预留额度",
+                label: hasCredits ? "Reserved credits" : "Reserved allowance",
                 value: hasCredits
                   ? credits(usage.reservedCredits)
                   : money(usage.reservedCents),
-                note: "当前任务暂时占用的余额",
+                note: "Reserved for current tasks",
               },
               {
-                label: hasCredits ? "账户总积分" : "账户总额度",
+                label: hasCredits ? "Total credits" : "Total allowance",
                 value: hasCredits
                   ? credits(usage.balanceCredits)
                   : money(usage.balanceCents),
-                note: "包含可用与预留部分",
+                note: "Includes available and reserved amounts",
               },
             ].map((item) => (
               <div key={item.label}>
@@ -147,8 +159,8 @@ export default function Credits({
           <section className="dashboard-panel">
             <div className="dashboard-section-heading">
               <div>
-                <h2>调用记录</h2>
-                <p>已结算费用与仍在预留中的调用。</p>
+                <h2>Usage history</h2>
+                <p>Settled charges and pending reservations.</p>
               </div>
             </div>
             {usage.charges?.length ? (
@@ -156,29 +168,29 @@ export default function Credits({
                 <table className="credits-table">
                   <thead>
                     <tr>
-                      <th>模型</th>
-                      <th>时间</th>
-                      <th>任务状态</th>
-                      <th>费用</th>
+                      <th>Model</th>
+                      <th>Time</th>
+                      <th>Task status</th>
+                      <th>Cost</th>
                     </tr>
                   </thead>
                   <tbody>
                     {usage.charges.slice(0, limit).map((charge) => (
                       <tr key={charge.jobId}>
-                        <td>{charge.model || "媒体处理"}</td>
+                        <td>{charge.model || "Media processing"}</td>
                         <td>
-                          {new Date(charge.createdAt).toLocaleString("zh-CN")}
+                          {new Date(charge.createdAt).toLocaleString("en-US")}
                         </td>
                         <td>{statusLabels[charge.status] ?? charge.status}</td>
                         <td>
                           {numeric(charge.chargedCredits)
-                            ? `${credits(charge.chargedCredits)} 积分`
+                            ? `${credits(charge.chargedCredits)} credits`
                             : numeric(charge.chargedCents)
                               ? money(charge.chargedCents)
                               : charge.billingStatus ===
                                   "pending_reconciliation"
-                                ? "待核对"
-                                : `预留 ${money(charge.reservedCents)}`}
+                                ? "Pending review"
+                                : `Reserved ${money(charge.reservedCents)}`}
                         </td>
                       </tr>
                     ))}
@@ -186,14 +198,14 @@ export default function Credits({
                 </table>
               </div>
             ) : (
-              <div className="dashboard-empty">暂无调用记录。</div>
+              <div className="dashboard-empty">No usage records yet.</div>
             )}
             {(usage.charges?.length ?? 0) > limit && (
               <button
                 className="dashboard-more"
                 onClick={() => setLimit((n) => n + 30)}
               >
-                查看更多记录
+                Show more
               </button>
             )}
           </section>

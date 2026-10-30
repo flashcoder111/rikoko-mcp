@@ -116,22 +116,22 @@ it("filters tasks, exposes errors, opens the correct project and previews a down
   const input = props();
   await act(async () => root.render(React.createElement(Dashboard, input)));
   expect(container.querySelectorAll(".dashboard-task")).toHaveLength(3);
-  await act(async () => button("需要关注").click());
+  await act(async () => button("Needs attention").click());
   expect(container.querySelectorAll(".dashboard-task")).toHaveLength(1);
   expect(container.querySelector(".dashboard-tasks")!.textContent).toContain(
     "供应商返回错误",
   );
-  await act(async () => button("查看项目任务").click());
+  await act(async () => button("View project tasks").click());
   expect(input.onProject).toHaveBeenCalledWith("p");
-  await act(async () => button("已完成").click());
-  await act(async () => button("查看输出").click());
+  await act(async () => button("Completed").click());
+  await act(async () => button("View output").click());
   expect(container.querySelector("dialog")!.open).toBe(true);
   expect(container.querySelector("a[download]")!.getAttribute("href")).toBe(
     "blob:preview",
   );
   await act(async () =>
     container
-      .querySelector<HTMLButtonElement>('[aria-label="关闭预览"]')!
+      .querySelector<HTMLButtonElement>('[aria-label="Close preview"]')!
       .click(),
   );
   expect(container.querySelector("dialog")).toBeNull();
@@ -140,9 +140,9 @@ it("filters tasks, exposes errors, opens the correct project and previews a down
 it("retains the last successful snapshot after refresh fails instead of showing zero counts", async () => {
   await act(async () => root.render(React.createElement(Dashboard, props())));
   vi.mocked(api).mockRejectedValue(new Error("服务暂不可用"));
-  await act(async () => button("刷新").click());
+  await act(async () => button("Refresh").click());
   expect(container.querySelector('[role="alert"]')!.textContent).toContain(
-    "上次成功读取",
+    "last successfully loaded",
   );
   expect(container.querySelectorAll(".dashboard-task")).toHaveLength(3);
 });
@@ -151,7 +151,7 @@ it("does not read disconnected data and discards a pending response after discon
   input.connected = false;
   await act(async () => root.render(React.createElement(Dashboard, input)));
   expect(api).not.toHaveBeenCalled();
-  await act(async () => button("连接工作空间").click());
+  await act(async () => button("Connect workspace").click());
   expect(input.onConnect).toHaveBeenCalledOnce();
   const resolutions: (() => void)[] = [];
   const data = fixture();
