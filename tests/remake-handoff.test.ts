@@ -742,7 +742,7 @@ it("rechecks reference evidence when assigning an existing plan to a formal proj
     }),
   ).rejects.toMatchObject({ code: "SOURCE_MISMATCH" });
 });
-it("rejects a cloud remake when its host-only report has no completed cloud analysis", async () => {
+it("allows a prepared cloud remake without a separate saved request", async () => {
   const { connectServices } =
     await import("../packages/cloud-client/src/index.js");
   const {
@@ -817,7 +817,7 @@ it("rejects a cloud remake when its host-only report has no completed cloud anal
         direction: prompts.video.direction,
         plan: { planId: saved.id, expectedVersion: 1, shotId: "target-open" },
       }),
-    ).rejects.toMatchObject({ code: "VIDEO_REQUEST_REQUIRED" });
+    ).resolves.toHaveProperty("readyForSubmission", true);
     expect(requests.some((x) => x.includes("upload"))).toBe(false);
     expect(network).not.toHaveBeenCalled();
   } finally {

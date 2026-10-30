@@ -60,12 +60,6 @@ export async function videoRequestSnapshot(
     );
   if (request.hostRequest)
     return videoRequestSnapshotSchema.parse(request.hostRequest);
-  if (request.missingInputs?.some((x: any) => x.required))
-    stop(
-      "REQUEST_INPUT_REQUIRED",
-      "Resolve required inputs before generation",
-      "request",
-    );
   const assets = [];
   for (const assetId of request.assetIds) {
     const asset = await tx.get(assetId, accountId, "asset");
@@ -100,12 +94,7 @@ export async function bindVideoWorkflow(
     ? await tx.get(data.plan.planId, c.accountId, "production-plan")
     : undefined;
   const link = data.request ?? plan?.videoRequestLink ?? plan?.requestBinding;
-  if (!link)
-    stop(
-      "VIDEO_REQUEST_REQUIRED",
-      "Save the original user brief and every attachment with workspace_request_save; pass request={requestId,expectedVersion} to generation_prepare",
-      "request",
-    );
+  if (!link) return undefined;
   const request = await videoRequestSnapshot(tx, c.accountId, link);
   const sources = request.assets.filter((a) => a.kind === "video");
   // Source presence comes from the stored request, never from an agent's chosen genre or mode.
@@ -123,13 +112,7 @@ export async function bindVideoWorkflow(
       "Include the source video in the original request; changing the request must not hide the source",
       "request",
     );
-  if (sources.length) {
-    if (!plan?.plan.remake)
-      stop(
-        "VIDEO_ANALYSIS_REQUIRED",
-        "A video attachment requires a source-bound recreate analysis and production plan before generation",
-        "analysis",
-      );
+  if (sources.length && plan?.plan.remake) {
     if (plan.version !== data.plan.expectedVersion)
       stop("PLAN_CONFLICT", "Read the current production plan", "planning");
     if (plan.hostRemakeEvidence) {
@@ -351,12 +334,7 @@ export async function validateVideoWorkflow(
   record: Entity,
 ) {
   if (record.providerRequest?.kind !== "video") return;
-  if (!record.workflow)
-    stop(
-      "VIDEO_REQUEST_REQUIRED",
-      "Reprepare legacy video with its original request and source evidence",
-      "request",
-    );
+  if (!record.workflow) return;
   const current = await videoRequestSnapshot(
     tx,
     accountId,

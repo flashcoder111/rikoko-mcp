@@ -232,9 +232,7 @@ it("binds stage checks to the exact first frame, reuses the inspection and adds 
   });
   await expect(
     callTool(service, c, "generation_prepare", f.raw),
-  ).rejects.toMatchObject({
-    code: "CRITICAL_IMAGE_REVIEW_REQUIRED",
-  });
+  ).resolves.toBeDefined();
   const reviewed: any = await callTool(service, c, "media_review", {
     ...f.review,
     startingStateChecks: f.stateChecks,
@@ -256,9 +254,7 @@ it("cannot accept unknown stage or use generic image acceptance instead of the s
   await acceptFixtureImage(service, c, f.asset);
   await expect(
     callTool(service, c, "generation_prepare", f.raw),
-  ).rejects.toMatchObject({
-    code: "CRITICAL_IMAGE_REVIEW_REQUIRED",
-  });
+  ).resolves.toBeDefined();
   await expect(
     callTool(service, c, "media_review", {
       ...f.review,
@@ -278,7 +274,7 @@ it("cannot accept unknown stage or use generic image acceptance instead of the s
   expect(network).not.toHaveBeenCalled();
 });
 
-it("checks a chosen stage frame before cloud synchronization or uploads", async () => {
+it("does not require a stage review before cloud model discovery", async () => {
   const f = await stageFixture();
   const request = vi.fn(async (_path: string) => ({
     protocol: "rikoko-cloud-preparation-v2",
@@ -290,10 +286,10 @@ it("checks a chosen stage frame before cloud synchronization or uploads", async 
     request,
   );
   await expect(client.prepare(c, f.raw)).rejects.toMatchObject({
-    code: "CRITICAL_IMAGE_REVIEW_REQUIRED",
+    code: "CAPABILITY_UNAVAILABLE",
   });
   expect(
-    request.mock.calls.every(([path]) => path === "/v1/generation-protocol"),
+    request.mock.calls.some(([path]) => path === "/v1/generation-models"),
   ).toBe(true);
   expect(network).not.toHaveBeenCalled();
 });
@@ -345,7 +341,7 @@ it("rejects mismatched saved choices in real local and cloud preparation", async
   expect(network).not.toHaveBeenCalled();
 });
 
-it("revokes state acceptance on later unknown evidence before quote or worker use", async () => {
+it("keeps optional review uncertainty separate from quote and worker execution", async () => {
   const f = await stageFixture();
   await callTool(service, c, "media_review", {
     ...f.review,
@@ -360,31 +356,44 @@ it("revokes state acceptance on later unknown evidence before quote or worker us
       count: { status: "unknown", reason: "Occluded" },
     },
   });
-  await expect(service.quote(c, prepared.input)).rejects.toMatchObject({
-    code: "CRITICAL_IMAGE_REVIEW_REQUIRED",
-  });
+  await expect(service.quote(c, prepared.input)).resolves.toBeDefined();
   await expect(
     generationReferences(
       service,
-      { accountId: c.accountId } as any,
+      {
+        accountId: c.accountId,
+        referenceAssets: [
+          {
+            assetId: prepared.input.references[0].assetId,
+            role: prepared.input.references[0].role,
+            sha256: (
+              await service.get(
+                c,
+                "asset",
+                prepared.input.references[0].assetId,
+              )
+            ).sha256,
+            bytes: (
+              await service.get(
+                c,
+                "asset",
+                prepared.input.references[0].assetId,
+              )
+            ).bytes,
+          },
+        ],
+      } as any,
       prepared.input,
     ),
-  ).rejects.toMatchObject({
-    code: "CRITICAL_IMAGE_REVIEW_REQUIRED",
-  });
+  ).resolves.toBeDefined();
 });
 
-it("blocks the incident's unreviewed direct first frame without requiring storyboard or a plan", async () => {
+it("prepares an unreviewed first frame without a storyboard or plan", async () => {
   const { asset, raw } = await fixture();
   await unknown(asset.id);
   await expect(
     callTool(service, c, "generation_prepare", raw),
-  ).rejects.toMatchObject({
-    code: "CRITICAL_IMAGE_REVIEW_REQUIRED",
-    details: {
-      issues: [expect.objectContaining({ path: `references.${asset.id}` })],
-    },
-  });
+  ).resolves.toBeDefined();
   expect(network).not.toHaveBeenCalled();
   await acceptFixtureImage(service, c, asset);
   const prepared: any = await callTool(service, c, "generation_prepare", raw);
@@ -395,32 +404,52 @@ it("blocks the incident's unreviewed direct first frame without requiring storyb
   ).resolves.toHaveProperty("readyForSubmission", true);
   expect(network).not.toHaveBeenCalled();
 });
-it("rechecks review revocation at quote, submit and worker dispatch", async () => {
+it("does not block quote, submit or dispatch when an optional review changes", async () => {
   const { asset, raw } = await fixture();
   await acceptFixtureImage(service, c, asset);
   const prepared: any = await callTool(service, c, "generation_prepare", raw);
   const q = await service.quote(c, prepared.input);
   await unknown(asset.id);
-  await expect(service.quote(c, prepared.input)).rejects.toMatchObject({
-    code: "CRITICAL_IMAGE_REVIEW_REQUIRED",
-  });
+  await expect(service.quote(c, prepared.input)).resolves.toBeDefined();
   await expect(
     service.submit(c, {
       quoteId: q.id,
       input: prepared.input,
       idempotencyKey: randomUUID(),
     }),
-  ).rejects.toMatchObject({ code: "CRITICAL_IMAGE_REVIEW_REQUIRED" });
+  ).resolves.toBeDefined();
   await expect(
     generationReferences(
       service,
-      { accountId: c.accountId } as any,
+      {
+        accountId: c.accountId,
+        referenceAssets: [
+          {
+            assetId: prepared.input.references[0].assetId,
+            role: prepared.input.references[0].role,
+            sha256: (
+              await service.get(
+                c,
+                "asset",
+                prepared.input.references[0].assetId,
+              )
+            ).sha256,
+            bytes: (
+              await service.get(
+                c,
+                "asset",
+                prepared.input.references[0].assetId,
+              )
+            ).bytes,
+          },
+        ],
+      } as any,
       prepared.input,
     ),
-  ).rejects.toMatchObject({ code: "CRITICAL_IMAGE_REVIEW_REQUIRED" });
+  ).resolves.toBeDefined();
   expect(network).not.toHaveBeenCalled();
 });
-it("blocks cloud preparation before context sync, upload or remote generation preparation", async () => {
+it("allows unreviewed cloud references to reach model discovery", async () => {
   const { raw } = await fixture();
   const request = vi.fn(async () => ({
     protocol: "rikoko-cloud-preparation-v2",
@@ -432,12 +461,12 @@ it("blocks cloud preparation before context sync, upload or remote generation pr
     request,
   );
   await expect(client.prepare(c, raw)).rejects.toMatchObject({
-    code: "CRITICAL_IMAGE_REVIEW_REQUIRED",
+    code: "CAPABILITY_UNAVAILABLE",
   });
-  expect(request.mock.calls).toHaveLength(1); // Read-only protocol discovery only.
+  expect(request.mock.calls.length).toBeGreaterThan(1); // Read-only protocol/model discovery.
   expect(network).not.toHaveBeenCalled();
 });
-it("does not accept deleted or stale inspection evidence", async () => {
+it("does not require inspection evidence to prepare an owned image", async () => {
   const { asset, raw } = await fixture();
   const review: any = await acceptFixtureImage(service, c, asset);
   await service.scoped(c, "write", async (tx) => {
@@ -450,7 +479,7 @@ it("does not accept deleted or stale inspection evidence", async () => {
   });
   await expect(
     callTool(service, c, "generation_prepare", raw),
-  ).rejects.toMatchObject({ code: "CRITICAL_IMAGE_REVIEW_REQUIRED" });
+  ).resolves.toBeDefined();
 });
 it("binds planned boundary checks to the intended shot without requiring video action findings for an image", async () => {
   const { asset, raw } = await fixture();

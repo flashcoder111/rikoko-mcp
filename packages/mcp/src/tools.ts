@@ -143,7 +143,7 @@ export const tools = {
   template_prompt_prepare: {
     schema: applyPromptTemplateSchema,
     description:
-      "Render a cached cloud or personal prompt template with text parameters, returning text, mode and frozen source provenance. No generation. Inspect and adapt the rendered direction, then use the normal generation_prepare flow with real references/model and review requirements. A prompt template never authorizes a model call or establishes visual quality.",
+      "Render a cached cloud or personal prompt template with text parameters, returning text, mode and frozen source provenance. No generation. Inspect and adapt the rendered direction, then submit with real references and the selected model; preparation and reviews are optional. A prompt template never authorizes a model call or establishes visual quality.",
   },
   template_list: {
     description:
@@ -218,7 +218,7 @@ export const tools = {
   },
   workspace_request_save: {
     description:
-      "Keep actual user messages and source-quoted userRequirements separate from plan.creativeChoices. Return communication=inform_and_continue, never a routine approval checkpoint. Persist every new attachment-based creative brief, even when missingInputs is empty, and supply its requestId/version as production_plan_save.request before reusing or creating a target plan. Also save genuinely missing material before asking for it. Save the user's original message, existing assetIds and concrete missingInputs (kind, prompt, purpose, required). No model, generation or render. Continue using requestId and current requestVersion; attachments accumulate, omitted missingInputs are preserved. After checking supplied material, explicitly replace missingInputs with the remaining gaps (empty array when satisfied). User-provided identity/product facts must not be invented. Pass requestId/requestVersion to workspace_commit after all required gaps are resolved.",
+      "Keep actual user messages and source-quoted userRequirements separate from plan.creativeChoices. Return communication=inform_and_continue, never a routine approval checkpoint. Use this optional history tool when it helps editing or recovery; direct generation does not require a saved brief or production plan. Also save genuinely missing material before asking for it. Save the user's original message, existing assetIds and concrete missingInputs (kind, prompt, purpose, required). No model, generation or render. Continue using requestId and current requestVersion; attachments accumulate, omitted missingInputs are preserved. After checking supplied material, explicitly replace missingInputs with the remaining gaps (empty array when satisfied). User-provided identity/product facts must not be invented. Pass requestId/requestVersion to workspace_commit after all required gaps are resolved.",
     schema: requestSaveSchema,
   },
   workspace_handoff_prepare: {
@@ -384,13 +384,13 @@ export const tools = {
       bytes: z.number().int().positive(),
       sha256: z.string(),
       source: z.string(),
-      license: z.string(),
-      rightsConfirmed: z.literal(true),
+      license: z.string().default("user-provided"),
+      rightsConfirmed: z.literal(true).optional(),
     }),
   },
   asset_import_url: {
     description:
-      "Import public media or a TikTok single-video/share link into the local library. Direct media returns an asset. TikTok returns a durable job (type=job, id): poll record_get with type=job, then use completed assetId/outputs[0] for analysis. Local rikoko automatically prepares missing locked yt-dlp/curl_cffi dependencies and downloads without model charges; job_cancel stops the download. Read progressMessage/error for specific failures; never resubmit to poll. Optional idempotencyKey makes retries stable. Requires confirmation of rights; never infer ownership or license from a downloadable URL. Analysis-only requests stop after analysis and never render/generate.",
+      "Import public media or a TikTok single-video/share link into the local library. Direct media returns an asset. TikTok returns a durable job (type=job, id): poll record_get with type=job, then use completed assetId/outputs[0] for analysis. Local rikoko automatically prepares missing locked yt-dlp/curl_cffi dependencies and downloads without model charges; job_cancel stops the download. Read progressMessage/error for specific failures; never resubmit to poll. Optional idempotencyKey makes retries stable. Reuse rights information already supplied; rightsConfirmed is optional and must never be fabricated. Do not repeat a rights question for the same authorized use. Analysis-only requests stop after analysis and never render/generate.",
     schema: urlImportSchema,
   },
   quote_create: {

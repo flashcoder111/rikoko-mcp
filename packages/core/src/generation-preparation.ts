@@ -13,7 +13,6 @@ import {
   assertMethodSegment,
 } from "./production-method.js";
 import { assertDirectorAudio } from "./director-kits.js";
-import { requireGenerationPreparation } from "./generation-policy.js";
 import {
   promptReferenceSyntax,
   referenceToken,
@@ -37,10 +36,8 @@ import {
   productionPlanSchema,
   productionShotDirection,
   validateProductionPlan,
-  assertEditorialSeparation,
 } from "./production-plan.js";
 import { validateStoryboardInput } from "./storyboard-state.js";
-import { assertCriticalImageReviews } from "./critical-image-review.js";
 import { assertShotReferenceChoice } from "./shot-reference-choice.js";
 import { assertPreviousEndAnchor } from "./production-continuity.js";
 import {
@@ -256,8 +253,6 @@ async function prepareGenerationImpl(
           shot.id,
           input.production?.projectId,
         );
-      if ((data.plan.stage ?? "video") === "video")
-        assertEditorialSeparation(parsed, shot.id, input.prompt);
       const expectedDirection = productionShotDirection(
         parsed,
         shot,
@@ -329,22 +324,6 @@ async function prepareGenerationImpl(
     const compiled = data.direction
       ? compilePrompt(data.direction, syntax)
       : undefined;
-    if (input.references?.length && !compiled)
-      fail(
-        "REFERENCE_DIRECTION_REQUIRED",
-        "Supply direction with each reference responsibility even when overriding prompt text",
-      );
-    if ((!compiled || compiled.prompt !== input.prompt) && !data.promptOverride)
-      fail(
-        "PROMPT_OVERRIDE_REASON_REQUIRED",
-        "Supply the exact compiled prompt, or promptOverride.reason for a handwritten prompt",
-      );
-    requireGenerationPreparation(
-      input,
-      model.kind,
-      service.allowLegacyGeneration,
-      true,
-    );
     if (
       (remakeEvidence || sourceEdit) &&
       (!compiled || compiled.prompt !== input.prompt)
@@ -421,9 +400,6 @@ async function prepareGenerationImpl(
     assertVideoPolicy(model, input, assets);
     const expectedOutput = checkGenerationTarget(model, input, assets);
     await validateStoryboardInput(tx, c.accountId, input, expectedOutput);
-    // Cloud declarations are checked in the originating host workspace before transport.
-    if (!declaredAssets)
-      await assertCriticalImageReviews(tx, c.accountId, input);
     const providerBindings = (input.references ?? []).map((ref, inputIndex) => {
       const binding = model.generationInput!.bindings.find((b) =>
         b.roles.includes(ref.role),
@@ -541,12 +517,6 @@ export async function validatePreparedGeneration(
       "PRODUCTION_PLAN_REQUIRED",
       "Prepare storyboard generation against a saved target plan",
     );
-  if (operation.kind === "generate" && !options.cloudClient)
-    requireGenerationPreparation(
-      operation,
-      service.provider.validate(operation).kind,
-      service.allowLegacyGeneration,
-    );
   if (operation.kind !== "generate" || !operation.preparedRequestId)
     return undefined;
   const record = await tx.get(
@@ -614,11 +584,6 @@ export async function validatePreparedGeneration(
       plan.hostRemakeEvidence,
     );
     if ((record.plan.stage ?? "video") === "video")
-      assertEditorialSeparation(
-        plan.plan,
-        record.plan.shotId,
-        operation.prompt,
-      );
     if (
       !record.parentPreparation &&
       record.referenceState !== "declared" &&
@@ -690,10 +655,6 @@ export async function validatePreparedGeneration(
     operation,
     record.expectedOutput ?? {},
   );
-  // A server-created cloud binding delegates review authority to the host workspace,
-  // just like storyboard review. Local/cloud-client requests are rechecked before purchase.
-  if (!record.parentPreparation)
-    await assertCriticalImageReviews(tx, accountId, operation);
   return record;
 }
 

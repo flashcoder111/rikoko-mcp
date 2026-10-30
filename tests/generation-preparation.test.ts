@@ -195,15 +195,15 @@ it("uses saved target states and invalidates the preparation after a plan revisi
   ).rejects.toMatchObject({ code: "PRODUCTION_SCOPE_CHANGED" });
   expect(fetcher).not.toHaveBeenCalled();
 });
-it("requires a manual override reason while keeping the original compiled text", async () => {
+it("accepts handwritten prompts without an override reason and retains optional provenance", async () => {
   const input = {
     kind: "generate",
     target: { width: 1280, height: 720 },
     model: model.id,
     prompt: "Handwritten closing shot",
   };
-  await expect(prepare({ input })).rejects.toMatchObject({
-    code: "PROMPT_OVERRIDE_REASON_REQUIRED",
+  await expect(prepare({ input })).resolves.toMatchObject({
+    input: { prompt: input.prompt },
   });
   const p = await prepare({
     input,
@@ -217,7 +217,7 @@ it("requires a manual override reason while keeping the original compiled text",
   expect(p.prompt.baseText).toContain(direction.action);
   await expect(
     callTool(service, c, "generation_prepare", { input }),
-  ).rejects.toMatchObject({ code: "PROMPT_OVERRIDE_REASON_REQUIRED" });
+  ).resolves.toMatchObject({ input: { prompt: input.prompt } });
 });
 it("blocks stale queued work before sending and releases the reservation", async () => {
   const reservedBefore = (await service.usage(c)).reservedCents;
@@ -419,7 +419,7 @@ it("rejects wrong model modes, input responsibilities and invalid handwritten pa
       input: raw.input,
       promptOverride: { reason: "Handwritten" },
     }),
-  ).rejects.toMatchObject({ code: "REFERENCE_DIRECTION_REQUIRED" });
+  ).resolves.toMatchObject({ input: { prompt: raw.input.prompt } });
   await expect(
     callTool(service, c, "generation_prepare", {
       ...raw,

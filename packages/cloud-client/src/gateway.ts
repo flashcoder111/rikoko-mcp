@@ -1,4 +1,3 @@
-import { requireGenerationPreparation } from "../../core/src/generation-policy.js";
 import { assertVideoPolicy } from "../../providers/src/video-policy.js";
 import { remapVideoPolicy } from "../../contracts/src/video-policy.js";
 import { requireGeminiUnderstanding } from "../../core/src/reference-handoff.js";
@@ -152,11 +151,6 @@ export class GatewayClient {
     if (!kind)
       throw new AppError("CAPABILITY_UNAVAILABLE", "Unknown cloud model");
     assertVideoPolicy(model, input, assets);
-    requireGenerationPreparation(
-      input,
-      kind,
-      this.service.allowLegacyGeneration,
-    );
   }
   async quote(c: Context, raw: unknown) {
     this.assertOwner(c);

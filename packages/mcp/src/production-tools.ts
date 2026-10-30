@@ -81,7 +81,6 @@ import {
   productionPlanSchema,
   validateProductionPlan,
   productionShotDirection,
-  assertEditorialSeparation,
   type ProductionPlan,
 } from "../../core/src/production-plan.js";
 import {
@@ -123,12 +122,12 @@ export const productionTools = {
   video_model_resolve: {
     schema: videoModelResolveSchema,
     description:
-      "Before video generation, inspect the requested scene and ALL supplied images/videos (including source video and first/last frames). Declare faces present/absent/unknown with evidence; never infer absence from metadata or only a video's first frame. Returns compatible configured candidates and hash-bound videoPolicy. Default Seedance Mini only for face-free tasks. Present/unknown blocks EVERY Seedance variant, recommends MiniMax, offers Kling, and requires interaction in the original conversation. Record userChoice only from an actual user selection (reuse an existing explicit selection). Carry returned videoPolicy into generation_prepare/job_submit. This tool does not detect faces, upload, generate or authorize spending.",
+      "Optional model-selection advice from the scene and supplied references. Direct submission does not require this tool or face classification. Reuse the selected compatible model without a separate confirmation. Record observations and userChoice only when actually supplied; unknown observations are not evidence of absence. This tool does not upload, generate or authorize additional spending.",
   },
   production_method_resolve: {
     schema: methodResolveSchema,
     description:
-      "Choose the production relationship BEFORE storyboarding or selecting a model. The host interprets the whole brief: edit_source changes the actual video while preserving everything else; transfer_properties generates new material borrowing named properties; reinterpret authors a new adaptation. Supply a concise change statement, owned sourceAssetId and subject images with their replacement roles. Returns only compatible configured candidates (Seedance Mini preferred for face-free tasks; otherwise MiniMax, subject to video_model_resolve and user choice), or a capability_gap without fallback. Preservation requirements do not force video_to_video: select a compatible MiniMax reference_to_video or edit interface. Optional model selects the user preference; explicit sourceSegments declare consecutive source excerpts when one call cannot fit the original. Returns a plan retaining original timing and canvas; optional output is an explicit user-requested size. Does not analyze, upload, generate or authorize spending. Read rikoko_guide topic=production-method.",
+      "Optionally describe the production relationship for source-based projects. The host interprets the whole brief: edit_source changes the actual video while preserving everything else; transfer_properties generates new material borrowing named properties; reinterpret authors a new adaptation. Supply a concise change statement, owned sourceAssetId and subject images with their replacement roles. Returns only compatible configured candidates (Seedance Mini preferred for face-free tasks; otherwise MiniMax, subject to video_model_resolve and user choice), or a capability_gap without fallback. Preservation requirements do not force video_to_video: select a compatible MiniMax reference_to_video or edit interface. Optional model selects the user preference; explicit sourceSegments declare consecutive source excerpts when one call cannot fit the original. Returns a plan retaining original timing and canvas; optional output is an explicit user-requested size. Does not analyze, upload, generate or authorize spending. Read rikoko_guide topic=production-method.",
   },
   director_case_record: {
     schema: directorCaseSchema,
@@ -173,12 +172,12 @@ export const productionTools = {
       model: z.string().min(1).max(120).optional(),
     }),
     description:
-      "Compile a mode-specific prompt draft without calling a model. Supply target states and actual input responsibilities. For video, prefer sceneDirection: one complete shot-local paragraph with subject, setting, initial arrangement, timed action, settled result and camera; it replaces separate scene field prose without removing explicit constraints or reference bindings. Select model to use its reference syntax; omitted model uses descriptive labels only. Returns prompt, normalized direction and template/compiler versions. This draft is not submit-ready; pass direction and exact prompt to generation_prepare with the real model and references.",
+      "Compile a mode-specific prompt draft without calling a model. Supply target states and actual input responsibilities. For video, prefer sceneDirection: one complete shot-local paragraph with subject, setting, initial arrangement, timed action, settled result and camera; it replaces separate scene field prose without removing explicit constraints or reference bindings. Select model to use its reference syntax; omitted model uses descriptive labels only. Returns prompt, normalized direction and template/compiler versions. Use the draft directly with job_submit and real references, or optionally freeze it with generation_prepare.",
   },
   generation_prepare: {
     schema: generationPrepareSchema,
     description:
-      "Persist a frozen local or cloud generation request without uploading, quoting or generating. For EVERY video supply request={requestId,expectedVersion} from workspace_request_save with the verbatim brief and all attachments. Video attachments require verified recreate analysis, a bound remake plan and the actual source video as motion/source_video; stills/reconstruct/analysis_only cannot substitute. Use generation_trace_get for diagnosis. Supply input plus direction from prompt preview; plan={planId,expectedVersion,shotId,stage?} binds saved target intent; stage=video|first_frame|last_frame must match its draft and model kind. Remake prompts must match the compiled draft exactly; revise the plan instead of overriding. For other work, handwritten or changed prompts require promptOverride.reason. Returns referenceDelivery (prepared_not_submitted, video count, asset hashes, provider fields and analysis-only exclusions), preparedRequestId inside exact input, request hash, template/compiler versions, real provider field/array bindings, public output parameters and hashed private configuration. Critical video-reference images require a current hash-bound quick review even without storyboard; unknown is blocked before generation. Previous-end anchors must be actual media_inspect frames from the preceding shot. Pass input unchanged directly to job_submit; quote_create is optional only if the user asks for pricing; never remove its preparation ID. Plan, asset or model changes require preparation again. Cloud returns a server-owned prepared draft without uploading; quote binds verified uploaded bytes to an immutable derivative. input.production binds the persistent project scope and requires the matching plan.",
+      "Optionally freeze a generation input for exact reuse and tracing. Direct job_submit needs no preparation, analysis, plan, visual review or separate price confirmation. Supply a handwritten prompt and actual owned references; direction, request and plan bindings are optional. Explicit saved plans/preparations retain ownership and immutable input checks. Return the exact input with preparedRequestId and use it unchanged when submitting. No upload, provider call or charge.",
   },
   production_plan_validate: {
     schema: productionPlanSchema,
@@ -201,7 +200,7 @@ export const productionTools = {
       })
       .strict(),
     description:
-      "Compile image and video prompt drafts from the saved plan. Prefer shot.sceneDirection for a complete concise video scene; structured states/actionStages remain the validation contract and boundary-image source. Without it, legacy structured prose is retained. Carries process operations, supports, phase budgets and explicit generationConstraints into provider prompts. Returns referenceCheck for the saved route and, only for stage_first_frame, the expected starting state and quick checks. Reuse suitable frames; image generation is not mandatory. Returns hostInstructions with separate acceptanceCriteria, requirementUses and editing; never copy host checks into the provider prompt. Editorial brand/CTA copy in footage prompts is rejected. Returns plan-derived qualityReview obligations. Version and source evidence checked; no generation. For remakes, handoffDetail=compact returns selected source shots and neighboring boundary states; full restores evidence observations, events, segment details and complete neighbors. Use the returned detail access when needed. Boundary image prompts describe static states. Host supplies actual first/last frame references in the plan when using those modes.",
+      "Compile image and video prompt drafts from the saved plan. Prefer shot.sceneDirection for a complete concise video scene; structured states/actionStages remain the validation contract and boundary-image source. Without it, legacy structured prose is retained. Carries process operations, supports, phase budgets and explicit generationConstraints into provider prompts. Returns referenceCheck for the saved route and, only for stage_first_frame, the expected starting state and quick checks. Reuse suitable frames; image generation is not mandatory. Returns hostInstructions with separate acceptanceCriteria, requirementUses and editing; never copy host checks into the provider prompt. Keep overlay copy separate when useful for editing. Returns plan-derived qualityReview obligations. Version and source evidence checked; no generation. For remakes, handoffDetail=compact returns selected source shots and neighboring boundary states; full restores evidence observations, events, segment details and complete neighbors. Use the returned detail access when needed. Boundary image prompts describe static states. Host supplies actual first/last frame references in the plan when using those modes.",
   },
   production_plan_save: {
     schema: z
@@ -506,7 +505,6 @@ async function callProductionToolImpl(
         ),
     );
     const video = compilePrompt({ ...base, mode: data.mode }, videoSyntax);
-    assertEditorialSeparation(record.plan, shot.id, video.prompt);
     return {
       planId: record.id,
       version: record.version,

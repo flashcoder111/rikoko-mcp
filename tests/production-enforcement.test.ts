@@ -75,7 +75,7 @@ afterAll(async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
-it("rejects unprepared reference video before any provider call", async () => {
+it("rejects missing owned references before any provider call", async () => {
   await expect(
     service.quote(c, {
       kind: "generate",
@@ -86,19 +86,19 @@ it("rejects unprepared reference video before any provider call", async () => {
       videoPolicy: faceFreeFixturePolicy([{ id: "missing" }]),
       target: { width: 1280, height: 720 },
     }),
-  ).rejects.toMatchObject({ code: "GENERATION_PREPARATION_REQUIRED" });
+  ).rejects.toMatchObject({ code: "NOT_FOUND" });
   expect(network).not.toHaveBeenCalled();
 });
-it("requires an explicit target for standalone video generation", async () => {
+it("allows standalone video generation without an extra target contract", async () => {
   await expect(
     service.quote(c, {
       kind: "generate",
       model: "text-video",
       prompt: "Close lid",
     }),
-  ).rejects.toMatchObject({ code: "GENERATION_TARGET_REQUIRED" });
+  ).resolves.toBeDefined();
 });
-it("does not allow the legacy switch to bypass preparation", async () => {
+it("does not require the legacy switch for direct generation", async () => {
   service.allowLegacyGeneration = true;
   try {
     await expect(
@@ -107,13 +107,13 @@ it("does not allow the legacy switch to bypass preparation", async () => {
         model: "text-video",
         prompt: "Close lid",
       }),
-    ).rejects.toMatchObject({ code: "GENERATION_PREPARATION_REQUIRED" });
+    ).resolves.toBeDefined();
   } finally {
     service.allowLegacyGeneration = false;
   }
   expect(network).not.toHaveBeenCalled();
 });
-it("blocks unprepared cloud video before uploading references or requesting a quote", async () => {
+it("retains actual output aspect validation for direct cloud inputs", async () => {
   const asset = await service.registerAsset(
     c.accountId,
     Buffer.from("synthetic frame"),
@@ -146,9 +146,9 @@ it("blocks unprepared cloud video before uploading references or requesting a qu
       videoPolicy: faceFreeFixturePolicy([asset]),
       target: { width: 1280, height: 720 },
     }),
-  ).rejects.toMatchObject({ code: "GENERATION_PREPARATION_REQUIRED" });
-  expect(requests).toHaveLength(1);
-  expect(requests[0]).toContain("/v1/generation-models");
+  ).rejects.toMatchObject({ code: "GENERATION_ASPECT_MISMATCH" });
+  expect(requests.every(url => url.endsWith("/v1/generation-models"))).toBe(true);
+  expect(requests.length).toBeGreaterThan(0);
 });
 it("uses case-sensitive Kling labels and no synthetic labels for MiniMax's first frame", async () => {
   const d = {

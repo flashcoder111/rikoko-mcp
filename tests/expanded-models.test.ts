@@ -220,7 +220,7 @@ it("checks fixed image canvas in both local and public catalog paths", () => {
   }
 });
 
-it("preserves dynamic duration, first-frame aspect and face-choice policy", () => {
+it("preserves model duration and aspect contracts without a face confirmation", () => {
   const provider = new FalProvider(expandedModels, "fixture", true);
   for (const model of expandedModels.filter((m) => m.kind === "video")) {
     const input = request(model);
@@ -241,12 +241,12 @@ it("preserves dynamic duration, first-frame aspect and face-choice policy", () =
       );
       expect(() =>
         provider.validate({ ...input, videoPolicy: undefined }),
-      ).toThrow();
+      ).not.toThrow();
     }
     const policy = { ...input.videoPolicy!, faces: "present" as const };
     expect(() =>
       provider.validate({ ...input, videoPolicy: policy }),
-    ).toThrow();
+    ).not.toThrow();
     const confirmed = {
       ...policy,
       userChoice: { model: model.id, confirmed: true as const },
@@ -254,10 +254,10 @@ it("preserves dynamic duration, first-frame aspect and face-choice policy", () =
     if (model.id.startsWith("wan-"))
       expect(() =>
         provider.validate({ ...input, videoPolicy: confirmed }),
-      ).toThrow();
+      ).not.toThrow();
     else
       expect(() =>
         provider.validate({ ...input, videoPolicy: confirmed }),
-      ).not.toThrow();
+      ).not.not.toThrow();
   }
 });

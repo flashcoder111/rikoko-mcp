@@ -91,8 +91,8 @@ export async function importUrl(
   input: {
     url: string;
     name: string;
-    license: string;
-    rightsConfirmed: true;
+    license?: string;
+    rightsConfirmed?: true;
     idempotencyKey?: string;
   },
 ) {

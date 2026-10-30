@@ -330,7 +330,7 @@ it("supports a real MCP client maintaining incremental rules and exposes read-on
     }),
   );
   try {
-    expect(client.getInstructions()).toContain("creative_context_resolve");
+    expect(client.getInstructions()).toContain("optional aids");
     const list = await client.listTools();
     expect(
       list.tools.find((tool) => tool.name === "memory_search")?.annotations

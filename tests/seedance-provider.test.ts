@@ -102,7 +102,7 @@ describe("official Seedance", () => {
       message: "Seedance rejected submission (403)",
     });
   });
-  it("rejects face/unknown input, missing credentials and unsupported duration before network", async () => {
+  it("accepts unreviewed scenes but rejects missing credentials and unsupported duration", async () => {
     const fetcher = vi.fn();
     for (const provider of [
       new SeedanceProvider([model], undefined, true, fetcher),
@@ -113,12 +113,7 @@ describe("official Seedance", () => {
       });
     const provider = new SeedanceProvider([model], "key", true, fetcher);
     for (const faces of ["present", "unknown"] as const)
-      await expect(
-        provider.submit({
-          ...input,
-          videoPolicy: { ...input.videoPolicy!, faces },
-        }),
-      ).rejects.toMatchObject({ code: "SEEDANCE_FACE_BLOCKED" });
+      expect(() => provider.validate({ ...input, videoPolicy: { ...input.videoPolicy!, faces } })).not.toThrow();
     await expect(
       provider.submit({ ...input, parameters: { duration: "3" } }),
     ).rejects.toMatchObject({ code: "INVALID_MODEL_INPUT" });

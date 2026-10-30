@@ -32,8 +32,8 @@ export const importFileSchema = z
   .object({
     path: z.string().min(1),
     name: z.string().min(1).max(160).optional(),
-    license: z.string().min(1).max(500),
-    rightsConfirmed: z.literal(true),
+    license: z.string().min(1).max(500).default("user-provided"),
+    rightsConfirmed: z.literal(true).optional(),
   })
   .strict();
 
@@ -123,7 +123,7 @@ export class HostFiles {
         sha256: sha256(bytes),
         source: "host-attachment",
         license: data.license,
-        rightsConfirmed: true,
+        ...(input.rightsConfirmed ? { rightsConfirmed: true } : {}),
       })) as { id: string };
       const uploadId = idSchema.parse(intent.id);
       const response = await this.connection.request(

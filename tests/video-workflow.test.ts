@@ -88,22 +88,20 @@ async function input() {
     target: { width: 1280, height: 720 },
   };
 }
-it("cannot prepare video by omitting the original request, even without references", async () => {
+it("can prepare video without a separate saved request", async () => {
   await expect(
     callTool(service, c, "generation_prepare", {
       input: await input(),
       direction,
     }),
-  ).rejects.toMatchObject({ code: "VIDEO_REQUEST_REQUIRED" });
+  ).resolves.toBeDefined();
   expect(network).not.toHaveBeenCalled();
 });
-it("cannot submit an unprepared text-only video to bypass the workflow", async () => {
-  await expect(service.quote(c, (await input()) as any)).rejects.toMatchObject({
-    code: "GENERATION_PREPARATION_REQUIRED",
-  });
+it("can quote and submit a text-only video without a preparation", async () => {
+  await expect(service.quote(c, (await input()) as any)).resolves.toBeDefined();
   expect(network).not.toHaveBeenCalled();
 });
-it("a source attachment cannot be hidden as analysis-only in a plan without analysis", async () => {
+it("allows a source attachment in an optional plan without mandatory analysis", async () => {
   const source = await service.registerAsset(
     c.accountId,
     Buffer.from("original dance"),
@@ -148,7 +146,7 @@ it("a source attachment cannot be hidden as analysis-only in a plan without anal
         ],
       },
     }),
-  ).rejects.toMatchObject({ code: "VIDEO_ANALYSIS_REQUIRED" });
+  ).resolves.toBeDefined();
   expect(network).not.toHaveBeenCalled();
 });
 
@@ -231,7 +229,7 @@ it("keeps ordinary original video creation usable with an explicit saved brief",
   );
   expect(trace.stages.analysis).toBeNull();
 });
-it("rejects a source video even when host drops all reference fields and claims text-to-video", async () => {
+it("keeps a source request snapshot without requiring paid analysis for a separate text generation", async () => {
   const f = await sourcePlan();
   await expect(
     callTool(service, c, "generation_prepare", {
@@ -239,7 +237,7 @@ it("rejects a source video even when host drops all reference fields and claims 
       direction,
       request: { requestId: f.request.requestId, expectedVersion: 1 },
     }),
-  ).rejects.toMatchObject({ code: "VIDEO_ANALYSIS_REQUIRED" });
+  ).resolves.toBeDefined();
 });
 it("requires real completed analysis, not an uploaded JSON claim", async () => {
   const f = await sourcePlan({ trusted: false });
@@ -303,32 +301,12 @@ it("preserves the source, analysis, host plan and final provider bindings as sep
   ).toBe(1);
   expect(network).not.toHaveBeenCalled();
 });
-it("failed attempts have owned stage-specific traces without spending", async () => {
-  let id: string;
-  try {
-    await callTool(service, c, "generation_prepare", {
-      input: await input(),
-      direction,
-    });
-    throw Error("unexpected success");
-  } catch (e: any) {
-    expect(e.code).toBe("VIDEO_REQUEST_REQUIRED");
-    id = e.details.recordId;
-  }
-  const trace: any = await callTool(service, c, "generation_trace_get", {
-    id: id!,
-  });
-  expect(trace).toMatchObject({
-    stage: "request",
-    code: "VIDEO_REQUEST_REQUIRED",
-    outcome: "rejected",
-  });
-  const other = await service.authenticate(
-    (await service.createAccount("other", 100)).key,
-  );
-  await expect(
-    callTool(service, other, "generation_trace_get", { id: id! }),
-  ).rejects.toMatchObject({ code: "NOT_FOUND" });
+it("optional preparations keep owned traces without spending", async () => {
+  const prepared: any = await callTool(service, c, "generation_prepare", { input: await input(), direction });
+  const trace: any = await callTool(service, c, "generation_trace_get", { id: prepared.id });
+  expect(trace.stages.request).toBeNull();
+  const other = await service.authenticate((await service.createAccount("other", 100)).key);
+  await expect(callTool(service, other, "generation_trace_get", { id: prepared.id })).rejects.toMatchObject({ code: "NOT_FOUND" });
   expect(network).not.toHaveBeenCalled();
 });
 
@@ -533,12 +511,12 @@ it("cloud verifies actual analysis jobs, uploads the source and invalidates stal
   }
 });
 
-it("cannot bypass preparation by enabling the deprecated legacy switch", async () => {
+it("direct generation is independent of the deprecated legacy switch", async () => {
   service.allowLegacyGeneration = true;
   try {
     await expect(
       service.quote(c, (await input()) as any),
-    ).rejects.toMatchObject({ code: "GENERATION_PREPARATION_REQUIRED" });
+    ).resolves.toBeDefined();
   } finally {
     service.allowLegacyGeneration = false;
   }

@@ -4,8 +4,8 @@ export const urlImportSchema = z
   .object({
     url: z.url().max(4096),
     name: z.string().min(1).max(120),
-    license: z.string().min(1).max(100),
-    rightsConfirmed: z.literal(true),
+    license: z.string().min(1).max(100).default("user-provided"),
+    rightsConfirmed: z.literal(true).optional(),
     idempotencyKey: z.string().min(1).max(128).optional(),
   })
   .strict();

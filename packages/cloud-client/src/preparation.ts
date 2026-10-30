@@ -10,9 +10,7 @@ import {
   assertMethodSource,
 } from "../../core/src/production-method.js";
 import { randomUUID } from "node:crypto";
-import { assertCriticalImageReviews } from "../../core/src/critical-image-review.js";
 import { assertPreviousEndAnchor } from "../../core/src/production-continuity.js";
-import { assertEditorialSeparation } from "../../core/src/production-plan.js";
 import { assertShotReferenceChoice } from "../../core/src/shot-reference-choice.js";
 import type { ProductionPlan } from "../../core/src/production-plan.js";
 import {
@@ -211,7 +209,6 @@ export class PreparationClient {
         c.accountId,
         input,
       );
-      await assertCriticalImageReviews(tx, c.accountId, input);
 
       let localPlan: Entity | null | undefined, remotePlan, remakeEvidence;
       if (data.plan) {
@@ -247,11 +244,6 @@ export class PreparationClient {
           if (!shot)
             throw new AppError("INVALID_SHOT", "Choose a shot from this plan");
           assertShotReferenceChoice(shot, input.mode ?? data.direction?.mode);
-          assertEditorialSeparation(
-            localPlan.plan,
-            data.plan.shotId,
-            input.prompt,
-          );
           await assertPreviousEndAnchor(
             tx,
             c.accountId,

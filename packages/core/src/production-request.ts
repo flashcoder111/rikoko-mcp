@@ -84,14 +84,7 @@ export async function bindProductionRequest(
     assets.push({ assetId, sha256: asset.sha256 });
     if (asset.kind === "video") {
       hasSourceVideo = true;
-      if (!plan.remake)
-        throw new AppError(
-          "VIDEO_ANALYSIS_REQUIRED",
-          "Analyze the original video before planning; video attachments cannot be excluded or treated only as still images",
-          409,
-          { stage: "analysis" },
-        );
-      if (exclusions.has(assetId))
+      if (plan.remake && exclusions.has(assetId))
         throw new AppError(
           "SOURCE_VIDEO_REFERENCE_REQUIRED",
           "The original video cannot be excluded from its generation workflow",

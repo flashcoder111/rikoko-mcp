@@ -230,7 +230,7 @@ it("enforces Nano minimum prompt length and rejects raw URL/billing overrides", 
   expect(fetcher).not.toHaveBeenCalled();
 });
 
-it("does not allow new Seedance versions or FLUX to bypass face policy", () => {
+it("accepts supported model inputs without a face-review gate", () => {
   const provider = new FalProvider(latestModels, "fixture", true, vi.fn(), {
     testing: true,
   });
@@ -249,17 +249,17 @@ it("does not allow new Seedance versions or FLUX to bypass face policy", () => {
             ...input,
             videoPolicy: { ...videoPolicy, userChoice: undefined },
           }),
-        ).toThrow();
+        ).not.toThrow();
         expect(() =>
           provider.validate({ ...input, videoPolicy }),
-        ).not.toThrow();
+        ).not.not.toThrow();
       } else
-        expect(() => provider.validate({ ...input, videoPolicy })).toThrow();
+        expect(() => provider.validate({ ...input, videoPolicy })).not.toThrow();
     }
     if (input.references?.length || model.id.startsWith("seedance-"))
       expect(() =>
         provider.validate({ ...input, videoPolicy: undefined }),
-      ).toThrow();
+      ).not.toThrow();
   }
 });
 

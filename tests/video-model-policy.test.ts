@@ -66,108 +66,43 @@ const input = (
     videoPolicy: policy(faces, choice),
   });
 
-it("ranks Seedance Mini first only when faces are absent, with available compatible alternatives", () => {
+it("selects a compatible configured default without a face-review confirmation", () => {
   expect(defaultGenerationModel(provider.describe())?.id).toBe(seedance.id);
-  const absent = resolveVideoModel(
-    { faces: "absent", reason: "No faces in scene" },
-    [],
-    provider.describe(),
-  );
-  expect(absent).toMatchObject({ status: "ready", selectedModel: seedance.id });
-  for (const faces of ["present", "unknown"] as const) {
-    const result = resolveVideoModel(
-      { faces, reason: "Observed face or insufficient evidence" },
-      [],
-      provider.describe(),
-    );
+  for (const faces of ["absent", "present", "unknown"] as const) {
+    const result = resolveVideoModel({ faces }, [], provider.describe());
     expect(result).toMatchObject({
-      status: "user_choice_required",
-      recommendedModel: minimax.id,
-      userInteraction: { required: true },
-    });
-    expect(result.candidates.map((m) => m.modelId)).toEqual([
-      minimax.id,
-      kling.id,
-    ]);
-    expect(result.excluded).toContainEqual({
-      modelId: seedance.id,
-      reason: "SEEDANCE_FACE_BLOCKED",
-    });
-    const confirmed = resolveVideoModel(
-      {
-        faces,
-        reason: "Observed face",
-        userChoice: { model: kling.id, confirmed: true },
-      },
-      [],
-      provider.describe(),
-    );
-    expect(confirmed).toMatchObject({
       status: "ready",
-      selectedModel: kling.id,
+      selectedModel: seedance.id,
+      userInteraction: { required: false },
     });
+    expect(result.candidates).toHaveLength(3);
   }
-});
-it("does not silently replace an explicitly blocked or unavailable selection", () => {
-  const selected = resolveVideoModel(
-    { faces: "present", reason: "Face", model: seedance.id },
-    [],
-    provider.describe(),
-  );
-  expect(selected).toMatchObject({
-    status: "user_choice_required",
-    selectedModel: null,
-  });
-  const absent = resolveVideoModel(
-    { faces: "absent", reason: "No face" },
-    [],
-    new FalProvider([minimax, kling], "fixture", true).describe(),
-  );
-  expect(absent.status).toBe("user_choice_required");
   expect(
-    resolveVideoModel(
-      { faces: "present", reason: "Face" },
-      [],
-      new FalProvider([seedance], "fixture", true).describe(),
-    ).status,
-  ).toBe("capability_gap");
+    resolveVideoModel({ model: kling.id }, [], provider.describe()),
+  ).toMatchObject({ status: "ready", selectedModel: kling.id });
 });
-it.each(["seedance-mini", "seedance-fast", "seedance-2.5", "custom-alias"])(
-  "blocks the entire Seedance family including endpoint aliases: %s",
-  async (id) => {
-    const model = {
-      ...seedance,
-      id,
-      name: "Custom",
-      endpoint: "bytedance/seedance-2.0/mini/text-to-video",
-    };
-    const p = new FalProvider([model], "fixture", true, network);
-    for (const status of ["present", "unknown"] as const)
-      await expect(p.submit(input(id, status, id))).rejects.toMatchObject({
-        code: "SEEDANCE_FACE_BLOCKED",
-      });
-    expect(network).not.toHaveBeenCalled();
-  },
-);
-it("requires explicit review for Seedance and does not reuse confirmation for another model", () => {
-  expect(() =>
-    provider.validate(
-      operationSchema.parse({
-        kind: "generate",
-        model: seedance.id,
-        prompt: "scene",
-      }),
-    ),
-  ).toThrow(expect.objectContaining({ code: "VIDEO_FACE_REVIEW_REQUIRED" }));
-  expect(() => provider.validate(input(minimax.id, "present"))).toThrow(
-    expect.objectContaining({ code: "VIDEO_MODEL_CHOICE_REQUIRED" }),
-  );
-  expect(() =>
-    provider.validate(input(kling.id, "present", minimax.id)),
-  ).toThrow(expect.objectContaining({ code: "VIDEO_MODEL_CHOICE_REQUIRED" }));
-  expect(() =>
-    provider.validate(input(kling.id, "present", kling.id)),
-  ).not.toThrow();
+it("does not replace an unavailable explicit selection", () => {
+  expect(
+    resolveVideoModel({ model: "missing" }, [], provider.describe()),
+  ).toMatchObject({ selectedModel: null, userInteraction: { required: true } });
+  expect(resolveVideoModel({}, [], [])).toMatchObject({
+    status: "capability_gap",
+  });
+});
+it("accepts direct video input without review records or repeated model confirmation", () => {
+  for (const model of [seedance, minimax, kling]) {
+    expect(() =>
+      provider.validate(
+        operationSchema.parse({
+          kind: "generate",
+          model: model.id,
+          prompt: "scene",
+        }),
+      ),
+    ).not.toThrow();
+    expect(() => provider.validate(input(model.id, "unknown"))).not.toThrow();
+  }
+  expect(network).not.toHaveBeenCalled();
 });
 const picture: Entity = {
   id: "picture",
@@ -201,12 +136,12 @@ function frameInput(faces: FaceStatus = "absent") {
     },
   });
 }
-it("requires complete visual review, treats reference faces as present, and rejects changed bytes", () => {
+it("keeps explicit observation hashes accurate without blocking unreviewed references", () => {
   const op = frameInput();
   expect(() => assertVideoPolicy(frame, op, [picture])).not.toThrow();
   expect(() =>
     assertVideoPolicy(frame, frameInput("present"), [picture]),
-  ).toThrow(expect.objectContaining({ code: "SEEDANCE_FACE_BLOCKED" }));
+  ).not.toThrow();
   expect(() =>
     assertVideoPolicy(frame, op, [{ ...picture, sha256: "b".repeat(64) }]),
   ).toThrow(expect.objectContaining({ code: "VIDEO_FACE_REVIEW_STALE" }));
@@ -225,7 +160,7 @@ it("requires complete visual review, treats reference faces as present, and reje
       { ...op, model: "minimax-frame", videoPolicy: undefined },
       [picture],
     ),
-  ).toThrow(expect.objectContaining({ code: "VIDEO_FACE_REVIEW_REQUIRED" }));
+  ).not.toThrow();
 });
 it("offers only compatible modes and binds observed reference hashes without network calls", () => {
   const p = new FalProvider([seedance, frame], "fixture", true, network);
@@ -293,54 +228,23 @@ afterAll(async () => {
   await db.close();
   await rm(dir, { recursive: true, force: true });
 });
-it("exposes host interaction and blocks direct submission before reservation or network", async () => {
+it("queues direct video once and retains the normal reservation", async () => {
   const result = await callTool(service, c, "video_model_resolve", {
     faces: "present",
-    reason: "User requested a presenter",
   });
-  expect(result.status).toBe("user_choice_required");
+  expect(result.status).toBe("ready");
   const before = await service.usage(c);
-  await expect(
-    callTool(service, c, "job_submit", {
-      input: input(seedance.id, "present"),
-      idempotencyKey: "blocked-face",
-    }),
-  ).rejects.toMatchObject({ code: "SEEDANCE_FACE_BLOCKED" });
-  expect((await service.usage(c)).reservedCents).toBe(before.reservedCents);
-  expect(network).not.toHaveBeenCalled();
-});
-
-it("enforces the face block in the local cloud gateway even in legacy migration mode", async () => {
-  const { GatewayClient } =
-    await import("../packages/cloud-client/src/gateway.js");
-  const fetcher = vi.fn(async (url: string) => {
-    if (!url.endsWith("/v1/generation-models"))
-      throw Error("Must not upload, quote or submit");
-    return Response.json([
-      {
-        id: "alias",
-        name: "Custom video",
-        kind: "video",
-        available: true,
-        videoFamily: "seedance",
-      },
-    ]);
-  });
-  const gateway = new GatewayClient(
-    service,
-    "https://cloud.example.com",
-    "fixture",
-    fetcher as typeof fetch,
+  const request = {
+    input: input(seedance.id, "present"),
+    idempotencyKey: "direct-face",
+  };
+  const first = await callTool(service, c, "job_submit", request);
+  const duplicate = await callTool(service, c, "job_submit", request);
+  expect(duplicate.id).toBe(first.id);
+  expect((await service.usage(c)).reservedCents).toBeGreaterThan(
+    before.reservedCents,
   );
-  service.allowLegacyGeneration = true;
-  try {
-    await expect(
-      gateway.quote(c, input("alias", "present")),
-    ).rejects.toMatchObject({ code: "SEEDANCE_FACE_BLOCKED" });
-    expect(fetcher).toHaveBeenCalledTimes(1);
-  } finally {
-    service.allowLegacyGeneration = false;
-  }
+  expect(network).not.toHaveBeenCalled();
 });
 
 it("keeps face observations and confirmation out of the provider payload", async () => {

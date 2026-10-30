@@ -1208,8 +1208,8 @@ export class Service {
           .max(100 * 1024 * 1024),
         sha256: z.string().regex(/^[a-f0-9]{64}$/),
         source: z.string().min(1).max(1000),
-        license: z.string().min(1).max(100),
-        rightsConfirmed: z.literal(true),
+        license: z.string().min(1).max(100).default("user-provided"),
+        rightsConfirmed: z.literal(true).optional(),
       })
       .parse(raw);
     return this.db.transaction(async (tx) => {

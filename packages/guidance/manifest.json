@@ -32,7 +32,7 @@
     "models/minimax-h3": "3b1391678366974d26a8ed3a2e2f03108f6682764dff367d385be1e15c190a0d",
     "models/prompt-writing": "54d088c63f1ed92be8400047a8e6666e4da4382ce7d79a02635e40a58116bf9c",
     "models/seedance-mini": "ab53008b18af7c9c18b57d2ab8ed8d3f9705b0072deeb696b19b9070224e4448",
-    "overview": "91d3e11c5c0ccae9a832ca75cbe54ae49cd6ce1e6fc8ff2b6dfaf72f11578ebb",
+    "overview": "d12f9ed28913995e4db67053c2096d1c0c3a44ce53ef1bcf8df516455caf04b5",
     "process-broll": "243d457d6e291b26ead085fe8e391af3a0689ac4c3a3c9703b859edbd62db119",
     "production-method": "e522d3c0cbbeb64106733299cd6d0740c0f469e3b40bf41c6136284a68a5c96c",
     "production-quality": "6fbe0bc93faa806a1206fe8405fa45061f7eba749e71c5ef1edcb57d4357c3e4",
@@ -43,7 +43,7 @@
     "support/host-claude": "2cf997f0fb805ba3d114d1e74d83e0ddc358022ffb425e5043aaa9fb1526dc8e",
     "support/host-codex": "f2e39fa6a97c3f2610aaa028f603fd2b5265ad0ed1a49c8500803b34916fd34f",
     "support/host-hermes": "0021018c73bff01c6b6ed7c72afe259619f86de357f76e8e28c7c951a04f2c16",
-    "support/overview": "91d3e11c5c0ccae9a832ca75cbe54ae49cd6ce1e6fc8ff2b6dfaf72f11578ebb",
+    "support/overview": "d12f9ed28913995e4db67053c2096d1c0c3a44ce53ef1bcf8df516455caf04b5",
     "talking-head-ads": "c875171094368d9468f6140e870615da54f1b71b3e9136b975347f119e1fa917",
     "ugc-ads": "8f8d5b4dd739a9f231b59053f8c159750de032ca854cae5d16369d8f03e501c8",
     "video-direction": "c02eaf118056aeb121c28cc3a0d3498625979698742d082d91c51d3a4d59f555",
@@ -99,5 +99,5 @@
     "support/creative-memory": "support/creative-memory.md"
   },
   "catalogHash": "03bc097be7f48be72c0d57bbb536c36685469ebf94d3e5fa5ce1b1292b24005e",
-  "guideVersion": "7b0994e3fc97859616b4dcd80ece1551ac641dac631affcaffe25d6cbd01cbd5"
+  "guideVersion": "e9a84b53f98b76cd4d8ad935203866a3579fa0c132c4dcf2161859eb2ab60d6c"
 }

@@ -183,7 +183,7 @@ describe("SeeAPI Seedance Mini", () => {
       ).rejects.toBeInstanceOf(SubmissionUnknown);
     },
   );
-  it("rejects unsupported/missing settings and all Seedance faces before the network", async () => {
+  it("rejects unsupported or missing settings before the network", async () => {
     const fetcher = vi.fn();
     for (const provider of [
       new SeeApiProvider([model], undefined, true, fetcher),
@@ -194,12 +194,7 @@ describe("SeeAPI Seedance Mini", () => {
       });
     const provider = new SeeApiProvider([model], "key", true, fetcher);
     for (const faces of ["present", "unknown"] as const)
-      await expect(
-        provider.submit({
-          ...input,
-          videoPolicy: { ...input.videoPolicy!, faces },
-        }),
-      ).rejects.toMatchObject({ code: "SEEDANCE_FACE_BLOCKED" });
+      expect(() => provider.validate({ ...input, videoPolicy: { ...input.videoPolicy!, faces } })).not.toThrow();
     for (const parameters of [
       { duration: 16 },
       { duration: -1 },

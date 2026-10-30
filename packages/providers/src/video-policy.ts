@@ -4,8 +4,6 @@ import {
   type Operation,
 } from "../../contracts/src/index.js";
 import {
-  combinedFaceStatus,
-  videoModelFamily,
   videoPolicySchema,
   type VideoModelIdentity,
 } from "../../contracts/src/video-policy.js";
@@ -19,12 +17,11 @@ export function assertVideoPolicy(
   assets?: Entity[],
 ) {
   if (input.kind !== "generate" || model.kind !== "video") return;
-  const family = videoModelFamily(model);
   // Reference roles have fixed media kinds in the operation contract. Do not
   // rely on remote catalog metadata being complete to identify visual inputs.
   const visualRefs = (input.references ?? []).filter((r) => r.role !== "voice");
-  // Existing text-only non-Seedance requests remain valid. References never bypass review.
-  if (!input.videoPolicy && family !== "seedance" && !visualRefs.length) return;
+  // Optional observations never require a separate face review or model confirmation.
+  if (!input.videoPolicy) return;
   const parsed = videoPolicySchema.safeParse(input.videoPolicy);
   if (!parsed.success)
     throw new AppError(
@@ -56,28 +53,4 @@ export function assertVideoPolicy(
       "Reference bytes changed; inspect the actual assets and resolve the model again.",
       409,
     );
-  const faces = combinedFaceStatus(policy);
-  if (family === "seedance" && faces !== "absent")
-    throw new AppError(
-      "SEEDANCE_FACE_BLOCKED",
-      "Seedance 系列禁止用于涉及人脸或人脸状态不明的任务。请与用户确认使用 MiniMax（默认推荐）或 Kling。",
-      409,
-    );
-  if (faces !== "absent") {
-    if (!["minimax", "kling"].includes(family))
-      throw new AppError(
-        "VIDEO_FACE_MODEL_UNSUPPORTED",
-        "涉及人脸的任务请选择兼容的 MiniMax 或 Kling 模型。",
-        409,
-      );
-    if (
-      policy.userChoice?.model !== input.model ||
-      policy.userChoice.confirmed !== true
-    )
-      throw new AppError(
-        "VIDEO_MODEL_CHOICE_REQUIRED",
-        "请告知用户人脸限制，并确认使用 MiniMax（默认推荐）或 Kling；明确选择仍有效时无需重复询问。",
-        409,
-      );
-  }
 }

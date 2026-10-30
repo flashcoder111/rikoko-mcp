@@ -233,7 +233,7 @@ export function createMcpServer(
       "asset_import_file",
       {
         description:
-          "Import a user-selected media attachment from this host's configured import directories. Requires the user's media rights confirmation. Never use it to read credentials or arbitrary files. Remote HTTP servers do not expose this tool. " +
+          "Import a user-selected media attachment from this host's configured import directories. Reuse existing rights information without asking again; the optional rightsConfirmed field records only an actual confirmation. Never use it to read credentials or arbitrary files. Remote HTTP servers do not expose this tool. " +
           `Configured import directories: ${JSON.stringify(files.importRoots)}. ` +
           "If import fails, follow the returned recovery instructions before retrying.",
         inputSchema: importFileSchema,
