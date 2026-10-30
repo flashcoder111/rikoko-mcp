@@ -87,7 +87,16 @@ it("requires a decision for current request-bound source shots, while legacy pla
   };
   await expect(
     bindProductionRequest(tx, "owner", parsed, binding),
-  ).rejects.toMatchObject({ code: "VIDEO_ANALYSIS_REQUIRED" });
+  ).rejects.toMatchObject({ code: "SOURCE_VIDEO_DECISION_REQUIRED" });
+  parsed.shots[0].sourceVideo = {
+    strategy: "reference",
+    assetId: motion.assetId,
+  };
+  // A source-delivery decision does not require an analysis report.
+  await expect(
+    bindProductionRequest(tx, "owner", parsed, binding),
+  ).resolves.toHaveProperty("assets");
+  delete parsed.shots[0].sourceVideo;
   parsed.remake = {
     analysisAssetId: "analysis",
     analysisSha256: "a".repeat(64),

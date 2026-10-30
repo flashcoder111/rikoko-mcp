@@ -65,7 +65,10 @@ it.each(["codex", "hermes", "claude", "generic"])(
       expect(client.getServerCapabilities()?.resources).toBeUndefined();
       expect(client.getInstructions()).toContain("in this conversation");
       expect(client.getInstructions()).toContain(
-        "Deliver existing technically ready media",
+        "Deliver available media promptly with honest limitations",
+      );
+      expect(client.getInstructions()).toContain(
+        "Do not delay delivery for creative acceptance",
       );
       for (const name of ["rikoko_create", "rikoko_resume"]) {
         const prompt = await client.getPrompt({
